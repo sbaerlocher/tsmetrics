@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -122,7 +123,9 @@ func setupTsnetStateDir(dir string) string {
 		dir = "/tmp/tsnet-tsmetrics"
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Printf("failed to create state directory %s: %v", dir, err)
 		return ""
 	}
+	log.Printf("using tsnet state directory: %s", dir)
 	return dir
 }

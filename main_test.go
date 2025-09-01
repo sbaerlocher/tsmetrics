@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -499,5 +500,47 @@ func TestEnhancedHealthEndpoint(t *testing.T) {
 
 	if result["api_status"] != "not_configured" {
 		t.Errorf("expected api_status=not_configured, got %v", result["api_status"])
+	}
+}
+
+// TestAPIConnectivity tests the API connectivity check functionality
+func TestAPIConnectivity(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusCode    int
+		expectSuccess bool
+		expectError   bool
+	}{
+		{"successful_connection", http.StatusOK, true, false},
+		{"unauthorized_but_reachable", http.StatusUnauthorized, true, false},
+		{"not_found", http.StatusNotFound, false, true},
+		{"server_error", http.StatusInternalServerError, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "HEAD" {
+					w.WriteHeader(tt.statusCode)
+				}
+			}))
+			defer mockAPI.Close()
+
+			client := NewAPIClientWithToken("test-token", "test")
+			// Override baseURL to use mock server
+			parsedURL, _ := url.Parse(mockAPI.URL)
+			client.baseURL = parsedURL.Scheme + "://" + parsedURL.Host + "/api/v2/tailnet/test"
+
+			ctx := context.Background()
+			success, err := client.testConnectivity(ctx)
+
+			if success != tt.expectSuccess {
+				t.Errorf("expected success=%v, got success=%v", tt.expectSuccess, success)
+			}
+
+			if (err != nil) != tt.expectError {
+				t.Errorf("expected error=%v, got err=%v", tt.expectError, err)
+			}
+		})
 	}
 }
