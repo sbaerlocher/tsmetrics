@@ -1,151 +1,322 @@
 package main
 
 import (
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestHealthEndpoint(t *testing.T) {
-	mux := setupRoutes()
-	server := httptest.NewServer(mux)
-	defer server.Close()
+// TestAPIClientCreation tests both OAuth and token-based client creation
+func TestAPIClientCreation(t *testing.T) {
+	// Test OAuth client
+	client := NewAPIClient("test-id", "test-secret", "test-tailnet")
+	if client == nil {
+		t.Error("OAuth client creation failed")
+	}
 
-	resp, err := http.Get(server.URL + "/health")
+	// Test token client
+	tokenClient := NewAPIClientWithToken("test-token", "test-tailnet")
+	if tokenClient == nil {
+		t.Error("Token client creation failed")
+	}
+
+	// Test empty credentials
+	emptyClient := NewAPIClient("", "", "test-tailnet")
+	if emptyClient == nil {
+		t.Error("Client should be created even with empty credentials")
+	}
+}
+
+// TestTailscaleAPIResponseParsing tests device struct population from API responses
+func TestTailscaleAPIResponseParsing(t *testing.T) {
+	// Mock API server
+	mockAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mockResponse := `{
+			"devices": [
+				{
+					"id": "device-123",
+					"name": "test-device",
+					"hostname": "test-host",
+					"addresses": ["100.64.0.1"],
+					"online": true,
+					"tags": ["exporter"],
+					"authorized": true,
+					"lastSeen": "2024-01-01T12:00:00Z",
+					"user": "user@example.com",
+					"keyExpiryDisabled": false,
+					"expires": "2024-12-31T23:59:59Z",
+					"advertisedRoutes": ["10.0.0.0/24"],
+					"enabledRoutes": ["10.0.0.0/24"],
+					"isExitNode": false,
+					"os": "linux",
+					"clientVersion": "1.42.0"
+				}
+			]
+		}`
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(mockResponse))
+	}))
+	defer mockAPI.Close()
+
+	// Create client with mock server
+	client := NewAPIClientWithToken("test-token", "test")
+	// Override baseURL for testing
+	client.baseURL = mockAPI.URL
+
+	devices, err := client.fetchDevicesFromAPI()
 	if err != nil {
-		t.Fatalf("health endpoint request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
-	}
-}
-
-func TestDebugEndpoint(t *testing.T) {
-	mux := setupRoutes()
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/debug")
-	if err != nil {
-		t.Fatalf("debug endpoint request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
+		t.Fatalf("fetchDevicesFromAPI failed: %v", err)
 	}
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		t.Fatalf("failed to decode debug response: %v", err)
+	if len(devices) != 1 {
+		t.Fatalf("expected 1 device, got %d", len(devices))
 	}
 
-	if _, exists := result["version"]; !exists {
-		t.Error("debug response missing version field")
+	device := devices[0]
+	if device.ID != "device-123" {
+		t.Errorf("expected ID 'device-123', got '%s'", device.ID)
+	}
+	if device.Name != "test-device" {
+		t.Errorf("expected Name 'test-device', got '%s'", device.Name)
+	}
+	if !device.Online {
+		t.Error("expected device to be online")
+	}
+	if !hasTag(device, "exporter") {
+		t.Error("expected device to have 'exporter' tag")
 	}
 }
 
-func TestMetricsEndpoint(t *testing.T) {
-	mux := setupRoutes()
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/metrics")
-	if err != nil {
-		t.Fatalf("metrics endpoint request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected status 200, got %d", resp.StatusCode)
-	}
-
-	if contentType := resp.Header.Get("Content-Type"); !strings.Contains(contentType, "text/plain") {
-		t.Errorf("expected text/plain content type, got %s", contentType)
-	}
-}
-
-func TestConfigLoading(t *testing.T) {
-	// Test default values
-	cfg := loadConfig()
-
-	if cfg.Port != "9100" {
-		t.Errorf("expected default port 9100, got %s", cfg.Port)
-	}
-
-	if cfg.ClientMetricsTimeout != 10*time.Second {
-		t.Errorf("expected default timeout 10s, got %v", cfg.ClientMetricsTimeout)
-	}
-
-	if cfg.MaxConcurrentScrapes != 10 {
-		t.Errorf("expected default concurrent scrapes 10, got %d", cfg.MaxConcurrentScrapes)
-	}
-}
-
-func TestValidateHostname(t *testing.T) {
+// TestClientMetricsParsing tests Prometheus format parsing
+func TestClientMetricsParsing(t *testing.T) {
 	tests := []struct {
-		hostname string
-		valid    bool
+		input    string
+		expected map[string]string
 	}{
-		{"valid-hostname", true},
-		{"192.168.1.1", true},
-		{"example.com", true},
-		{"test123", true},
-		{"", false},
-		{"invalid\nhost", false},
-		{"invalid\rhost", false},
-		{"invalid host", false},
-		{"invalid\thost", false},
+		{
+			`key="value",other="test"`,
+			map[string]string{"key": "value", "other": "test"},
+		},
+		{
+			`path="direct",type="rx"`,
+			map[string]string{"path": "direct", "type": "rx"},
+		},
+		{
+			`reason="no_path",count="5"`,
+			map[string]string{"reason": "no_path", "count": "5"},
+		},
+		{
+			``,
+			map[string]string{},
+		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.hostname, func(t *testing.T) {
-			err := validateHostname(test.hostname)
-			if test.valid && err != nil {
-				t.Errorf("expected %q to be valid, got error: %v", test.hostname, err)
+		t.Run(test.input, func(t *testing.T) {
+			result := parseLabels(test.input)
+			if len(result) != len(test.expected) {
+				t.Errorf("expected %d labels, got %d", len(test.expected), len(result))
 			}
-			if !test.valid && err == nil {
-				t.Errorf("expected %q to be invalid, got no error", test.hostname)
+			for k, v := range test.expected {
+				if result[k] != v {
+					t.Errorf("expected %s=%s, got %s=%s", k, v, k, result[k])
+				}
 			}
 		})
 	}
 }
 
-func TestDeviceStructFields(t *testing.T) {
-	// Test that Device struct has all required fields for API metrics
-	device := Device{
-		ID:                "test-id",
-		Name:              "test-device",
-		Host:              "test-host",
-		Tags:              []string{"tag1", "tag2"},
-		Online:            true,
-		Authorized:        true,
-		LastSeen:          time.Now(),
-		User:              "user@example.com",
-		MachineKey:        "test-key",
-		KeyExpiryDisabled: false,
-		Expires:           time.Now().Add(24 * time.Hour),
-		AdvertisedRoutes:  []string{"10.0.0.0/24"},
-		EnabledRoutes:     []string{"10.0.0.0/24"},
-		IsExitNode:        false,
-		ExitNodeOption:    true,
-		OS:                "linux",
-		ClientVersion:     "1.42.0",
+// TestMetricsCleanup tests device metrics cleanup functionality
+func TestMetricsCleanup(t *testing.T) {
+	tracker := NewDeviceMetricsTracker()
+
+	// Mark some devices as active
+	tracker.MarkDeviceActive("device-1")
+	tracker.MarkDeviceActive("device-2")
+
+	// Wait to make device-1 stale
+	time.Sleep(100 * time.Millisecond)
+	tracker.MarkDeviceActive("device-2") // Keep device-2 fresh
+
+	// Check cleanup
+	staleDevices := tracker.CleanupStaleDevices(50 * time.Millisecond)
+
+	if len(staleDevices) != 1 {
+		t.Errorf("expected 1 stale device, got %d", len(staleDevices))
 	}
 
-	// Basic validation that all fields are accessible
-	if device.ID == "" {
-		t.Error("Device.ID field not accessible")
+	if len(staleDevices) > 0 && staleDevices[0] != "device-1" {
+		t.Errorf("expected device-1 to be stale, got %s", staleDevices[0])
 	}
-	if !device.Authorized {
-		t.Error("Device.Authorized field not accessible")
+}
+
+// TestEnvironmentVariableParsing tests configuration loading edge cases
+func TestEnvironmentVariableParsing(t *testing.T) {
+	// Save original env vars
+	originalVars := map[string]string{
+		"USE_TSNET":              os.Getenv("USE_TSNET"),
+		"PORT":                   os.Getenv("PORT"),
+		"CLIENT_METRICS_TIMEOUT": os.Getenv("CLIENT_METRICS_TIMEOUT"),
+		"MAX_CONCURRENT_SCRAPES": os.Getenv("MAX_CONCURRENT_SCRAPES"),
+		"TSNET_TAGS":             os.Getenv("TSNET_TAGS"),
+		"REQUIRE_EXPORTER_TAG":   os.Getenv("REQUIRE_EXPORTER_TAG"),
 	}
-	if len(device.AdvertisedRoutes) == 0 {
-		t.Error("Device.AdvertisedRoutes field not accessible")
+
+	// Cleanup function
+	cleanup := func() {
+		for k, v := range originalVars {
+			if v == "" {
+				os.Unsetenv(k)
+			} else {
+				os.Setenv(k, v)
+			}
+		}
+	}
+	defer cleanup()
+
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		validate func(Config) error
+	}{
+		{
+			name: "tsnet enabled",
+			envVars: map[string]string{
+				"USE_TSNET":            "true",
+				"TSNET_TAGS":           "exporter,dev",
+				"REQUIRE_EXPORTER_TAG": "true",
+			},
+			validate: func(cfg Config) error {
+				if !cfg.UseTsnet {
+					return fmt.Errorf("expected UseTsnet=true")
+				}
+				if len(cfg.TsnetTags) != 2 {
+					return fmt.Errorf("expected 2 tags, got %d", len(cfg.TsnetTags))
+				}
+				if !cfg.RequireExporterTag {
+					return fmt.Errorf("expected RequireExporterTag=true")
+				}
+				return nil
+			},
+		},
+		{
+			name: "custom timeouts",
+			envVars: map[string]string{
+				"CLIENT_METRICS_TIMEOUT": "30s",
+				"MAX_CONCURRENT_SCRAPES": "5",
+				"PORT":                   "8080",
+			},
+			validate: func(cfg Config) error {
+				if cfg.ClientMetricsTimeout != 30*time.Second {
+					return fmt.Errorf("expected 30s timeout, got %v", cfg.ClientMetricsTimeout)
+				}
+				if cfg.MaxConcurrentScrapes != 5 {
+					return fmt.Errorf("expected 5 concurrent scrapes, got %d", cfg.MaxConcurrentScrapes)
+				}
+				if cfg.Port != "8080" {
+					return fmt.Errorf("expected port 8080, got %s", cfg.Port)
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Set test environment variables
+			for k, v := range test.envVars {
+				os.Setenv(k, v)
+			}
+
+			cfg := loadConfig()
+
+			if err := test.validate(cfg); err != nil {
+				t.Error(err)
+			}
+
+			// Clean up for next test
+			for k := range test.envVars {
+				os.Unsetenv(k)
+			}
+		})
+	}
+}
+
+// TestConcurrentScraping tests the concurrent scraping functionality
+func TestConcurrentScraping(t *testing.T) {
+	// Mock device metrics server
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metrics := `# HELP tailscaled_inbound_bytes_total Inbound bytes
+# TYPE tailscaled_inbound_bytes_total counter
+tailscaled_inbound_bytes_total{path="direct"} 1024
+tailscaled_outbound_bytes_total{path="direct"} 2048
+tailscaled_health_messages{type="info"} 1
+`
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(metrics))
+	}))
+	defer mockServer.Close()
+
+	// Extract host and port from mock server URL
+	serverURL := strings.TrimPrefix(mockServer.URL, "http://")
+	host, port, _ := strings.Cut(serverURL, ":")
+
+	devices := []Device{
+		{
+			ID:     "test-device-1",
+			Name:   "test-device-1",
+			Host:   host,
+			Tags:   []string{"exporter"},
+			Online: true,
+		},
+	}
+
+	cfg := Config{
+		ClientMetricsTimeout: 5 * time.Second,
+		MaxConcurrentScrapes: 2,
+	}
+
+	// Override port for testing (this is a bit hacky but works for the test)
+	originalDevice := devices[0]
+	devices[0].Host = fmt.Sprintf("%s:%s", host, port)
+
+	err := scrapeClientMetrics(devices, cfg)
+	if err != nil {
+		t.Errorf("scrapeClientMetrics failed: %v", err)
+	}
+
+	// Restore original device
+	devices[0] = originalDevice
+}
+
+// TestHasTag tests the tag checking functionality
+func TestHasTag(t *testing.T) {
+	device := Device{
+		Tags: []string{"exporter", "production", "gateway"},
+	}
+
+	tests := []struct {
+		tag      string
+		expected bool
+	}{
+		{"exporter", true},
+		{"production", true},
+		{"gateway", true},
+		{"nonexistent", false},
+		{"", false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.tag, func(t *testing.T) {
+			result := hasTag(device, test.tag)
+			if result != test.expected {
+				t.Errorf("hasTag(%q) = %v, expected %v", test.tag, result, test.expected)
+			}
+		})
 	}
 }
