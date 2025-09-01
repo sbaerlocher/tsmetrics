@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,13 +14,52 @@ var (
 	buildTime = "unknown"
 )
 
+// setupLogger configures structured logging based on configuration
+func setupLogger(cfg Config) {
+	var handler slog.Handler
+	level := slog.LevelInfo
+
+	switch cfg.LogLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{Level: level}
+
+	if cfg.LogFormat == "json" {
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	}
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+}
+
 func main() {
 	cfg := loadConfig()
 
+	// Setup structured logging
+	setupLogger(cfg)
+
 	// Validate configuration early
 	if err := cfg.Validate(); err != nil {
-		log.Fatalf("configuration validation failed: %v", err)
+		slog.Error("Configuration validation failed", "error", err)
+		os.Exit(1)
 	}
+
+	slog.Info("Starting tsmetrics",
+		"version", version,
+		"build_time", buildTime,
+		"use_tsnet", cfg.UseTsnet,
+		"log_level", cfg.LogLevel,
+		"log_format", cfg.LogFormat)
 
 	if v := os.Getenv("VERSION"); v != "" {
 		version = v

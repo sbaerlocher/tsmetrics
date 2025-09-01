@@ -21,6 +21,9 @@ type Config struct {
 	MaxConcurrentScrapes int
 	TsnetTags            []string
 	RequireExporterTag   bool
+	LogLevel             string // "debug", "info", "warn", "error"
+	LogFormat            string // "json", "text"
+	ClientMetricsPort    string // Default "5252"
 }
 
 func loadConfig() Config {
@@ -58,6 +61,24 @@ func loadConfig() Config {
 		}
 	}
 
+	// LOG_LEVEL: debug, info, warn, error (default: info)
+	cfg.LogLevel = "info"
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		cfg.LogLevel = strings.ToLower(v)
+	}
+
+	// LOG_FORMAT: json, text (default: text)
+	cfg.LogFormat = "text"
+	if v := os.Getenv("LOG_FORMAT"); v != "" {
+		cfg.LogFormat = strings.ToLower(v)
+	}
+
+	// CLIENT_METRICS_PORT: port for client metrics (default: 5252)
+	cfg.ClientMetricsPort = "5252"
+	if v := os.Getenv("CLIENT_METRICS_PORT"); v != "" {
+		cfg.ClientMetricsPort = v
+	}
+
 	// TSNET_TAGS: comma-separated list of tags assigned to this tsnet device
 	if v := os.Getenv("TSNET_TAGS"); v != "" {
 		parts := strings.Split(v, ",")
@@ -77,6 +98,26 @@ func loadConfig() Config {
 
 // Validate validates the configuration and returns an error if invalid
 func (cfg Config) Validate() error {
+	// Mutual exclusive validation for OAuth credentials and direct token
+	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
+	hasToken := os.Getenv("OAUTH_TOKEN") != ""
+
+	if hasOAuth && hasToken {
+		return fmt.Errorf("cannot use both OAuth credentials and direct token")
+	}
+
+	// Log level validation
+	validLogLevels := []string{"debug", "info", "warn", "error"}
+	if cfg.LogLevel != "" && !contains(validLogLevels, cfg.LogLevel) {
+		return fmt.Errorf("invalid log level: %s, valid options: %v", cfg.LogLevel, validLogLevels)
+	}
+
+	// Log format validation
+	validLogFormats := []string{"json", "text"}
+	if cfg.LogFormat != "" && !contains(validLogFormats, cfg.LogFormat) {
+		return fmt.Errorf("invalid log format: %s, valid options: %v", cfg.LogFormat, validLogFormats)
+	}
+
 	if cfg.UseTsnet && cfg.RequireExporterTag {
 		hasExporter := false
 		for _, tag := range cfg.TsnetTags {
@@ -107,8 +148,8 @@ func (cfg Config) Validate() error {
 	}
 
 	// Validate OAuth configuration
-	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
-	hasToken := os.Getenv("OAUTH_TOKEN") != ""
+	hasOAuth = cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
+	hasToken = os.Getenv("OAUTH_TOKEN") != ""
 	hasTailnet := cfg.TailnetName != ""
 
 	if hasTailnet && !hasOAuth && !hasToken {
@@ -128,4 +169,14 @@ func setupTsnetStateDir(dir string) string {
 	}
 	log.Printf("using tsnet state directory: %s", dir)
 	return dir
+}
+
+// contains checks if a slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

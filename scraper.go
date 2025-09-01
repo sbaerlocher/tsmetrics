@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -29,7 +29,7 @@ func fetchDevices() ([]Device, error) {
 				testDevices = append(testDevices, p)
 			}
 		}
-		log.Printf("TEST_DEVICES specified: %v", testDevices)
+		slog.Debug("TEST_DEVICES specified", "devices", testDevices)
 	}
 
 	// Use APIClient for consistent OAuth2 and HTTP handling
@@ -38,7 +38,7 @@ func fetchDevices() ([]Device, error) {
 	tailnet := os.Getenv("TAILNET_NAME")
 
 	if tailnet != "" && (clientID != "" || os.Getenv("OAUTH_TOKEN") != "") {
-		log.Printf("attempting Tailscale API discovery...")
+		slog.Info("attempting Tailscale API discovery")
 
 		var apiClient *APIClient
 		if clientID != "" && clientSecret != "" {
@@ -50,7 +50,7 @@ func fetchDevices() ([]Device, error) {
 
 		devices, err := apiClient.fetchDevicesFromAPI()
 		if err != nil {
-			log.Printf("Tailscale API failed: %v", err)
+			slog.Error("Tailscale API failed", "error", err)
 		} else {
 			// Filter by TEST_DEVICES if specified
 			if len(testDevices) > 0 {
@@ -65,11 +65,11 @@ func fetchDevices() ([]Device, error) {
 				}
 				devices = filtered
 			}
-			log.Printf("Tailscale API discovery successful: %d devices found", len(devices))
+			slog.Info("Tailscale API discovery successful", "device_count", len(devices))
 			return devices, nil
 		}
 	} else {
-		log.Printf("Tailscale API credentials not provided (TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN)")
+		slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
 	}
 
 	// fallback: use TEST_DEVICES as mock devices if API discovery failed
@@ -84,12 +84,12 @@ func fetchDevices() ([]Device, error) {
 				Online: true,
 			})
 		}
-		log.Printf("using TEST_DEVICES as fallback mock: %v", testDevices)
+		slog.Info("using TEST_DEVICES as fallback mock", "devices", testDevices)
 		return out, nil
 	}
 
 	// no devices available
-	log.Printf("no devices to discover - set TEST_DEVICES or provide Tailscale API credentials")
+	slog.Error("no devices to discover", "hint", "set TEST_DEVICES or provide Tailscale API credentials")
 	return []Device{}, nil
 }
 
@@ -167,7 +167,7 @@ func updateMetrics(target string, cfg Config) error {
 
 	// Scrape client metrics concurrently for online devices
 	if err := scrapeClientMetrics(devices, cfg); err != nil {
-		log.Printf("scrapeClientMetrics error: %v", err)
+		slog.Error("scrapeClientMetrics error", "error", err)
 		scrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
 	}
 
@@ -181,7 +181,7 @@ func startBackgroundScraper(cfg Config, ctx context.Context) {
 		defer ticker.Stop()
 
 		if err := updateMetrics("tailscale", cfg); err != nil {
-			log.Printf("initial update failed: %v", err)
+			slog.Error("initial update failed", "error", err)
 		}
 
 		for {
@@ -190,7 +190,7 @@ func startBackgroundScraper(cfg Config, ctx context.Context) {
 				return
 			case <-ticker.C:
 				if err := updateMetrics("tailscale", cfg); err != nil {
-					log.Printf("updateMetrics error: %v", err)
+					slog.Error("updateMetrics error", "error", err)
 				}
 			}
 		}
@@ -224,11 +224,11 @@ func scrapeClientMetrics(devices []Device, cfg Config) error {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			if err := scrapeClient(dev, client); err != nil {
+			if err := scrapeClient(dev, client, cfg); err != nil {
 				mu.Lock()
 				errors = append(errors, fmt.Errorf("device %s: %w", dev.Name, err))
 				mu.Unlock()
-				log.Printf("scrapeClient %s error: %v", dev.Name, err)
+				slog.Error("scrapeClient error", "device", dev.Name, "error", err)
 				scrapeErrors.WithLabelValues(dev.Name, "client_fetch_failed").Inc()
 			}
 		}(d)
@@ -239,7 +239,7 @@ func scrapeClientMetrics(devices []Device, cfg Config) error {
 	// Cleanup stale devices (not seen for 5 minutes)
 	staleDevices := metricsTracker.CleanupStaleDevices(5 * time.Minute)
 	if len(staleDevices) > 0 {
-		log.Printf("cleaned up %d stale devices: %v", len(staleDevices), staleDevices)
+		slog.Info("cleaned up stale devices", "count", len(staleDevices), "devices", staleDevices)
 		for _, deviceID := range staleDevices {
 			cleanupDeviceMetrics(deviceID)
 		}
@@ -313,7 +313,7 @@ func bytesCount(b []byte, c byte) int {
 	return cnt
 }
 
-func scrapeClient(dev Device, client *http.Client) error {
+func scrapeClient(dev Device, client *http.Client, cfg Config) error {
 	hostForURL := dev.Host
 	if hostForURL == "" {
 		hostForURL = dev.Name
@@ -324,7 +324,7 @@ func scrapeClient(dev Device, client *http.Client) error {
 		return fmt.Errorf("invalid hostname %s: %w", hostForURL, err)
 	}
 
-	host := net.JoinHostPort(hostForURL, "5252")
+	host := net.JoinHostPort(hostForURL, cfg.ClientMetricsPort)
 	u := url.URL{Scheme: "http", Host: host, Path: "/metrics"}
 	urlStr := u.String()
 
