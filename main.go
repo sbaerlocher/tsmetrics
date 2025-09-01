@@ -60,7 +60,7 @@ var (
 			Name: "tailscale_device_info",
 			Help: "Static info about devices (value=1)",
 		},
-		[]string{"device_id", "device_name", "online"},
+		[]string{"device_id", "device_name", "online", "os", "version"},
 	)
 
 	// Client metrics exposed by devices (using Gauge for absolute values from remote counters)
@@ -101,14 +101,91 @@ var (
 		prometheus.GaugeOpts{Name: "tailscaled_approved_routes", Help: "Number of approved network routes by device"},
 		[]string{"device_id", "device_name"},
 	)
+
+	// API-based metrics (from Tailscale REST API)
+	deviceAuthorized = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_authorized",
+			Help: "Device authorization status (1=authorized, 0=unauthorized)",
+		},
+		[]string{"device_id", "device_name"},
+	)
+
+	deviceLastSeen = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_last_seen_timestamp",
+			Help: "Timestamp when device was last seen (Unix seconds)",
+		},
+		[]string{"device_id", "device_name"},
+	)
+
+	deviceUser = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_user",
+			Help: "User assignment for device (value=1)",
+		},
+		[]string{"device_id", "device_name", "user_email"},
+	)
+
+	deviceMachineKeyExpiry = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_machine_key_expiry",
+			Help: "Machine key expiry timestamp (Unix seconds, 0=disabled)",
+		},
+		[]string{"device_id", "device_name"},
+	)
+
+	deviceRoutesAdvertised = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_routes_advertised",
+			Help: "Advertised routes by device (value=1)",
+		},
+		[]string{"device_id", "device_name", "route"},
+	)
+
+	deviceRoutesEnabled = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_routes_enabled",
+			Help: "Enabled routes by device (value=1)",
+		},
+		[]string{"device_id", "device_name", "route"},
+	)
+
+	deviceExitNode = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_exit_node",
+			Help: "Device exit node status (1=is exit node, 0=not exit node)",
+		},
+		[]string{"device_id", "device_name"},
+	)
+
+	deviceSubnetRouter = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_subnet_router",
+			Help: "Device subnet router status (1=advertises routes, 0=no routes)",
+		},
+		[]string{"device_id", "device_name"},
+	)
 )
 
 type Device struct {
-	ID     string   `json:"id"`
-	Name   string   `json:"name"`
-	Host   string   `json:"host"`
-	Tags   []string `json:"tags"`
-	Online bool     `json:"online"`
+	ID                string    `json:"id"`
+	Name              string    `json:"name"`
+	Host              string    `json:"host"`
+	Tags              []string  `json:"tags"`
+	Online            bool      `json:"online"`
+	Authorized        bool      `json:"authorized"`
+	LastSeen          time.Time `json:"lastSeen"`
+	User              string    `json:"user"`
+	MachineKey        string    `json:"machineKey"`
+	KeyExpiryDisabled bool      `json:"keyExpiryDisabled"`
+	Expires           time.Time `json:"expires"`
+	AdvertisedRoutes  []string  `json:"advertisedRoutes"`
+	EnabledRoutes     []string  `json:"enabledRoutes"`
+	IsExitNode        bool      `json:"isExitNode"`
+	ExitNodeOption    bool      `json:"exitNodeOption"`
+	OS                string    `json:"os"`
+	ClientVersion     string    `json:"clientVersion"`
 }
 
 func fetchDevices() ([]Device, error) {
@@ -204,7 +281,56 @@ func updateMetrics(target string, cfg Config) error {
 		if d.Online {
 			onlineStr = "true"
 		}
-		deviceInfo.WithLabelValues(d.ID, d.Name, onlineStr).Set(1)
+		deviceInfo.WithLabelValues(d.ID, d.Name, onlineStr, d.OS, d.ClientVersion).Set(1)
+
+		// Update API-based metrics
+		authValue := 0.0
+		if d.Authorized {
+			authValue = 1.0
+		}
+		deviceAuthorized.WithLabelValues(d.ID, d.Name).Set(authValue)
+
+		// Last seen timestamp
+		if !d.LastSeen.IsZero() {
+			deviceLastSeen.WithLabelValues(d.ID, d.Name).Set(float64(d.LastSeen.Unix()))
+		}
+
+		// User assignment
+		if d.User != "" {
+			deviceUser.WithLabelValues(d.ID, d.Name, d.User).Set(1)
+		}
+
+		// Machine key expiry
+		expiryValue := 0.0
+		if !d.KeyExpiryDisabled && !d.Expires.IsZero() {
+			expiryValue = float64(d.Expires.Unix())
+		}
+		deviceMachineKeyExpiry.WithLabelValues(d.ID, d.Name).Set(expiryValue)
+
+		// Exit node status
+		exitNodeValue := 0.0
+		if d.IsExitNode {
+			exitNodeValue = 1.0
+		}
+		deviceExitNode.WithLabelValues(d.ID, d.Name).Set(exitNodeValue)
+
+		// Subnet router status (has advertised routes)
+		subnetRouterValue := 0.0
+		if len(d.AdvertisedRoutes) > 0 {
+			subnetRouterValue = 1.0
+		}
+		deviceSubnetRouter.WithLabelValues(d.ID, d.Name).Set(subnetRouterValue)
+
+		// Advertised routes
+		for _, route := range d.AdvertisedRoutes {
+			deviceRoutesAdvertised.WithLabelValues(d.ID, d.Name, route).Set(1)
+		}
+
+		// Enabled routes
+		for _, route := range d.EnabledRoutes {
+			deviceRoutesEnabled.WithLabelValues(d.ID, d.Name, route).Set(1)
+		}
+
 		seen[d.ID] = struct{}{}
 	}
 
@@ -664,11 +790,14 @@ func (t *DeviceMetricsTracker) CleanupStaleDevices(maxAge time.Duration) []strin
 
 func validateHostname(host string) error {
 	// Prevent HTTP header injection and other attacks
+	if host == "" {
+		return fmt.Errorf("hostname cannot be empty")
+	}
 	if strings.Contains(host, "\r") || strings.Contains(host, "\n") {
 		return fmt.Errorf("invalid hostname contains newline characters: %s", host)
 	}
-	if strings.Contains(host, " ") {
-		return fmt.Errorf("invalid hostname contains spaces: %s", host)
+	if strings.Contains(host, " ") || strings.Contains(host, "\t") {
+		return fmt.Errorf("invalid hostname contains whitespace: %s", host)
 	}
 	if len(host) > 253 {
 		return fmt.Errorf("hostname too long: %d characters", len(host))
@@ -772,12 +901,24 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 
 	var result struct {
 		Devices []struct {
-			ID        string   `json:"id"`
-			Name      string   `json:"name"`
-			Hostname  string   `json:"hostname"`
-			Addresses []string `json:"addresses"`
-			Online    bool     `json:"online"`
-			Tags      []string `json:"tags"`
+			ID                string   `json:"id"`
+			Name              string   `json:"name"`
+			Hostname          string   `json:"hostname"`
+			Addresses         []string `json:"addresses"`
+			Online            bool     `json:"online"`
+			Tags              []string `json:"tags"`
+			Authorized        bool     `json:"authorized"`
+			LastSeen          string   `json:"lastSeen"`
+			User              string   `json:"user"`
+			MachineKey        string   `json:"machineKey"`
+			KeyExpiryDisabled bool     `json:"keyExpiryDisabled"`
+			Expires           string   `json:"expires"`
+			AdvertisedRoutes  []string `json:"advertisedRoutes"`
+			EnabledRoutes     []string `json:"enabledRoutes"`
+			IsExitNode        bool     `json:"isExitNode"`
+			ExitNodeOption    bool     `json:"exitNodeOption"`
+			OS                string   `json:"os"`
+			ClientVersion     string   `json:"clientVersion"`
 		} `json:"devices"`
 	}
 
@@ -796,12 +937,38 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 			log.Printf("skipping device with missing ID or Name: %+v", d)
 			continue
 		}
+
+		// Parse timestamps safely
+		var lastSeen, expires time.Time
+		if d.LastSeen != "" {
+			if t, err := time.Parse(time.RFC3339, d.LastSeen); err == nil {
+				lastSeen = t
+			}
+		}
+		if d.Expires != "" && !d.KeyExpiryDisabled {
+			if t, err := time.Parse(time.RFC3339, d.Expires); err == nil {
+				expires = t
+			}
+		}
+
 		devices = append(devices, Device{
-			ID:     d.ID,
-			Name:   d.Name,
-			Host:   host,
-			Tags:   d.Tags,
-			Online: d.Online,
+			ID:                d.ID,
+			Name:              d.Name,
+			Host:              host,
+			Tags:              d.Tags,
+			Online:            d.Online,
+			Authorized:        d.Authorized,
+			LastSeen:          lastSeen,
+			User:              d.User,
+			MachineKey:        d.MachineKey,
+			KeyExpiryDisabled: d.KeyExpiryDisabled,
+			Expires:           expires,
+			AdvertisedRoutes:  d.AdvertisedRoutes,
+			EnabledRoutes:     d.EnabledRoutes,
+			IsExitNode:        d.IsExitNode,
+			ExitNodeOption:    d.ExitNodeOption,
+			OS:                d.OS,
+			ClientVersion:     d.ClientVersion,
 		})
 	}
 
@@ -812,7 +979,7 @@ func cleanupDeviceMetrics(deviceID string) {
 	// Clean up all metric series for the given device
 	// This prevents memory leaks when devices go offline permanently
 
-	// For each metric vector, delete all series with this device_id
+	// Client metrics (from device endpoints)
 	d_inbound_bytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	d_outbound_bytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	d_inbound_packets.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
@@ -822,7 +989,17 @@ func cleanupDeviceMetrics(deviceID string) {
 	d_health_messages.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	d_advertised_routes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	d_approved_routes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+
+	// API metrics (from Tailscale API)
 	deviceInfo.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceAuthorized.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceLastSeen.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceUser.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceMachineKeyExpiry.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceExitNode.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	deviceSubnetRouter.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 }
 
 func main() {
