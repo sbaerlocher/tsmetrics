@@ -421,12 +421,94 @@ func loadConfig() Config {
 	return cfg
 }
 
+// Validate validates the configuration and returns an error if invalid
+func (cfg Config) Validate() error {
+	if cfg.UseTsnet && cfg.RequireExporterTag {
+		hasExporter := false
+		for _, tag := range cfg.TsnetTags {
+			if tag == "exporter" {
+				hasExporter = true
+				break
+			}
+		}
+		if !hasExporter {
+			return fmt.Errorf("REQUIRE_EXPORTER_TAG is true but 'exporter' tag not found in TSNET_TAGS")
+		}
+	}
+
+	if cfg.Port == "" {
+		return fmt.Errorf("PORT cannot be empty")
+	}
+
+	if cfg.ClientMetricsTimeout <= 0 {
+		return fmt.Errorf("CLIENT_METRICS_TIMEOUT must be positive")
+	}
+
+	if cfg.MaxConcurrentScrapes <= 0 {
+		return fmt.Errorf("MAX_CONCURRENT_SCRAPES must be positive")
+	}
+
+	if cfg.UseTsnet && cfg.TsnetHostname == "" {
+		return fmt.Errorf("TSNET_HOSTNAME required when USE_TSNET=true")
+	}
+
+	// Validate OAuth configuration
+	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
+	hasToken := os.Getenv("OAUTH_TOKEN") != ""
+	hasTailnet := cfg.TailnetName != ""
+
+	if hasTailnet && !hasOAuth && !hasToken {
+		return fmt.Errorf("TAILNET_NAME specified but missing OAuth credentials (OAUTH_CLIENT_ID+SECRET) or OAUTH_TOKEN")
+	}
+
+	return nil
+}
+
 func setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		status := map[string]interface{}{
+			"status":     "ok",
+			"version":    version,
+			"build_time": buildTime,
+			"timestamp":  time.Now().Unix(),
+		}
+
+		// Test API connectivity if configured
+		if tailnet := os.Getenv("TAILNET_NAME"); tailnet != "" {
+			clientID := os.Getenv("OAUTH_CLIENT_ID")
+			token := os.Getenv("OAUTH_TOKEN")
+
+			if clientID != "" || token != "" {
+				var apiClient *APIClient
+				if clientID != "" {
+					apiClient = NewAPIClient(clientID, os.Getenv("OAUTH_CLIENT_SECRET"), tailnet)
+				} else {
+					apiClient = NewAPIClientWithToken(token, tailnet)
+				}
+
+				// Quick connectivity test with timeout
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				_, err := apiClient.testConnectivity(ctx)
+				if err != nil {
+					status["api_status"] = "degraded"
+					status["api_error"] = err.Error()
+					w.WriteHeader(http.StatusServiceUnavailable)
+				} else {
+					status["api_status"] = "healthy"
+				}
+			} else {
+				status["api_status"] = "not_configured"
+			}
+		} else {
+			status["api_status"] = "not_configured"
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(status)
 	})
 	mux.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
 		info := map[string]interface{}{
@@ -975,6 +1057,35 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 	return devices, nil
 }
 
+// testConnectivity performs a quick API connectivity test
+func (c *APIClient) testConnectivity(ctx context.Context) (bool, error) {
+	if c.baseURL == "" {
+		return false, fmt.Errorf("no tailnet configured")
+	}
+
+	apiURL := fmt.Sprintf("%s/devices", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", apiURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("connectivity test failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Accept any 2xx or 401 (auth issue but API is reachable)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return true, nil
+	}
+	if resp.StatusCode == 401 {
+		return true, nil // API is reachable, just auth issue
+	}
+
+	return false, fmt.Errorf("API returned status %d", resp.StatusCode)
+}
+
 func cleanupDeviceMetrics(deviceID string) {
 	// Clean up all metric series for the given device
 	// This prevents memory leaks when devices go offline permanently
@@ -1004,6 +1115,11 @@ func cleanupDeviceMetrics(deviceID string) {
 
 func main() {
 	cfg := loadConfig()
+
+	// Validate configuration early
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("configuration validation failed: %v", err)
+	}
 
 	if v := os.Getenv("VERSION"); v != "" {
 		version = v

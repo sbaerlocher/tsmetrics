@@ -155,7 +155,7 @@ func enhancedUpdateMetrics(target string, cfg Config) error {
 	// ... existing API metrics code ...
 
 	// Enhanced client scraping with error classification
-	var networkErrors, timeoutErrors, validationErrors int
+	var networkErrors, validationErrors int
 	var retryableDevices []Device
 
 	for _, device := range devices {
