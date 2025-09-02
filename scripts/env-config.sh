@@ -10,6 +10,7 @@ USE_TSNET=true
 TSNET_HOSTNAME=tsmetrics-dev
 TSNET_STATE_DIR=/tmp/tsnet-state
 TSNET_TAGS=exporter
+TS_AUTHKEY=
 REQUIRE_EXPORTER_TAG=true
 ENV=development
 PORT=9100

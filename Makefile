@@ -76,6 +76,7 @@ docker-run-tsnet:
 		-e TSNET_HOSTNAME=tsmetrics \
 		-e TSNET_STATE_DIR=/tmp/tsnet-state \
 		-e TSNET_TAGS=${TSNET_TAGS:-exporter} \
+		-e TS_AUTHKEY=${TS_AUTHKEY} \
 		-e REQUIRE_EXPORTER_TAG=${REQUIRE_EXPORTER_TAG:-true} \
 		-e TARGET_DEVICES=${TARGET_DEVICES:-gateway-140207,gateway-130104} \
 		-e ENV=${ENV:-production} \

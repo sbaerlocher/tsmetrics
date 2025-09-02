@@ -98,7 +98,12 @@ docker run -d \
 | `TSNET_HOSTNAME` | Hostname in Tailnet | `tsmetrics` |
 | `TSNET_STATE_DIR` | Persistent state directory | `/tmp/tsnet-tsmetrics` |
 | `TSNET_TAGS` | Comma-separated device tags | - |
+| `TS_AUTHKEY` | Auth key for automatic device registration with tags | - |
 | `REQUIRE_EXPORTER_TAG` | Enforce "exporter" tag requirement | `false` |
+
+**Note**: To automatically assign tags to the tsnet device, create an auth key in
+the Tailscale admin console with the desired tags and set `TS_AUTHKEY`.
+The `TSNET_TAGS` variable is used for validation only.
 
 ### Performance Tuning
 
@@ -285,6 +290,13 @@ tsmetrics operates in two phases:
 - First run may require interactive authentication
 - Check tsnet state directory permissions
 - Verify `TSNET_TAGS` includes required tags
+
+**tsnet Startup Messages**
+
+- Messages like `"routerIP/FetchRIB: sysctl: cannot allocate memory"` are normal internal tsnet logs during startup
+- These are not errors but informational messages from the Tailscale networking layer
+- Initial device scraping errors are expected until tsnet establishes connection
+- Connection typically stabilizes within 10-30 seconds
 
 ### Debug Mode
 

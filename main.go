@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -86,19 +85,22 @@ func main() {
 				}
 			}
 			if !has {
-				log.Fatalf("REQUIRE_EXPORTER_TAG is set but TSNET_TAGS does not include 'exporter'. Set TSNET_TAGS=exporter or add the exporter tag via auth key/console.")
+				slog.Error("REQUIRE_EXPORTER_TAG is set but TSNET_TAGS does not include 'exporter'",
+					"hint", "Set TSNET_TAGS=exporter or add the exporter tag via auth key/console")
+				os.Exit(1)
 			}
 		}
-		log.Printf("starting with tsnet hostname=%s port=%s", cfg.TsnetHostname, cfg.Port)
+		slog.Info("starting with tsnet", "hostname", cfg.TsnetHostname, "port", cfg.Port)
+		slog.Info("note: initial device scraping errors are normal while tsnet establishes connection")
 		err = runWithTsnet(cfg, ctx)
 	} else {
-		log.Printf("starting standalone on port=%s", cfg.Port)
+		slog.Info("starting standalone", "port", cfg.Port)
 		err = runStandalone(cfg, ctx)
 	}
 
 	if err != nil {
-		log.Printf("shutdown with error: %v", err)
+		slog.Error("shutdown with error", "error", err)
 	} else {
-		log.Printf("shutdown complete")
+		slog.Info("shutdown complete")
 	}
 }

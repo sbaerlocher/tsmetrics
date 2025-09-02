@@ -68,10 +68,28 @@ func runStandalone(cfg Config, ctx context.Context) error {
 
 func runWithTsnet(cfg Config, ctx context.Context) error {
 	stateDir := setupTsnetStateDir(cfg.TsnetStateDir)
+
+	// Note: tsnet may log internal messages like "routerIP/FetchRIB: sysctl: cannot allocate memory"
+	// These are normal startup messages from the Tailscale networking layer and can be ignored
 	server := &tsnet.Server{
 		Hostname: cfg.TsnetHostname,
 		Dir:      stateDir,
 	}
+
+	// Set AuthKey if provided via environment variable
+	// This allows automatic device registration with specified tags
+	if cfg.TsnetAuthKey != "" {
+		server.AuthKey = cfg.TsnetAuthKey
+		slog.Info("tsnet configured with auth key for automatic registration")
+		if len(cfg.TsnetTags) > 0 {
+			slog.Info("expected tags from auth key", "tags", cfg.TsnetTags)
+		}
+	} else if len(cfg.TsnetTags) > 0 {
+		slog.Warn("TSNET_TAGS configured but no TS_AUTHKEY provided",
+			"tags", cfg.TsnetTags,
+			"hint", "Set TS_AUTHKEY with pre-tagged auth key for automatic tag assignment")
+	}
+
 	defer server.Close()
 
 	// Set up tsnet HTTP client provider for scraping over Tailscale network
@@ -80,6 +98,8 @@ func runWithTsnet(cfg Config, ctx context.Context) error {
 		timeout: cfg.ClientMetricsTimeout,
 	}
 	slog.Info("configured HTTP client to use Tailscale network for device scraping")
+	slog.Info("tsnet will establish connection in background (device scraping may initially fail until connected)")
+	slog.Debug("note: tsnet may log internal messages during startup (routerIP/FetchRIB errors are normal)")
 
 	listener, err := server.Listen("tcp", ":"+cfg.Port)
 	if err != nil {

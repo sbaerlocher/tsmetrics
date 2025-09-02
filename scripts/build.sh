@@ -29,9 +29,9 @@ log_success() {
 build_app() {
     log_info "Building $APP_NAME"
     cd "$PROJECT_ROOT"
-    
+
     local ldflags="-X main.version=$VERSION -X main.buildTime=$BUILD_TIME"
-    
+
     if go build -ldflags "$ldflags" -o "bin/$APP_NAME" .; then
         log_success "Build completed: bin/$APP_NAME"
     else

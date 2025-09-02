@@ -29,6 +29,43 @@ var (
 	testDevicesWarningMutex    sync.Mutex
 )
 
+// isTsnetStartupError checks if error is a typical tsnet startup error that should be logged less aggressively
+func isTsnetStartupError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// Common tsnet startup errors that are temporary and expected
+	return strings.Contains(errStr, "backend in state NoState") ||
+		strings.Contains(errStr, "tsnet: no Tailscale network") ||
+		strings.Contains(errStr, "tsnet: not ready") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "no such host")
+}
+
+// countTsnetStartupErrors counts how many errors in an aggregated error are tsnet startup errors
+func countTsnetStartupErrors(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	errStr := err.Error()
+	count := 0
+
+	// Check for multiple errors containing tsnet startup patterns
+	if strings.Contains(errStr, "backend in state NoState") {
+		count += strings.Count(errStr, "backend in state NoState")
+	}
+	if strings.Contains(errStr, "connection refused") {
+		count += strings.Count(errStr, "connection refused")
+	}
+	if strings.Contains(errStr, "no such host") {
+		count += strings.Count(errStr, "no such host")
+	}
+
+	return count
+}
+
 func fetchDevices() ([]Device, error) {
 	// Parse TARGET_DEVICES env: comma-separated list of device names or hostnames to monitor
 	targetDevices := []string{}
@@ -202,7 +239,12 @@ func updateMetrics(target string, cfg Config) error {
 
 	// Scrape client metrics concurrently for online devices
 	if err := scrapeClientMetrics(devices, cfg); err != nil {
-		slog.Error("scrapeClientMetrics error", "error", err)
+		// Count how many are tsnet startup errors vs real errors
+		if errCount := countTsnetStartupErrors(err); errCount > 0 {
+			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
+		} else {
+			slog.Error("scrapeClientMetrics error", "error", err)
+		}
 		scrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
 	}
 
@@ -212,11 +254,26 @@ func updateMetrics(target string, cfg Config) error {
 
 func startBackgroundScraper(cfg Config, ctx context.Context) {
 	go func() {
+		// Give tsnet some time to establish connection before first scrape
+		if cfg.UseTsnet {
+			slog.Info("waiting for tsnet to establish connection before first scrape")
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(10 * time.Second):
+				// Continue with first scrape
+			}
+		}
+
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 
 		if err := updateMetrics("tailscale", cfg); err != nil {
-			slog.Error("initial update failed", "error", err)
+			if cfg.UseTsnet && countTsnetStartupErrors(err) > 0 {
+				slog.Info("initial scrape pending tsnet connectivity", "waiting_for_connection", true)
+			} else {
+				slog.Error("initial update failed", "error", err)
+			}
 		}
 
 		for {
@@ -225,7 +282,11 @@ func startBackgroundScraper(cfg Config, ctx context.Context) {
 				return
 			case <-ticker.C:
 				if err := updateMetrics("tailscale", cfg); err != nil {
-					slog.Error("updateMetrics error", "error", err)
+					if cfg.UseTsnet && countTsnetStartupErrors(err) > 0 {
+						slog.Debug("scrape pending tsnet connectivity", "retrying", true)
+					} else {
+						slog.Error("updateMetrics error", "error", err)
+					}
 				}
 			}
 		}
@@ -312,7 +373,13 @@ func scrapeClientMetrics(devices []Device, cfg Config) error {
 				mu.Lock()
 				errors = append(errors, fmt.Errorf("device %s: %w", dev.Name, err))
 				mu.Unlock()
-				slog.Error("scrapeClient error", "device", dev.Name, "error", err)
+
+				// Check if this is a tsnet startup error that we should log less aggressively
+				if isTsnetStartupError(err) {
+					slog.Debug("device not yet reachable via tsnet (startup)", "device", dev.Name, "error", err)
+				} else {
+					slog.Error("scrapeClient error", "device", dev.Name, "error", err)
+				}
 				scrapeErrors.WithLabelValues(dev.Name, "client_fetch_failed").Inc()
 			}
 		}(d)

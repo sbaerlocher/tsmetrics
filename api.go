@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -139,7 +139,7 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 		}
 		// Input validation
 		if d.ID == "" || d.Name == "" {
-			log.Printf("skipping device with missing ID or Name: %+v", d)
+			slog.Warn("skipping device with missing ID or Name", "device", d)
 			continue
 		}
 

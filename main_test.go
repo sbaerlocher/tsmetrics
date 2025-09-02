@@ -630,3 +630,40 @@ func TestEnhancedHealthMetrics(t *testing.T) {
 		}
 	}
 }
+
+// Test TS_AUTHKEY configuration loading
+func TestTsnetAuthKeyConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		authKey  string
+		expected string
+	}{
+		{
+			name:     "with_auth_key",
+			authKey:  "tskey-auth-kVBN1234567890",
+			expected: "tskey-auth-kVBN1234567890",
+		},
+		{
+			name:     "empty_auth_key",
+			authKey:  "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Backup original value
+			original := os.Getenv("TS_AUTHKEY")
+			defer os.Setenv("TS_AUTHKEY", original)
+
+			// Set test value
+			os.Setenv("TS_AUTHKEY", tt.authKey)
+
+			cfg := loadConfig()
+
+			if cfg.TsnetAuthKey != tt.expected {
+				t.Errorf("expected TsnetAuthKey %q, got %q", tt.expected, cfg.TsnetAuthKey)
+			}
+		})
+	}
+}

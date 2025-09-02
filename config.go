@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -13,6 +13,7 @@ type Config struct {
 	UseTsnet             bool
 	TsnetHostname        string
 	TsnetStateDir        string
+	TsnetAuthKey         string // Tailscale auth key for automatic device registration
 	Port                 string
 	OAuthClientID        string
 	OAuthSecret          string
@@ -33,6 +34,7 @@ func loadConfig() Config {
 	}
 	cfg.TsnetHostname = os.Getenv("TSNET_HOSTNAME")
 	cfg.TsnetStateDir = os.Getenv("TSNET_STATE_DIR")
+	cfg.TsnetAuthKey = os.Getenv("TS_AUTHKEY")
 	cfg.Port = os.Getenv("PORT")
 	if cfg.Port == "" {
 		cfg.Port = "9100"
@@ -164,10 +166,10 @@ func setupTsnetStateDir(dir string) string {
 		dir = "/tmp/tsnet-tsmetrics"
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		log.Printf("failed to create state directory %s: %v", dir, err)
+		slog.Warn("failed to create state directory", "dir", dir, "error", err)
 		return ""
 	}
-	log.Printf("using tsnet state directory: %s", dir)
+	slog.Info("using tsnet state directory", "dir", dir)
 	return dir
 }
 
