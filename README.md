@@ -190,21 +190,43 @@ scrape_configs:
 
 ```bash
 # Setup development environment
+cp .env.example .env
+# Edit .env with your Tailscale credentials
 make dev-deps
 
 # Start development server with live reload
+# Environment variables are automatically loaded from .env and set via dev.sh
 make dev
 
-# Run with tsnet for testing
-make dev-tsnet
+# Alternative development commands:
+make dev-tsnet     # Same as dev (alias)
+make dev-direct    # Direct go run (no live reload)
 
 # Run tests
 make test
 
 # Build and run locally
 make build
-make run
+make run-tsnet
 ```
+
+### Environment Configuration
+
+The development environment uses a dedicated `dev.sh` script that:
+
+1. **Loads `.env` file** if present (automatically exports variables)
+2. **Sets sensible defaults** for all configuration options
+3. **Ensures consistency** between development runs
+4. **Manages air installation** and execution
+
+You only need to:
+
+1. **Copy the example:** `cp .env.example .env`
+2. **Configure credentials:** Edit `.env` with your Tailscale OAuth details
+3. **Run development:** `make dev`
+
+All environment variables are managed centrally through the `dev.sh` script,
+eliminating the need to maintain duplicated configurations.
 
 ### Testing with Mock Devices
 
