@@ -32,7 +32,7 @@ build_app() {
 
     local ldflags="-X main.version=$VERSION -X main.buildTime=$BUILD_TIME"
 
-    if go build -ldflags "$ldflags" -o "bin/$APP_NAME" .; then
+    if go build -ldflags "$ldflags" -o "bin/$APP_NAME" "./cmd/tsmetrics"; then
         log_success "Build completed: bin/$APP_NAME"
     else
         echo "❌ Build failed" >&2

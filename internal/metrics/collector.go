@@ -1,0 +1,235 @@
+package metrics
+
+import (
+	"log/slog"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/sbaerlocher/tsmetrics/internal/api"
+	"github.com/sbaerlocher/tsmetrics/internal/config"
+	"github.com/sbaerlocher/tsmetrics/pkg/device"
+)
+
+var (
+	apiCredentialsWarningShown bool
+	apiCredentialsWarningMutex sync.Mutex
+	testDevicesWarningShown    bool
+	testDevicesWarningMutex    sync.Mutex
+)
+
+type Collector struct {
+	cfg       config.Config
+	apiClient *api.Client
+	tracker   *DeviceMetricsTracker
+}
+
+func NewCollector(cfg config.Config) *Collector {
+	var apiClient *api.Client
+
+	clientID := os.Getenv("OAUTH_CLIENT_ID")
+	clientSecret := os.Getenv("OAUTH_CLIENT_SECRET")
+	tailnet := os.Getenv("TAILNET_NAME")
+
+	if tailnet != "" && (clientID != "" || os.Getenv("OAUTH_TOKEN") != "") {
+		if clientID != "" && clientSecret != "" {
+			apiClient = api.NewClient(clientID, clientSecret, tailnet)
+		} else {
+			apiClient = api.NewClientWithToken(os.Getenv("OAUTH_TOKEN"), tailnet)
+		}
+	}
+
+	return &Collector{
+		cfg:       cfg,
+		apiClient: apiClient,
+		tracker:   NewDeviceMetricsTracker(),
+	}
+}
+
+func (c *Collector) FetchDevices() ([]device.Device, error) {
+	targetDevices := []string{}
+	if v := os.Getenv("TARGET_DEVICES"); v != "" {
+		for _, part := range strings.Split(v, ",") {
+			p := strings.TrimSpace(part)
+			if p != "" {
+				targetDevices = append(targetDevices, p)
+			}
+		}
+		slog.Debug("TARGET_DEVICES specified", "devices", targetDevices)
+	}
+
+	if len(targetDevices) == 0 {
+		if v := os.Getenv("TEST_DEVICES"); v != "" {
+			for _, part := range strings.Split(v, ",") {
+				p := strings.TrimSpace(part)
+				if p != "" {
+					targetDevices = append(targetDevices, p)
+				}
+			}
+			testDevicesWarningMutex.Lock()
+			if !testDevicesWarningShown {
+				slog.Warn("TEST_DEVICES is deprecated, use TARGET_DEVICES instead", "devices", targetDevices)
+				testDevicesWarningShown = true
+			}
+			testDevicesWarningMutex.Unlock()
+		}
+	}
+
+	if c.apiClient != nil {
+		slog.Info("attempting Tailscale API discovery")
+		devices, err := c.apiClient.FetchDevices()
+		if err != nil {
+			slog.Error("Tailscale API failed", "error", err)
+		} else {
+			if len(targetDevices) > 0 {
+				filtered := make([]device.Device, 0)
+				for _, d := range devices {
+					for _, td := range targetDevices {
+						if strings.EqualFold(d.Name, td) || strings.EqualFold(d.ID, td) || strings.EqualFold(d.Host, td) {
+							filtered = append(filtered, d)
+							break
+						}
+					}
+				}
+				devices = filtered
+			}
+			slog.Info("Tailscale API discovery successful", "device_count", len(devices))
+			return devices, nil
+		}
+	} else {
+		apiCredentialsWarningMutex.Lock()
+		if !apiCredentialsWarningShown {
+			slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
+			apiCredentialsWarningShown = true
+		}
+		apiCredentialsWarningMutex.Unlock()
+	}
+
+	if len(targetDevices) > 0 {
+		out := make([]device.Device, 0, len(targetDevices))
+		for _, name := range targetDevices {
+			out = append(out, device.Device{
+				ID:     name,
+				Name:   name,
+				Host:   name,
+				Tags:   []string{"exporter"},
+				Online: true,
+			})
+		}
+		slog.Info("using TARGET_DEVICES as static device list", "devices", targetDevices)
+		return out, nil
+	}
+
+	slog.Error("no devices to discover", "hint", "set TARGET_DEVICES or provide Tailscale API credentials")
+	return []device.Device{}, nil
+}
+
+func (c *Collector) UpdateMetrics(target string) error {
+	start := time.Now()
+	defer func() {
+		ScrapeDuration.WithLabelValues(target).Observe(time.Since(start).Seconds())
+	}()
+
+	devices, err := c.FetchDevices()
+	if err != nil {
+		ScrapeErrors.WithLabelValues(target, "fetch_failed").Inc()
+		return err
+	}
+
+	DeviceCount.Set(float64(len(devices)))
+	seen := map[string]struct{}{}
+
+	onlineCount := 0
+	for _, d := range devices {
+		onlineStr := "false"
+		if d.Online {
+			onlineStr = "true"
+			onlineCount++
+		}
+		DeviceInfo.WithLabelValues(d.ID, d.Name, onlineStr, d.OS, d.ClientVersion).Set(1)
+
+		authValue := 0.0
+		if d.Authorized {
+			authValue = 1.0
+		}
+		DeviceAuthorized.WithLabelValues(d.ID, d.Name).Set(authValue)
+
+		if !d.LastSeen.IsZero() {
+			DeviceLastSeen.WithLabelValues(d.ID, d.Name).Set(float64(d.LastSeen.Unix()))
+		}
+
+		if d.User != "" {
+			DeviceUser.WithLabelValues(d.ID, d.Name, d.User).Set(1)
+		}
+
+		if !d.KeyExpiryDisabled && !d.Expires.IsZero() {
+			DeviceMachineKeyExpiry.WithLabelValues(d.ID, d.Name).Set(float64(d.Expires.Unix()))
+		} else {
+			DeviceMachineKeyExpiry.WithLabelValues(d.ID, d.Name).Set(0)
+		}
+
+		for _, route := range d.AdvertisedRoutes {
+			DeviceRoutesAdvertised.WithLabelValues(d.ID, d.Name, route).Set(1)
+		}
+
+		for _, route := range d.EnabledRoutes {
+			DeviceRoutesEnabled.WithLabelValues(d.ID, d.Name, route).Set(1)
+		}
+
+		exitNodeValue := 0.0
+		if d.IsExitNode {
+			exitNodeValue = 1.0
+		}
+		DeviceExitNode.WithLabelValues(d.ID, d.Name).Set(exitNodeValue)
+
+		subnetRouterValue := 0.0
+		if len(d.AdvertisedRoutes) > 0 {
+			subnetRouterValue = 1.0
+		}
+		DeviceSubnetRouter.WithLabelValues(d.ID, d.Name).Set(subnetRouterValue)
+
+		seen[d.ID] = struct{}{}
+	}
+
+	OnlineDevicesCount.Set(float64(onlineCount))
+
+	if err := ScrapeClientMetrics(devices, c.cfg); err != nil {
+		if errCount := countTsnetStartupErrors(err); errCount > 0 {
+			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
+		} else {
+			slog.Error("scrapeClientMetrics error", "error", err)
+		}
+		ScrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
+	}
+
+	staleDevices := c.tracker.CleanupStaleDevices(5 * time.Minute)
+	if len(staleDevices) > 0 {
+		slog.Info("cleaned up stale devices", "count", len(staleDevices), "devices", staleDevices)
+		for _, deviceID := range staleDevices {
+			CleanupDeviceMetrics(deviceID)
+		}
+	}
+
+	c.tracker.CleanupRemovedDevices(seen)
+	LastScrapeTime.Set(float64(time.Now().Unix()))
+	return nil
+}
+
+func countTsnetStartupErrors(err error) int {
+	if err == nil {
+		return 0
+	}
+	errStr := err.Error()
+	count := 0
+	if strings.Contains(errStr, "backend in state NoState") {
+		count += strings.Count(errStr, "backend in state NoState")
+	}
+	if strings.Contains(errStr, "connection refused") {
+		count += strings.Count(errStr, "connection refused")
+	}
+	if strings.Contains(errStr, "no such host") {
+		count += strings.Count(errStr, "no such host")
+	}
+	return count
+}

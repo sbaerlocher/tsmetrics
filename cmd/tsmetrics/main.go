@@ -6,6 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/sbaerlocher/tsmetrics/internal/config"
+	"github.com/sbaerlocher/tsmetrics/internal/metrics"
+	"github.com/sbaerlocher/tsmetrics/internal/server"
 )
 
 var (
@@ -13,8 +17,7 @@ var (
 	buildTime = "unknown"
 )
 
-// setupLogger configures structured logging based on configuration
-func setupLogger(cfg Config) {
+func setupLogger(cfg config.Config) {
 	var handler slog.Handler
 	level := slog.LevelInfo
 
@@ -42,16 +45,16 @@ func setupLogger(cfg Config) {
 }
 
 func main() {
-	cfg := loadConfig()
+	cfg := config.Load()
 
-	// Setup structured logging
 	setupLogger(cfg)
 
-	// Validate configuration early
 	if err := cfg.Validate(); err != nil {
 		slog.Error("Configuration validation failed", "error", err)
 		os.Exit(1)
 	}
+
+	server.SetVersion(version, buildTime)
 
 	slog.Info("Starting tsmetrics",
 		"version", version,
@@ -70,12 +73,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	collector := metrics.NewCollector(cfg)
+
 	var err error
 	if cfg.UseTsnet {
 		if cfg.TsnetHostname == "" {
 			cfg.TsnetHostname = "tsmetrics"
 		}
-		// Enforce exporter tag requirement if requested
 		if cfg.RequireExporterTag {
 			has := false
 			for _, t := range cfg.TsnetTags {
@@ -92,10 +96,10 @@ func main() {
 		}
 		slog.Info("starting with tsnet", "hostname", cfg.TsnetHostname, "port", cfg.Port)
 		slog.Info("note: initial device scraping errors are normal while tsnet establishes connection")
-		err = runWithTsnet(cfg, ctx)
+		err = server.RunWithTsnet(cfg, ctx, collector)
 	} else {
 		slog.Info("starting standalone", "port", cfg.Port)
-		err = runStandalone(cfg, ctx)
+		err = server.RunStandalone(cfg, ctx, collector)
 	}
 
 	if err != nil {

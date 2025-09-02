@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ type Config struct {
 	UseTsnet             bool
 	TsnetHostname        string
 	TsnetStateDir        string
-	TsnetAuthKey         string // Tailscale auth key for automatic device registration
+	TsnetAuthKey         string
 	Port                 string
 	OAuthClientID        string
 	OAuthSecret          string
@@ -22,12 +22,12 @@ type Config struct {
 	MaxConcurrentScrapes int
 	TsnetTags            []string
 	RequireExporterTag   bool
-	LogLevel             string // "debug", "info", "warn", "error"
-	LogFormat            string // "json", "text"
-	ClientMetricsPort    string // Default "5252"
+	LogLevel             string
+	LogFormat            string
+	ClientMetricsPort    string
 }
 
-func loadConfig() Config {
+func Load() Config {
 	cfg := Config{}
 	if strings.ToLower(os.Getenv("USE_TSNET")) == "true" {
 		cfg.UseTsnet = true
@@ -43,7 +43,6 @@ func loadConfig() Config {
 	cfg.OAuthSecret = os.Getenv("OAUTH_CLIENT_SECRET")
 	cfg.TailnetName = os.Getenv("TAILNET_NAME")
 
-	// CLIENT_METRICS_TIMEOUT as duration string, fallback to 10s
 	if v := os.Getenv("CLIENT_METRICS_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.ClientMetricsTimeout = d
@@ -55,7 +54,6 @@ func loadConfig() Config {
 		cfg.ClientMetricsTimeout = 10 * time.Second
 	}
 
-	// MAX_CONCURRENT_SCRAPES integer, fallback to 10
 	cfg.MaxConcurrentScrapes = 10
 	if v := os.Getenv("MAX_CONCURRENT_SCRAPES"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -63,25 +61,21 @@ func loadConfig() Config {
 		}
 	}
 
-	// LOG_LEVEL: debug, info, warn, error (default: info)
 	cfg.LogLevel = "info"
 	if v := os.Getenv("LOG_LEVEL"); v != "" {
 		cfg.LogLevel = strings.ToLower(v)
 	}
 
-	// LOG_FORMAT: json, text (default: text)
 	cfg.LogFormat = "text"
 	if v := os.Getenv("LOG_FORMAT"); v != "" {
 		cfg.LogFormat = strings.ToLower(v)
 	}
 
-	// CLIENT_METRICS_PORT: port for client metrics (default: 5252)
 	cfg.ClientMetricsPort = "5252"
 	if v := os.Getenv("CLIENT_METRICS_PORT"); v != "" {
 		cfg.ClientMetricsPort = v
 	}
 
-	// TSNET_TAGS: comma-separated list of tags assigned to this tsnet device
 	if v := os.Getenv("TSNET_TAGS"); v != "" {
 		parts := strings.Split(v, ",")
 		for i := range parts {
@@ -90,7 +84,6 @@ func loadConfig() Config {
 		cfg.TsnetTags = parts
 	}
 
-	// REQUIRE_EXPORTER_TAG: if "true", enforce that this tsnet device must carry the "exporter" tag
 	if strings.ToLower(os.Getenv("REQUIRE_EXPORTER_TAG")) == "true" {
 		cfg.RequireExporterTag = true
 	}
@@ -98,9 +91,7 @@ func loadConfig() Config {
 	return cfg
 }
 
-// Validate validates the configuration and returns an error if invalid
 func (cfg Config) Validate() error {
-	// Mutual exclusive validation for OAuth credentials and direct token
 	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
 	hasToken := os.Getenv("OAUTH_TOKEN") != ""
 
@@ -108,13 +99,11 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("cannot use both OAuth credentials and direct token")
 	}
 
-	// Log level validation
 	validLogLevels := []string{"debug", "info", "warn", "error"}
 	if cfg.LogLevel != "" && !contains(validLogLevels, cfg.LogLevel) {
 		return fmt.Errorf("invalid log level: %s, valid options: %v", cfg.LogLevel, validLogLevels)
 	}
 
-	// Log format validation
 	validLogFormats := []string{"json", "text"}
 	if cfg.LogFormat != "" && !contains(validLogFormats, cfg.LogFormat) {
 		return fmt.Errorf("invalid log format: %s, valid options: %v", cfg.LogFormat, validLogFormats)
@@ -149,7 +138,6 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("TSNET_HOSTNAME required when USE_TSNET=true")
 	}
 
-	// Validate OAuth configuration
 	hasOAuth = cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
 	hasToken = os.Getenv("OAUTH_TOKEN") != ""
 	hasTailnet := cfg.TailnetName != ""
@@ -161,7 +149,7 @@ func (cfg Config) Validate() error {
 	return nil
 }
 
-func setupTsnetStateDir(dir string) string {
+func SetupTsnetStateDir(dir string) string {
 	if dir == "" {
 		dir = "/tmp/tsnet-tsmetrics"
 	}
@@ -173,7 +161,6 @@ func setupTsnetStateDir(dir string) string {
 	return dir
 }
 
-// contains checks if a slice contains a specific string
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {

@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"context"
@@ -10,15 +10,17 @@ import (
 	"time"
 
 	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
-type APIClient struct {
+type Client struct {
 	httpClient  *http.Client
 	oauthConfig *clientcredentials.Config
 	baseURL     string
 }
 
-func NewAPIClient(clientID, clientSecret, tailnet string) *APIClient {
+func NewClient(clientID, clientSecret, tailnet string) *Client {
 	var httpClient *http.Client
 
 	if clientID != "" && clientSecret != "" {
@@ -40,14 +42,14 @@ func NewAPIClient(clientID, clientSecret, tailnet string) *APIClient {
 		}
 	}
 
-	return &APIClient{
+	return &Client{
 		httpClient:  httpClient,
 		oauthConfig: nil,
 		baseURL:     fmt.Sprintf("https://api.tailscale.com/api/v2/tailnet/%s", tailnet),
 	}
 }
 
-func NewAPIClientWithToken(token, tailnet string) *APIClient {
+func NewClientWithToken(token, tailnet string) *Client {
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
@@ -58,14 +60,13 @@ func NewAPIClientWithToken(token, tailnet string) *APIClient {
 		},
 	}
 
-	// Wrap client to add Bearer token
 	transport := httpClient.Transport
 	httpClient.Transport = &tokenTransport{
 		token:     token,
 		transport: transport,
 	}
 
-	return &APIClient{
+	return &Client{
 		httpClient:  httpClient,
 		oauthConfig: nil,
 		baseURL:     fmt.Sprintf("https://api.tailscale.com/api/v2/tailnet/%s", tailnet),
@@ -82,7 +83,7 @@ func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.transport.RoundTrip(req)
 }
 
-func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
+func (c *Client) FetchDevices() ([]device.Device, error) {
 	if c.baseURL == "" {
 		return nil, fmt.Errorf("no tailnet configured")
 	}
@@ -131,19 +132,17 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	devices := make([]Device, 0, len(result.Devices))
+	devices := make([]device.Device, 0, len(result.Devices))
 	for _, d := range result.Devices {
 		host := d.Hostname
 		if host == "" && len(d.Addresses) > 0 {
 			host = d.Addresses[0]
 		}
-		// Input validation
 		if d.ID == "" || d.Name == "" {
 			slog.Warn("skipping device with missing ID or Name", "device", d)
 			continue
 		}
 
-		// Parse timestamps safely
 		var lastSeen, expires time.Time
 		if d.LastSeen != "" {
 			if t, err := time.Parse(time.RFC3339, d.LastSeen); err == nil {
@@ -156,7 +155,7 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 			}
 		}
 
-		devices = append(devices, Device{
+		devices = append(devices, device.Device{
 			ID:                d.ID,
 			Name:              d.Name,
 			Host:              host,
@@ -180,8 +179,7 @@ func (c *APIClient) fetchDevicesFromAPI() ([]Device, error) {
 	return devices, nil
 }
 
-// testConnectivity performs a quick API connectivity test
-func (c *APIClient) testConnectivity(ctx context.Context) (bool, error) {
+func (c *Client) TestConnectivity(ctx context.Context) (bool, error) {
 	if c.baseURL == "" {
 		return false, fmt.Errorf("no tailnet configured")
 	}
@@ -198,12 +196,11 @@ func (c *APIClient) testConnectivity(ctx context.Context) (bool, error) {
 	}
 	defer resp.Body.Close()
 
-	// Accept any 2xx or 401 (auth issue but API is reachable)
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return true, nil
 	}
 	if resp.StatusCode == 401 {
-		return true, nil // API is reachable, just auth issue
+		return true, nil
 	}
 
 	return false, fmt.Errorf("API returned status %d", resp.StatusCode)
