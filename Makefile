@@ -1,26 +1,22 @@
 # Makefile für tsmetrics
 #
-# Environment Variables:
-# - Copy .env.example to .env and configure your values
-# - All development targets (dev, dev-direct, run-tsnet) automatically export environment variables
-# - Required for operation: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, TAILNET_NAME
-# - Optional: TARGET_DEVICES (defaults to sample devices)
-# - For production: Set ENV=production, USE_TSNET=false (unless needed)
+# Development Workflow:
+# 1. cp .env.example .env
+# 2. Edit .env with your Tailscale OAuth credentials
+# 3. make dev  # Starts development server with live reload
 #
-# Quick Start:
-#   1. cp .env.example .env
-#   2. Edit .env with your Tailscale OAuth credentials
-#   3. make dev  # Starts development server with live reload
+# All environment variables are managed in scripts/env-config.sh
+# Build metadata is auto-generated from git and current time
 
 APP_NAME := tsmetrics
-VERSION := $(shell git describe --tags --always --dirty)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 DOCKER_IMAGE := ghcr.io/sbaerlocher/$(APP_NAME)
 
 # Go Build Targets
 .PHONY: build
 build:
-	go build -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)" -o bin/$(APP_NAME) .
+	@./scripts/build.sh
 
 .PHONY: test
 test:
@@ -28,7 +24,7 @@ test:
 
 .PHONY: run
 run:
-	go run main.go
+	go run .
 
 .PHONY: clean
 clean:
@@ -39,6 +35,10 @@ clean-port:
 	@echo "🧹 Cleaning up port 9100..."
 	@lsof -ti:9100 | xargs -r kill -9 || echo "No process found on port 9100"
 	@echo "✅ Port 9100 is now free"
+
+.PHONY: clean-all
+clean-all: clean clean-port
+	@echo "🧹 Full cleanup completed (build artifacts + port 9100)"
 
 # Docker Targets
 .PHONY: docker-build
@@ -62,30 +62,12 @@ docker-run:
 
 .PHONY: dev-tsnet
 dev-tsnet:
-	@./dev.sh
+	@./scripts/dev.sh
 
 .PHONY: run-tsnet
 run-tsnet: build
 	@echo "Running tsmetrics with tsnet locally"
-	@USE_TSNET=true \
-	TSNET_HOSTNAME=${TSNET_HOSTNAME:-tsmetrics-dev} \
-	TSNET_STATE_DIR=${TSNET_STATE_DIR:-/tmp/tsnet-state} \
-	TSNET_TAGS=${TSNET_TAGS:-exporter} \
-	REQUIRE_EXPORTER_TAG=${REQUIRE_EXPORTER_TAG:-true} \
-	TARGET_DEVICES=${TARGET_DEVICES:-gateway-140207,gateway-130104} \
-	ENV=${ENV:-development} \
-	PORT=${PORT:-9100} \
-	LOG_LEVEL=${LOG_LEVEL:-info} \
-	LOG_FORMAT=${LOG_FORMAT:-text} \
-	CLIENT_METRICS_TIMEOUT=${CLIENT_METRICS_TIMEOUT:-10s} \
-	MAX_CONCURRENT_SCRAPES=${MAX_CONCURRENT_SCRAPES:-10} \
-	CLIENT_METRICS_PORT=${CLIENT_METRICS_PORT:-5252} \
-	OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID} \
-	OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET} \
-	TAILNET_NAME=${TAILNET_NAME} \
-	VERSION=${VERSION} \
-	BUILD_TIME=${BUILD_TIME} \
-	./bin/$(APP_NAME)
+	@./scripts/env-config.sh && ./bin/$(APP_NAME)
 
 .PHONY: docker-run-tsnet
 docker-run-tsnet:
@@ -134,30 +116,12 @@ fmt:
 # All-in-one targets
 .PHONY: dev
 dev:
-	@./dev.sh
+	@./scripts/dev.sh
 
 .PHONY: dev-direct
 dev-direct:
 	@echo "🚀 Starting development environment with go run"
-	@USE_TSNET=true \
-	TSNET_HOSTNAME=${TSNET_HOSTNAME:-tsmetrics-dev} \
-	TSNET_STATE_DIR=${TSNET_STATE_DIR:-/tmp/tsnet-state} \
-	TSNET_TAGS=${TSNET_TAGS:-exporter} \
-	REQUIRE_EXPORTER_TAG=${REQUIRE_EXPORTER_TAG:-true} \
-	TARGET_DEVICES=${TARGET_DEVICES:-gateway-140207,gateway-130104} \
-	ENV=${ENV:-development} \
-	PORT=${PORT:-9100} \
-	LOG_LEVEL=${LOG_LEVEL:-info} \
-	LOG_FORMAT=${LOG_FORMAT:-text} \
-	CLIENT_METRICS_TIMEOUT=${CLIENT_METRICS_TIMEOUT:-10s} \
-	MAX_CONCURRENT_SCRAPES=${MAX_CONCURRENT_SCRAPES:-10} \
-	CLIENT_METRICS_PORT=${CLIENT_METRICS_PORT:-5252} \
-	OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID} \
-	OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET} \
-	TAILNET_NAME=${TAILNET_NAME} \
-	VERSION=${VERSION} \
-	BUILD_TIME=${BUILD_TIME} \
-	go run .
+	@source scripts/env-config.sh && scripts/env-config.sh && go run .
 
 .PHONY: release
 release: clean test build docker-build docker-push
@@ -170,10 +134,11 @@ help:
 	@echo "  run            - Run locally without environment setup"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  clean-port     - Kill processes on port 9100"
+	@echo "  clean-all      - Full cleanup (build + port)"
 	@echo ""
 	@echo "Development targets:"
-	@echo "  dev            - Start development with air live reload (exports all env vars)"
-	@echo "  dev-direct     - Start development with go run (exports all env vars)"
+	@echo "  dev            - Start development with air live reload (via scripts/dev.sh)"
+	@echo "  dev-direct     - Start development with go run (uses env config)"
 	@echo "  dev-tsnet      - Alias for dev with tsnet enabled"
 	@echo "  run-tsnet      - Build and run with tsnet configuration"
 	@echo ""
