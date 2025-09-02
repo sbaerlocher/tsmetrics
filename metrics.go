@@ -23,6 +23,69 @@ var (
 		[]string{"target", "error_type"},
 	)
 
+	// Enhanced error metrics
+	apiCallDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "tsmetrics_api_call_duration_seconds",
+			Help:    "API call duration",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"endpoint", "status"},
+	)
+
+	deviceErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tsmetrics_device_errors_total",
+			Help: "Device errors by type and device",
+		},
+		[]string{"device_id", "device_name", "error_type", "retryable"},
+	)
+
+	circuitBreakerState = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tsmetrics_circuit_breaker_state",
+			Help: "Circuit breaker state (0=closed, 1=open)",
+		},
+		[]string{"endpoint"},
+	)
+
+	retryAttempts = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "tsmetrics_retry_attempts_total",
+			Help: "Number of retry attempts",
+		},
+		[]string{"device_id", "device_name", "reason"},
+	)
+
+	// System metrics
+	memoryUsage = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "tsmetrics_memory_usage_bytes",
+			Help: "Current memory usage in bytes",
+		},
+	)
+
+	goroutineCount = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "tsmetrics_goroutines_total",
+			Help: "Number of active goroutines",
+		},
+	)
+
+	lastScrapeTime = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "tsmetrics_last_scrape_timestamp_seconds",
+			Help: "Unix timestamp of last successful scrape",
+		},
+	)
+
+	onlineDevicesCount = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "tsmetrics_online_devices_total",
+			Help: "Number of online devices",
+		},
+	)
+
 	deviceCount = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "tailscale_device_count",

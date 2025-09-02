@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -19,6 +19,66 @@ type ScrapeError struct {
 
 func (e ScrapeError) Error() string {
 	return fmt.Sprintf("device %s (%s): %s: %v", e.DeviceName, e.DeviceID, e.Type, e.Underlying)
+}
+
+// DeviceError provides detailed device-specific error information
+type DeviceError struct {
+	DeviceID   string
+	DeviceName string
+	ErrorType  string
+	Underlying error
+	Retryable  bool
+	RetryAfter time.Duration
+	Timestamp  time.Time
+}
+
+func (e DeviceError) Error() string {
+	retryInfo := ""
+	if e.Retryable {
+		retryInfo = fmt.Sprintf(" (retryable after %v)", e.RetryAfter)
+	}
+	return fmt.Sprintf("device %s (%s) %s: %v%s", e.DeviceName, e.DeviceID, e.ErrorType, e.Underlying, retryInfo)
+}
+
+func (e DeviceError) Unwrap() error {
+	return e.Underlying
+}
+
+// IsRetryable returns whether this error should be retried
+func (e DeviceError) IsRetryable() bool {
+	return e.Retryable
+}
+
+// ConfigurationError for configuration-related issues
+type ConfigurationError struct {
+	Field  string
+	Value  string
+	Reason string
+}
+
+func (e ConfigurationError) Error() string {
+	return fmt.Sprintf("configuration error in field %s (value: %s): %s", e.Field, e.Value, e.Reason)
+}
+
+// APIError for Tailscale API specific errors
+type APIError struct {
+	Endpoint   string
+	StatusCode int
+	Message    string
+	Underlying error
+	Retryable  bool
+}
+
+func (e APIError) Error() string {
+	return fmt.Sprintf("API error on %s (status %d): %s", e.Endpoint, e.StatusCode, e.Message)
+}
+
+func (e APIError) Unwrap() error {
+	return e.Underlying
+}
+
+func (e APIError) IsRetryable() bool {
+	return e.Retryable
 }
 
 // RetryableError indicates errors that should be retried
@@ -185,8 +245,10 @@ func enhancedUpdateMetrics(target string, cfg Config) error {
 
 	// Log summary of errors
 	if networkErrors > 0 || validationErrors > 0 {
-		log.Printf("scraping summary: %d network errors, %d validation errors, %d devices for retry",
-			networkErrors, validationErrors, len(retryableDevices))
+		slog.Info("scraping summary",
+			"network_errors", networkErrors,
+			"validation_errors", validationErrors,
+			"retry_devices", len(retryableDevices))
 	}
 
 	return nil
@@ -213,7 +275,7 @@ func (c *EnhancedAPIClient) fetchDevicesWithCircuitBreaker() ([]Device, error) {
 		// Open circuit if too many failures
 		if c.circuitBreakerState.failures >= 3 {
 			c.circuitBreakerState.state = "open"
-			log.Printf("circuit breaker opened after %d failures", c.circuitBreakerState.failures)
+			slog.Warn("circuit breaker opened", "failures", c.circuitBreakerState.failures)
 		}
 
 		return nil, fmt.Errorf("API call failed (failure %d): %w",
@@ -224,7 +286,7 @@ func (c *EnhancedAPIClient) fetchDevicesWithCircuitBreaker() ([]Device, error) {
 	if c.circuitBreakerState.state == "half-open" {
 		c.circuitBreakerState.state = "closed"
 		c.circuitBreakerState.failures = 0
-		log.Printf("circuit breaker closed: API calls successful again")
+		slog.Info("circuit breaker closed", "reason", "API calls successful again")
 	}
 
 	return devices, nil

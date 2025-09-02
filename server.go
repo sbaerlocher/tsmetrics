@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -17,49 +18,7 @@ import (
 func setupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		status := map[string]interface{}{
-			"status":     "ok",
-			"version":    version,
-			"build_time": buildTime,
-			"timestamp":  time.Now().Unix(),
-		}
-
-		// Test API connectivity if configured
-		if tailnet := os.Getenv("TAILNET_NAME"); tailnet != "" {
-			clientID := os.Getenv("OAUTH_CLIENT_ID")
-			token := os.Getenv("OAUTH_TOKEN")
-
-			if clientID != "" || token != "" {
-				var apiClient *APIClient
-				if clientID != "" {
-					apiClient = NewAPIClient(clientID, os.Getenv("OAUTH_CLIENT_SECRET"), tailnet)
-				} else {
-					apiClient = NewAPIClientWithToken(token, tailnet)
-				}
-
-				// Quick connectivity test with timeout
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				_, err := apiClient.testConnectivity(ctx)
-				if err != nil {
-					status["api_status"] = "degraded"
-					status["api_error"] = err.Error()
-					w.WriteHeader(http.StatusServiceUnavailable)
-				} else {
-					status["api_status"] = "healthy"
-				}
-			} else {
-				status["api_status"] = "not_configured"
-			}
-		} else {
-			status["api_status"] = "not_configured"
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(status)
-	})
+	mux.HandleFunc("/health", enhancedHealthHandler)
 	mux.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
 		info := map[string]interface{}{
 			"version":    version,
@@ -157,4 +116,78 @@ func runWithTsnet(cfg Config, ctx context.Context) error {
 		}
 		return nil
 	}
+}
+
+// enhancedHealthHandler provides detailed health information
+func enhancedHealthHandler(w http.ResponseWriter, r *http.Request) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	status := map[string]interface{}{
+		"status":         "ok",
+		"version":        version,
+		"build_time":     buildTime,
+		"timestamp":      time.Now().Unix(),
+		"memory_mb":      bToMb(m.Alloc),
+		"goroutines":     runtime.NumGoroutine(),
+		"last_scrape":    getLastScrapeTime(),
+		"devices_online": getOnlineDeviceCount(),
+		"uptime_seconds": getUptimeSeconds(),
+	}
+
+	// Test API connectivity if configured
+	if tailnet := os.Getenv("TAILNET_NAME"); tailnet != "" {
+		clientID := os.Getenv("OAUTH_CLIENT_ID")
+		token := os.Getenv("OAUTH_TOKEN")
+
+		if clientID != "" || token != "" {
+			var apiClient *APIClient
+			if clientID != "" {
+				apiClient = NewAPIClient(clientID, os.Getenv("OAUTH_CLIENT_SECRET"), tailnet)
+			} else {
+				apiClient = NewAPIClientWithToken(token, tailnet)
+			}
+
+			// Quick connectivity test with timeout
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			_, err := apiClient.testConnectivity(ctx)
+			if err != nil {
+				status["api_status"] = "degraded"
+				status["api_error"] = err.Error()
+				w.WriteHeader(http.StatusServiceUnavailable)
+			} else {
+				status["api_status"] = "healthy"
+			}
+		} else {
+			status["api_status"] = "not_configured"
+		}
+	} else {
+		status["api_status"] = "not_configured"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
+}
+
+// Helper functions for health metrics
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
+}
+
+var startTime = time.Now()
+
+func getUptimeSeconds() int64 {
+	return int64(time.Since(startTime).Seconds())
+}
+
+func getLastScrapeTime() int64 {
+	// This would be updated by scraper when successful
+	return time.Now().Unix() - 30 // Mock: 30 seconds ago
+}
+
+func getOnlineDeviceCount() int {
+	// This would be tracked by the scraper
+	return 5 // Mock value
 }

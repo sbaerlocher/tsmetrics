@@ -19,6 +19,12 @@ import (
 
 var metricsTracker = NewDeviceMetricsTracker()
 
+// Track if API credentials warning was already shown
+var (
+	apiCredentialsWarningShown bool
+	apiCredentialsWarningMutex sync.Mutex
+)
+
 func fetchDevices() ([]Device, error) {
 	// Parse TEST_DEVICES env: comma-separated list of device names or ids to limit discovery (testing)
 	testDevices := []string{}
@@ -69,7 +75,13 @@ func fetchDevices() ([]Device, error) {
 			return devices, nil
 		}
 	} else {
-		slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
+		// Show warning only once at startup
+		apiCredentialsWarningMutex.Lock()
+		if !apiCredentialsWarningShown {
+			slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
+			apiCredentialsWarningShown = true
+		}
+		apiCredentialsWarningMutex.Unlock()
 	}
 
 	// fallback: use TEST_DEVICES as mock devices if API discovery failed
@@ -333,13 +345,48 @@ func scrapeClient(dev Device, client *http.Client, cfg Config) error {
 
 	resp, err := client.Get(urlStr)
 	if err != nil {
-		return fmt.Errorf("failed to fetch metrics from %s: %w", urlStr, err)
+		// Create structured error with retry information
+		deviceErr := DeviceError{
+			DeviceID:   dev.ID,
+			DeviceName: dev.Name,
+			ErrorType:  "network",
+			Underlying: err,
+			Retryable:  true,
+			RetryAfter: 30 * time.Second,
+			Timestamp:  time.Now(),
+		}
+
+		// Update metrics
+		deviceErrors.WithLabelValues(dev.ID, dev.Name, "network", "true").Inc()
+
+		return deviceErr
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, urlStr, string(body))
+
+		// Determine if HTTP error is retryable
+		retryable := resp.StatusCode >= 500 || resp.StatusCode == 429
+		errorType := "http_client"
+		if resp.StatusCode >= 500 {
+			errorType = "http_server"
+		}
+
+		deviceErr := DeviceError{
+			DeviceID:   dev.ID,
+			DeviceName: dev.Name,
+			ErrorType:  errorType,
+			Underlying: fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, urlStr, string(body)),
+			Retryable:  retryable,
+			RetryAfter: 30 * time.Second,
+			Timestamp:  time.Now(),
+		}
+
+		// Update metrics
+		deviceErrors.WithLabelValues(dev.ID, dev.Name, errorType, fmt.Sprintf("%t", retryable)).Inc()
+
+		return deviceErr
 	}
 
 	r := bufio.NewReader(resp.Body)

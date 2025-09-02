@@ -544,3 +544,89 @@ func TestAPIConnectivity(t *testing.T) {
 		})
 	}
 }
+
+// Test structured error handling
+func TestStructuredErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		errorType string
+		retryable bool
+	}{
+		{"network error", "network", true},
+		{"http client error", "http_client", false},
+		{"http server error", "http_server", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deviceErr := DeviceError{
+				DeviceID:   "test-id",
+				DeviceName: "test-device",
+				ErrorType:  tt.errorType,
+				Underlying: fmt.Errorf("test error"),
+				Retryable:  tt.retryable,
+				RetryAfter: 30 * time.Second,
+				Timestamp:  time.Now(),
+			}
+
+			if deviceErr.IsRetryable() != tt.retryable {
+				t.Errorf("expected retryable=%v, got %v", tt.retryable, deviceErr.IsRetryable())
+			}
+
+			if !strings.Contains(deviceErr.Error(), tt.errorType) {
+				t.Errorf("error message should contain error type %s", tt.errorType)
+			}
+		})
+	}
+}
+
+// Test mutual exclusive config validation
+func TestMutualExclusiveConfig(t *testing.T) {
+	// Set OAuth token in environment
+	os.Setenv("OAUTH_TOKEN", "test-token")
+	defer os.Unsetenv("OAUTH_TOKEN")
+
+	cfg := Config{
+		OAuthClientID:        "test-client",
+		OAuthSecret:          "test-secret",
+		Port:                 "9100",
+		ClientMetricsTimeout: 10 * time.Second,
+		LogLevel:             "info",
+		LogFormat:            "text",
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("expected validation error for mutual exclusive OAuth config")
+	}
+
+	if !strings.Contains(err.Error(), "cannot use both OAuth credentials and direct token") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// Test enhanced health endpoint metrics
+func TestEnhancedHealthMetrics(t *testing.T) {
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+
+	enhancedHealthHandler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	if err != nil {
+		t.Fatalf("failed to parse JSON response: %v", err)
+	}
+
+	// Check for new health metrics
+	expectedFields := []string{"memory_mb", "goroutines", "uptime_seconds", "last_scrape", "devices_online"}
+	for _, field := range expectedFields {
+		if _, exists := response[field]; !exists {
+			t.Errorf("expected field %s in health response", field)
+		}
+	}
+}
