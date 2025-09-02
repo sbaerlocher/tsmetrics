@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
@@ -37,6 +37,14 @@ func runStandalone(cfg Config, ctx context.Context) error {
 		host = "0.0.0.0"
 	}
 	addr := fmt.Sprintf("%s:%s", host, cfg.Port)
+
+	// Set up standard HTTP client provider for standalone mode
+	httpClientProvider = &StandardHTTPClientProvider{
+		timeout:       cfg.ClientMetricsTimeout,
+		maxConcurrent: cfg.MaxConcurrentScrapes,
+	}
+	slog.Info("configured HTTP client for standard network access")
+
 	mux := setupRoutes()
 	srv := &http.Server{
 		Addr:    addr,
@@ -47,7 +55,8 @@ func runStandalone(cfg Config, ctx context.Context) error {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			slog.Error("server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -64,6 +73,13 @@ func runWithTsnet(cfg Config, ctx context.Context) error {
 		Dir:      stateDir,
 	}
 	defer server.Close()
+
+	// Set up tsnet HTTP client provider for scraping over Tailscale network
+	httpClientProvider = &TsnetHTTPClientProvider{
+		server:  server,
+		timeout: cfg.ClientMetricsTimeout,
+	}
+	slog.Info("configured HTTP client to use Tailscale network for device scraping")
 
 	listener, err := server.Listen("tcp", ":"+cfg.Port)
 	if err != nil {

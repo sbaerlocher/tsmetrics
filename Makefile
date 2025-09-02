@@ -50,7 +50,7 @@ dev-tsnet:
 .PHONY: run-tsnet
 run-tsnet: build
 	@echo "Running tsmetrics with tsnet locally"
-	@USE_TSNET=true TSNET_HOSTNAME=${TSNET_HOSTNAME:-tsmetrics-dev} TSNET_TAGS=${TSNET_TAGS:-exporter} REQUIRE_EXPORTER_TAG=${REQUIRE_EXPORTER_TAG:-true} TEST_DEVICES=${TEST_DEVICES:-gateway-140207,gateway-130104} ENV=${ENV:-development} PORT=${PORT:-9100} ./bin/$(APP_NAME)
+	@USE_TSNET=true TSNET_HOSTNAME=${TSNET_HOSTNAME:-tsmetrics-dev} TSNET_TAGS=${TSNET_TAGS:-exporter} REQUIRE_EXPORTER_TAG=${REQUIRE_EXPORTER_TAG:-true} TARGET_DEVICES=${TARGET_DEVICES:-gateway-140207,gateway-130104} ENV=${ENV:-development} PORT=${PORT:-9100} ./bin/$(APP_NAME)
 
 .PHONY: docker-run-tsnet
 docker-run-tsnet:
@@ -59,7 +59,7 @@ docker-run-tsnet:
 		-e TSNET_HOSTNAME=tsmetrics \
 		-e TSNET_TAGS=${TSNET_TAGS:-exporter} \
 		-e REQUIRE_EXPORTER_TAG=${REQUIRE_EXPORTER_TAG:-true} \
-		-e TEST_DEVICES=${TEST_DEVICES:-gateway-140207,gateway-130104} \
+		-e TARGET_DEVICES=${TARGET_DEVICES:-gateway-140207,gateway-130104} \
 		-e OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID} \
 		-e OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET} \
 		-e TAILNET_NAME=${TAILNET_NAME} \

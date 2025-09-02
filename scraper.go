@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"tailscale.com/tsnet"
 )
 
 var metricsTracker = NewDeviceMetricsTracker()
@@ -23,19 +25,40 @@ var metricsTracker = NewDeviceMetricsTracker()
 var (
 	apiCredentialsWarningShown bool
 	apiCredentialsWarningMutex sync.Mutex
+	testDevicesWarningShown    bool
+	testDevicesWarningMutex    sync.Mutex
 )
 
 func fetchDevices() ([]Device, error) {
-	// Parse TEST_DEVICES env: comma-separated list of device names or ids to limit discovery (testing)
-	testDevices := []string{}
-	if v := os.Getenv("TEST_DEVICES"); v != "" {
+	// Parse TARGET_DEVICES env: comma-separated list of device names or hostnames to monitor
+	targetDevices := []string{}
+	if v := os.Getenv("TARGET_DEVICES"); v != "" {
 		for _, part := range strings.Split(v, ",") {
 			p := strings.TrimSpace(part)
 			if p != "" {
-				testDevices = append(testDevices, p)
+				targetDevices = append(targetDevices, p)
 			}
 		}
-		slog.Debug("TEST_DEVICES specified", "devices", testDevices)
+		slog.Debug("TARGET_DEVICES specified", "devices", targetDevices)
+	}
+
+	// Backward compatibility: also check TEST_DEVICES (deprecated)
+	if len(targetDevices) == 0 {
+		if v := os.Getenv("TEST_DEVICES"); v != "" {
+			for _, part := range strings.Split(v, ",") {
+				p := strings.TrimSpace(part)
+				if p != "" {
+					targetDevices = append(targetDevices, p)
+				}
+			}
+			// Show deprecation warning only once
+			testDevicesWarningMutex.Lock()
+			if !testDevicesWarningShown {
+				slog.Warn("TEST_DEVICES is deprecated, use TARGET_DEVICES instead", "devices", targetDevices)
+				testDevicesWarningShown = true
+			}
+			testDevicesWarningMutex.Unlock()
+		}
 	}
 
 	// Use APIClient for consistent OAuth2 and HTTP handling
@@ -58,11 +81,11 @@ func fetchDevices() ([]Device, error) {
 		if err != nil {
 			slog.Error("Tailscale API failed", "error", err)
 		} else {
-			// Filter by TEST_DEVICES if specified
-			if len(testDevices) > 0 {
+			// Filter by TARGET_DEVICES if specified
+			if len(targetDevices) > 0 {
 				filtered := make([]Device, 0)
 				for _, d := range devices {
-					for _, td := range testDevices {
+					for _, td := range targetDevices {
 						if strings.EqualFold(d.Name, td) || strings.EqualFold(d.ID, td) || strings.EqualFold(d.Host, td) {
 							filtered = append(filtered, d)
 							break
@@ -84,10 +107,10 @@ func fetchDevices() ([]Device, error) {
 		apiCredentialsWarningMutex.Unlock()
 	}
 
-	// fallback: use TEST_DEVICES as mock devices if API discovery failed
-	if len(testDevices) > 0 {
-		out := make([]Device, 0, len(testDevices))
-		for _, name := range testDevices {
+	// fallback: use TARGET_DEVICES as static device list if API discovery failed
+	if len(targetDevices) > 0 {
+		out := make([]Device, 0, len(targetDevices))
+		for _, name := range targetDevices {
 			out = append(out, Device{
 				ID:     name,
 				Name:   name,
@@ -96,12 +119,12 @@ func fetchDevices() ([]Device, error) {
 				Online: true,
 			})
 		}
-		slog.Info("using TEST_DEVICES as fallback mock", "devices", testDevices)
+		slog.Info("using TARGET_DEVICES as static device list", "devices", targetDevices)
 		return out, nil
 	}
 
 	// no devices available
-	slog.Error("no devices to discover", "hint", "set TEST_DEVICES or provide Tailscale API credentials")
+	slog.Error("no devices to discover", "hint", "set TARGET_DEVICES or provide Tailscale API credentials")
 	return []Device{}, nil
 }
 
@@ -209,6 +232,48 @@ func startBackgroundScraper(cfg Config, ctx context.Context) {
 	}()
 }
 
+// HTTPClientProvider provides HTTP clients for scraping
+type HTTPClientProvider interface {
+	GetClient() *http.Client
+}
+
+// StandardHTTPClientProvider uses standard HTTP client
+type StandardHTTPClientProvider struct {
+	timeout       time.Duration
+	maxConcurrent int
+}
+
+func (p *StandardHTTPClientProvider) GetClient() *http.Client {
+	return &http.Client{
+		Timeout: p.timeout,
+		Transport: &http.Transport{
+			MaxIdleConns:        p.maxConcurrent,
+			IdleConnTimeout:     p.timeout,
+			MaxIdleConnsPerHost: 2,
+		},
+	}
+}
+
+// TsnetHTTPClientProvider uses tsnet HTTP client
+type TsnetHTTPClientProvider struct {
+	server  *tsnet.Server
+	timeout time.Duration
+}
+
+func (p *TsnetHTTPClientProvider) GetClient() *http.Client {
+	return &http.Client{
+		Timeout: p.timeout,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return p.server.Dial(ctx, network, addr)
+			},
+		},
+	}
+}
+
+// Global HTTP client provider
+var httpClientProvider HTTPClientProvider
+
 // scrapeClientMetrics concurrently scrapes device client metrics with comprehensive error handling
 func scrapeClientMetrics(devices []Device, cfg Config) error {
 	sem := make(chan struct{}, cfg.MaxConcurrentScrapes)
@@ -216,13 +281,20 @@ func scrapeClientMetrics(devices []Device, cfg Config) error {
 	var mu sync.Mutex
 	var errors []error
 
-	client := &http.Client{
-		Timeout: cfg.ClientMetricsTimeout,
-		Transport: &http.Transport{
-			MaxIdleConns:        cfg.MaxConcurrentScrapes,
-			IdleConnTimeout:     cfg.ClientMetricsTimeout,
-			MaxIdleConnsPerHost: 2,
-		},
+	// Use the configured HTTP client provider (either standard or tsnet)
+	var client *http.Client
+	if httpClientProvider != nil {
+		client = httpClientProvider.GetClient()
+	} else {
+		// Fallback to standard client if no provider set
+		client = &http.Client{
+			Timeout: cfg.ClientMetricsTimeout,
+			Transport: &http.Transport{
+				MaxIdleConns:        cfg.MaxConcurrentScrapes,
+				IdleConnTimeout:     cfg.ClientMetricsTimeout,
+				MaxIdleConnsPerHost: 2,
+			},
+		}
 	}
 
 	for _, d := range devices {
