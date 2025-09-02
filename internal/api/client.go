@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
@@ -155,11 +156,32 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 			}
 		}
 
+		deviceID, err := types.NewDeviceID(d.ID)
+		if err != nil {
+			slog.Warn("skipping device with invalid ID", "device", d, "error", err)
+			continue
+		}
+
+		deviceName, err := types.NewDeviceName(d.Name)
+		if err != nil {
+			slog.Warn("skipping device with invalid name", "device", d, "error", err)
+			continue
+		}
+
+		tags := make([]types.TagName, 0, len(d.Tags))
+		for _, tag := range d.Tags {
+			if tagName, err := types.NewTagName(tag); err == nil {
+				tags = append(tags, tagName)
+			} else {
+				slog.Warn("skipping invalid tag", "tag", tag, "device", d.Name, "error", err)
+			}
+		}
+
 		devices = append(devices, device.Device{
-			ID:                d.ID,
-			Name:              d.Name,
+			ID:                deviceID,
+			Name:              deviceName,
 			Host:              host,
-			Tags:              d.Tags,
+			Tags:              tags,
 			Online:            d.Online,
 			Authorized:        d.Authorized,
 			LastSeen:          lastSeen,

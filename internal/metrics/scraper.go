@@ -97,15 +97,15 @@ func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 
 			if err := scrapeClient(dev, client, cfg); err != nil {
 				mu.Lock()
-				errs = append(errs, fmt.Errorf("device %s: %w", dev.Name, err))
+				errs = append(errs, fmt.Errorf("device %s: %w", dev.Name.String(), err))
 				mu.Unlock()
 
 				if isTsnetStartupError(err) {
-					slog.Debug("device not yet reachable via tsnet (startup)", "device", dev.Name, "error", err)
+					slog.Debug("device not yet reachable via tsnet (startup)", "device", dev.Name.String(), "error", err)
 				} else {
-					slog.Error("scrapeClient error", "device", dev.Name, "error", err)
+					slog.Error("scrapeClient error", "device", dev.Name.String(), "error", err)
 				}
-				ScrapeErrors.WithLabelValues(dev.Name, "client_fetch_failed").Inc()
+				ScrapeErrors.WithLabelValues(dev.Name.String(), "client_fetch_failed").Inc()
 			}
 		}(d)
 	}
@@ -120,7 +120,7 @@ func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 
 func hasTag(d device.Device, tag string) bool {
 	for _, t := range d.Tags {
-		if t == tag {
+		if t.String() == tag {
 			return true
 		}
 	}
@@ -142,7 +142,7 @@ func isTsnetStartupError(err error) bool {
 func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) error {
 	hostForURL := dev.Host
 	if hostForURL == "" {
-		hostForURL = dev.Name
+		hostForURL = dev.Name.String()
 	}
 
 	if err := validateHostname(hostForURL); err != nil {
@@ -156,15 +156,15 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 	resp, err := client.Get(urlStr)
 	if err != nil {
 		deviceErr := errors.DeviceError{
-			DeviceID:   dev.ID,
-			DeviceName: dev.Name,
+			DeviceID:   dev.ID.String(),
+			DeviceName: dev.Name.String(),
 			ErrorType:  "network",
 			Underlying: err,
 			Retryable:  true,
 			RetryAfter: 30 * time.Second,
 			Timestamp:  time.Now(),
 		}
-		DeviceErrors.WithLabelValues(dev.ID, dev.Name, "network", "true").Inc()
+		DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), "network", "true").Inc()
 		return deviceErr
 	}
 	defer resp.Body.Close()
@@ -178,15 +178,15 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 		}
 
 		deviceErr := errors.DeviceError{
-			DeviceID:   dev.ID,
-			DeviceName: dev.Name,
+			DeviceID:   dev.ID.String(),
+			DeviceName: dev.Name.String(),
 			ErrorType:  errorType,
 			Underlying: fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, urlStr, string(body)),
 			Retryable:  retryable,
 			RetryAfter: 30 * time.Second,
 			Timestamp:  time.Now(),
 		}
-		DeviceErrors.WithLabelValues(dev.ID, dev.Name, errorType, fmt.Sprintf("%t", retryable)).Inc()
+		DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), errorType, fmt.Sprintf("%t", retryable)).Inc()
 		return deviceErr
 	}
 
@@ -211,28 +211,28 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 				switch name {
 				case "tailscaled_inbound_bytes_total":
 					path := labels["path"]
-					InboundBytes.WithLabelValues(dev.ID, dev.Name, path).Set(val)
+					InboundBytes.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
 				case "tailscaled_outbound_bytes_total":
 					path := labels["path"]
-					OutboundBytes.WithLabelValues(dev.ID, dev.Name, path).Set(val)
+					OutboundBytes.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
 				case "tailscaled_inbound_packets_total":
 					path := labels["path"]
-					InboundPackets.WithLabelValues(dev.ID, dev.Name, path).Set(val)
+					InboundPackets.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
 				case "tailscaled_outbound_packets_total":
 					path := labels["path"]
-					OutboundPackets.WithLabelValues(dev.ID, dev.Name, path).Set(val)
+					OutboundPackets.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
 				case "tailscaled_inbound_dropped_packets_total":
-					InboundDroppedPackets.WithLabelValues(dev.ID, dev.Name).Set(val)
+					InboundDroppedPackets.WithLabelValues(dev.ID.String(), dev.Name.String()).Set(val)
 				case "tailscaled_outbound_dropped_packets_total":
 					reason := labels["reason"]
-					OutboundDroppedPackets.WithLabelValues(dev.ID, dev.Name, reason).Set(val)
+					OutboundDroppedPackets.WithLabelValues(dev.ID.String(), dev.Name.String(), reason).Set(val)
 				case "tailscaled_health_messages":
 					typeLabel := labels["type"]
-					HealthMessages.WithLabelValues(dev.ID, dev.Name, typeLabel).Set(val)
+					HealthMessages.WithLabelValues(dev.ID.String(), dev.Name.String(), typeLabel).Set(val)
 				case "tailscaled_advertised_routes":
-					AdvertisedRoutes.WithLabelValues(dev.ID, dev.Name).Set(val)
+					AdvertisedRoutes.WithLabelValues(dev.ID.String(), dev.Name.String()).Set(val)
 				case "tailscaled_approved_routes":
-					ApprovedRoutes.WithLabelValues(dev.ID, dev.Name).Set(val)
+					ApprovedRoutes.WithLabelValues(dev.ID.String(), dev.Name.String()).Set(val)
 				}
 			}
 		}

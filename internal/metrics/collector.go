@@ -9,6 +9,7 @@ import (
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
+	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
@@ -86,7 +87,7 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 				filtered := make([]device.Device, 0)
 				for _, d := range devices {
 					for _, td := range targetDevices {
-						if strings.EqualFold(d.Name, td) || strings.EqualFold(d.ID, td) || strings.EqualFold(d.Host, td) {
+						if strings.EqualFold(d.Name.String(), td) || strings.EqualFold(d.ID.String(), td) || strings.EqualFold(d.Host, td) {
 							filtered = append(filtered, d)
 							break
 						}
@@ -109,11 +110,15 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 	if len(targetDevices) > 0 {
 		out := make([]device.Device, 0, len(targetDevices))
 		for _, name := range targetDevices {
+			deviceID, _ := types.NewDeviceID(name)
+			deviceName, _ := types.NewDeviceName(name)
+			exporterTag, _ := types.NewTagName("exporter")
+
 			out = append(out, device.Device{
-				ID:     name,
-				Name:   name,
+				ID:     deviceID,
+				Name:   deviceName,
 				Host:   name,
-				Tags:   []string{"exporter"},
+				Tags:   []types.TagName{exporterTag},
 				Online: true,
 			})
 		}
@@ -147,49 +152,49 @@ func (c *Collector) UpdateMetrics(target string) error {
 			onlineStr = "true"
 			onlineCount++
 		}
-		DeviceInfo.WithLabelValues(d.ID, d.Name, onlineStr, d.OS, d.ClientVersion).Set(1)
+		DeviceInfo.WithLabelValues(d.ID.String(), d.Name.String(), onlineStr, d.OS, d.ClientVersion).Set(1)
 
 		authValue := 0.0
 		if d.Authorized {
 			authValue = 1.0
 		}
-		DeviceAuthorized.WithLabelValues(d.ID, d.Name).Set(authValue)
+		DeviceAuthorized.WithLabelValues(d.ID.String(), d.Name.String()).Set(authValue)
 
 		if !d.LastSeen.IsZero() {
-			DeviceLastSeen.WithLabelValues(d.ID, d.Name).Set(float64(d.LastSeen.Unix()))
+			DeviceLastSeen.WithLabelValues(d.ID.String(), d.Name.String()).Set(float64(d.LastSeen.Unix()))
 		}
 
 		if d.User != "" {
-			DeviceUser.WithLabelValues(d.ID, d.Name, d.User).Set(1)
+			DeviceUser.WithLabelValues(d.ID.String(), d.Name.String(), d.User).Set(1)
 		}
 
 		if !d.KeyExpiryDisabled && !d.Expires.IsZero() {
-			DeviceMachineKeyExpiry.WithLabelValues(d.ID, d.Name).Set(float64(d.Expires.Unix()))
+			DeviceMachineKeyExpiry.WithLabelValues(d.ID.String(), d.Name.String()).Set(float64(d.Expires.Unix()))
 		} else {
-			DeviceMachineKeyExpiry.WithLabelValues(d.ID, d.Name).Set(0)
+			DeviceMachineKeyExpiry.WithLabelValues(d.ID.String(), d.Name.String()).Set(0)
 		}
 
 		for _, route := range d.AdvertisedRoutes {
-			DeviceRoutesAdvertised.WithLabelValues(d.ID, d.Name, route).Set(1)
+			DeviceRoutesAdvertised.WithLabelValues(d.ID.String(), d.Name.String(), route).Set(1)
 		}
 
 		for _, route := range d.EnabledRoutes {
-			DeviceRoutesEnabled.WithLabelValues(d.ID, d.Name, route).Set(1)
+			DeviceRoutesEnabled.WithLabelValues(d.ID.String(), d.Name.String(), route).Set(1)
 		}
 
 		exitNodeValue := 0.0
 		if d.IsExitNode {
 			exitNodeValue = 1.0
 		}
-		DeviceExitNode.WithLabelValues(d.ID, d.Name).Set(exitNodeValue)
+		DeviceExitNode.WithLabelValues(d.ID.String(), d.Name.String()).Set(exitNodeValue)
 
 		subnetRouterValue := 0.0
 		if len(d.AdvertisedRoutes) > 0 {
 			subnetRouterValue = 1.0
 		}
-		DeviceSubnetRouter.WithLabelValues(d.ID, d.Name).Set(subnetRouterValue)
+		DeviceSubnetRouter.WithLabelValues(d.ID.String(), d.Name.String()).Set(subnetRouterValue)
 
-		seen[d.ID] = struct{}{}
+		seen[d.ID.String()] = struct{}{}
 	}
 
 	OnlineDevicesCount.Set(float64(onlineCount))

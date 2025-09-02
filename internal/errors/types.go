@@ -55,13 +55,14 @@ func (e ConfigurationError) Error() string {
 type APIError struct {
 	Endpoint   string
 	StatusCode int
-	Message    string
-	Underlying error
 	Retryable  bool
+	Context    map[string]interface{}
+	Underlying error
+	Timestamp  time.Time
 }
 
 func (e APIError) Error() string {
-	return fmt.Sprintf("API error on %s (status %d): %s", e.Endpoint, e.StatusCode, e.Message)
+	return fmt.Sprintf("API error on %s (status %d): %v", e.Endpoint, e.StatusCode, e.Underlying)
 }
 
 func (e APIError) Unwrap() error {
@@ -70,6 +71,51 @@ func (e APIError) Unwrap() error {
 
 func (e APIError) IsRetryable() bool {
 	return e.Retryable
+}
+
+func NewAPIError(endpoint string, statusCode int, err error) *APIError {
+	retryable := statusCode >= 500 || statusCode == 429 || statusCode == 408
+	return &APIError{
+		Endpoint:   endpoint,
+		StatusCode: statusCode,
+		Retryable:  retryable,
+		Context:    make(map[string]interface{}),
+		Underlying: err,
+		Timestamp:  time.Now(),
+	}
+}
+
+type RetryConfig struct {
+	MaxAttempts int
+	BaseDelay   time.Duration
+	MaxDelay    time.Duration
+	Multiplier  float64
+}
+
+func DefaultRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxAttempts: 3,
+		BaseDelay:   100 * time.Millisecond,
+		MaxDelay:    10 * time.Second,
+		Multiplier:  2.0,
+	}
+}
+
+func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
+	if attempt <= 0 {
+		return rc.BaseDelay
+	}
+
+	delay := float64(rc.BaseDelay)
+	for i := 0; i < attempt; i++ {
+		delay *= rc.Multiplier
+	}
+
+	if time.Duration(delay) > rc.MaxDelay {
+		return rc.MaxDelay
+	}
+
+	return time.Duration(delay)
 }
 
 type RetryableError struct {
