@@ -1,0 +1,114 @@
+{
+  "files.associations": {
+    "*.yaml": "yaml",
+    "*.yml": "yaml",
+    "**/templates/*.yaml": "helm",
+    "**/templates/*.yml": "helm",
+    "**/helm/**/templates/*.yaml": "helm",
+    "**/helm/**/templates/*.yml": "helm",
+    "deploy/helm/tsmetrics/templates/*.yaml": "helm",
+    "deploy/helm/tsmetrics/templates/*.yml": "helm",
+    "Chart.yaml": "yaml",
+    "values.yaml": "yaml",
+    "values-*.yaml": "yaml",
+    "**/servicemonitor*.yaml": "yaml",
+    "**/*patch*.yaml": "yaml",
+    "**/kustomization.yaml": "yaml",
+    "**/kustomization.yml": "yaml"
+  },
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.28.0-standalone-strict/deployment-apps-v1.json": [
+      "deploy/kustomize/base/deployment.yaml",
+      "deploy/kubernetes/**/deployment.yaml"
+    ],
+    "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.28.0-standalone-strict/service-v1.json": [
+      "deploy/kustomize/base/service.yaml",
+      "deploy/kubernetes/**/service.yaml"
+    ],
+    "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.28.0-standalone-strict/configmap-v1.json": [
+      "deploy/kustomize/base/configmap.yaml",
+      "deploy/kubernetes/**/configmap.yaml"
+    ],
+    "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.28.0-standalone-strict/ingress-networking-v1.json": [
+      "deploy/kustomize/base/ingress.yaml",
+      "deploy/kubernetes/**/ingress.yaml"
+    ],
+    "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.28.0-standalone-strict/persistentvolumeclaim-v1.json": [
+      "deploy/kustomize/**/pvc.yaml",
+      "deploy/kubernetes/**/pvc.yaml"
+    ],
+    "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.28.0-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json": [
+      "deploy/kustomize/**/hpa.yaml",
+      "deploy/kubernetes/**/hpa.yaml"
+    ]
+  },
+  "yaml.disableSchemaRequest": [
+    "**/*patch*.yaml",
+    "**/servicemonitor*.yaml",
+    "**/kustomization.yaml"
+  ],
+  "helm-intellisense.customValueFileNames": ["values.yaml", "values.yml"],
+  "[helm]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "advanced",
+    "yaml.validate": false,
+    "yaml.completion": false,
+    "yaml.hover": false
+  },
+  "[yaml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "advanced",
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": true
+    }
+  },
+  "yaml.customTags": [
+    "!Base64 scalar",
+    "!Cidr scalar",
+    "!And sequence",
+    "!Equals sequence",
+    "!If sequence",
+    "!Not sequence",
+    "!Or sequence",
+    "!Condition scalar",
+    "!FindInMap sequence",
+    "!GetAtt sequence",
+    "!GetAZs scalar",
+    "!ImportValue scalar",
+    "!Join sequence",
+    "!Ref scalar",
+    "!Select sequence",
+    "!Split sequence",
+    "!Sub scalar"
+  ],
+  "yaml.validate": true,
+  "yaml.hover": true,
+  "yaml.completion": true,
+  "yaml.format.enable": true,
+  "yaml.format.singleQuote": false,
+  "yaml.format.bracketSpacing": true,
+  "yaml.format.proseWrap": "preserve",
+  "yaml.format.printWidth": 80,
+  "yaml.disableDefaultProperties": false,
+  "redhat.telemetry.enabled": false,
+  "yaml.schemaStore.enable": true,
+  "yaml.suggest.parentSkeletonSelectedFirst": true,
+  "yaml.maxItemsComputed": 5000,
+  "yaml.traces.server": "off",
+  "yaml.yamlVersion": "1.2",
+  "yaml.preferences.includeComments": true,
+  "yaml.preferences.quotingType": "double",
+  "kubernetes.helm.path.linux": "/usr/local/bin/helm",
+  "kubernetes.helm.path.osx": "/usr/local/bin/helm",
+  "kubernetes.helm.path.windows": "helm.exe",
+  "vs-kubernetes": {
+    "vs-kubernetes.helm-path": "/usr/local/bin/helm",
+    "vs-kubernetes.helm-path.linux": "/usr/local/bin/helm",
+    "vs-kubernetes.helm-path.osx": "/usr/local/bin/helm",
+    "vs-kubernetes.helm-path.windows": "helm.exe"
+  }
+}

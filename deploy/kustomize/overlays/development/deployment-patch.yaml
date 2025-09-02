@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsmetrics
+spec:
+  template:
+    spec:
+      containers:
+        - name: tsmetrics
+          env:
+            - name: LOG_LEVEL
+              value: "debug"
+            - name: ENV
+              value: "development"
+            - name: TSNET_HOSTNAME
+              value: "tsmetrics-dev"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsmetrics
+  labels:
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tsmetrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tsmetrics
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: tsmetrics
+          image: ghcr.io/sbaerlocher/tsmetrics:latest
+          ports:
+            - name: http
+              containerPort: 9100
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "9100"
+            - name: ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: LOG_FORMAT
+              value: "json"
+            - name: USE_TSNET
+              value: "true"
+            - name: TSNET_HOSTNAME
+              value: "tsmetrics"
+            - name: TSNET_TAGS
+              value: "exporter"
+            - name: TSNET_STATE_DIR
+              value: "/tmp/tsnet-state"
+            - name: REQUIRE_EXPORTER_TAG
+              value: "false"
+            - name: CLIENT_METRICS_TIMEOUT
+              value: "10s"
+            - name: MAX_CONCURRENT_SCRAPES
+              value: "10"
+            - name: SCRAPE_INTERVAL
+              value: "30s"
+            - name: CLIENT_METRICS_PORT
+              value: "5252"
+          envFrom:
+            - secretRef:
+                name: tsmetrics-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: tsnet-state
+              mountPath: /tmp/tsnet-state
+      volumes:
+        - name: tsnet-state
+          emptyDir: {}
