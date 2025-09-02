@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Go Application",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd/tsmetrics",
+      "env": {
+        "ENV": "development",
+        "PORT": "9100",
+        "LOG_LEVEL": "debug"
+      },
+      "args": []
+    },
+    {
+      "name": "Test Go Package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}"
+    }
+  ]
+}

@@ -1,10 +1,44 @@
 [Unit]
-Description=tsmetrics service
-After=network.target
+Description=TSMetrics - Tailscale Prometheus Exporter
+Documentation=https://github.com/sbaerlocher/tsmetrics
+After=network-online.target
+Wants=network-online.target
 
 [Service]
+Type=simple
+User=tsmetrics
+Group=tsmetrics
 ExecStart=/usr/local/bin/tsmetrics
 Restart=always
+RestartSec=10
+KillMode=process
+TimeoutStopSec=30
+
+# Security
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/tsmetrics
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+# Environment
+Environment=PORT=9100
+Environment=ENV=production
+Environment=LOG_LEVEL=info
+Environment=LOG_FORMAT=json
+Environment=USE_TSNET=true
+Environment=TSNET_HOSTNAME=tsmetrics
+Environment=TSNET_TAGS=exporter
+Environment=TSNET_STATE_DIR=/var/lib/tsmetrics/tsnet-state
+
+# Load secrets from environment file
+EnvironmentFile=-/etc/tsmetrics/config
+
+# Working directory
+WorkingDirectory=/var/lib/tsmetrics
 
 [Install]
 WantedBy=multi-user.target

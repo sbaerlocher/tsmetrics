@@ -1,0 +1,43 @@
+# YAML Lint Configuration for Helm Templates
+extends: default
+
+rules:
+  # Allow longer lines for Helm templates
+  line-length:
+    max: 120
+    level: warning
+
+  # Allow braces in Helm templates like {{ .Values.name }}
+  braces:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Allow brackets for Helm functions
+  brackets:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Don't enforce document start for templates
+  document-start: disable
+
+  # Allow empty values for conditional templates
+  empty-values: disable
+
+  # Allow duplicate keys for Helm conditionals
+  key-duplicates: disable
+
+  # Relax indentation for Helm templates
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Allow trailing spaces in templates
+  trailing-spaces: disable
+
+  # Allow truthy values for Helm booleans
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false

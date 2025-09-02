@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsmetrics
+spec:
+  template:
+    spec:
+      containers:
+        - name: tsmetrics
+          env:
+            - name: LOG_LEVEL
+              value: 'info'
+            - name: ENV
+              value: 'production'
+            - name: REQUIRE_EXPORTER_TAG
+              value: 'true'
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: tsnet-state
+              mountPath: /tmp/tsnet-state
+      volumes:
+        - name: tsnet-state
+          persistentVolumeClaim:
+            claimName: tsmetrics-state

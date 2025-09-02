@@ -1,0 +1,21 @@
+apiVersion: v2
+name: tsmetrics
+description: A Helm chart for tsmetrics - Tailscale Prometheus Exporter
+type: application
+version: 0.1.0
+appVersion: '2.0.0'
+keywords:
+  - tailscale
+  - prometheus
+  - monitoring
+  - metrics
+  - exporter
+home: https://github.com/sbaerlocher/tsmetrics
+sources:
+  - https://github.com/sbaerlocher/tsmetrics
+maintainers:
+  - name: sbaerlocher
+    email: info@sbaerlocher.ch
+    url: https://github.com/sbaerlocher
+annotations:
+  category: Monitoring

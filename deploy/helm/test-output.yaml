@@ -1,0 +1,84 @@
+---
+# Source: tsmetrics/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tsmetrics-secrets
+type: Opaque
+stringData:
+  OAUTH_CLIENT_ID: ""
+  OAUTH_CLIENT_SECRET: ""
+  TAILNET_NAME: ""
+---
+# Source: tsmetrics/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: release-name-tsmetrics-config
+  labels:
+    helm.sh/chart: tsmetrics-0.1.0
+    app.kubernetes.io/name: tsmetrics
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "2.0.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  # Application settings
+  PORT: "9100"
+  ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "text"
+
+  # tsnet configuration
+  USE_TSNET: "true"
+  TSNET_HOSTNAME: "tsmetrics"
+  TSNET_TAGS: "exporter"
+  TSNET_STATE_DIR: "/tmp/tsnet-state"
+  REQUIRE_EXPORTER_TAG: "false"
+
+  # Performance settings
+  CLIENT_METRICS_TIMEOUT: "10s"
+  MAX_CONCURRENT_SCRAPES: "10"
+  SCRAPE_INTERVAL: "30s"
+  CLIENT_METRICS_PORT: "5252"
+---
+# Source: tsmetrics/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-tsmetrics
+  labels:
+    helm.sh/chart: tsmetrics-0.1.0
+    app.kubernetes.io/name: tsmetrics
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/version: "2.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9100
+      targetPort: 9100
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: tsmetrics
+    app.kubernetes.io/instance: release-name
+---
+# Source: tsmetrics/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tsmetrics
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: tsmetrics.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tsmetrics
+                port:
+                  number: 9100

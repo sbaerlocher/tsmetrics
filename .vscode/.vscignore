@@ -1,0 +1,44 @@
+# VS Code specific ignore patterns for better performance
+
+# Language server caches
+.vscode/.ropeproject/
+.vscode/settings.json.bak
+
+# Helm Chart dependencies
+deploy/helm/*/charts/
+deploy/helm/*/Chart.lock
+
+# Kubernetes generated files
+*.generated.yaml
+*.rendered.yaml
+
+# Temporary Helm files
+.helm/
+
+# Binary output
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db

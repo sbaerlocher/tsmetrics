@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: tsmetrics-production
+
+resources:
+  - ../../base
+  - pvc.yaml
+  - hpa.yaml
+  - servicemonitor.yaml
+
+patchesStrategicMerge:
+  - deployment-patch.yaml
+
+images:
+  - name: ghcr.io/sbaerlocher/tsmetrics
+    newTag: latest
+
+replicas:
+  - name: tsmetrics
+    count: 2
+
+commonLabels:
+  environment: production

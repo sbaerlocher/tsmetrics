@@ -91,7 +91,7 @@ docker-run-tsnet:
 		-v tsnet-state:/tmp/tsnet-state \
 		$(DOCKER_IMAGE):latest
 
-# Kubernetes Targets
+# Kubernetes Targets (Plain YAML)
 .PHONY: k8s-deploy
 k8s-deploy:
 	kubectl apply -f deploy/kubernetes.yaml
@@ -99,6 +99,73 @@ k8s-deploy:
 .PHONY: k8s-delete
 k8s-delete:
 	kubectl delete -f deploy/kubernetes.yaml
+
+# Helm Targets
+.PHONY: helm-install
+helm-install:
+	helm install tsmetrics deploy/helm/tsmetrics
+
+.PHONY: helm-upgrade
+helm-upgrade:
+	helm upgrade tsmetrics deploy/helm/tsmetrics
+
+.PHONY: helm-uninstall
+helm-uninstall:
+	helm uninstall tsmetrics
+
+.PHONY: helm-template
+helm-template:
+	helm template tsmetrics deploy/helm/tsmetrics
+
+.PHONY: helm-lint
+helm-lint:
+	helm lint deploy/helm/tsmetrics
+
+# Kustomize Targets
+.PHONY: kustomize-dev
+kustomize-dev:
+	kubectl apply -k deploy/kustomize/overlays/development
+
+.PHONY: kustomize-prod
+kustomize-prod:
+	kubectl apply -k deploy/kustomize/overlays/production
+
+.PHONY: kustomize-delete-dev
+kustomize-delete-dev:
+	kubectl delete -k deploy/kustomize/overlays/development
+
+.PHONY: kustomize-delete-prod
+kustomize-delete-prod:
+	kubectl delete -k deploy/kustomize/overlays/production
+
+.PHONY: kustomize-preview-dev
+kustomize-preview-dev:
+	kubectl kustomize deploy/kustomize/overlays/development
+
+.PHONY: kustomize-preview-prod
+kustomize-preview-prod:
+	kubectl kustomize deploy/kustomize/overlays/production
+
+# Systemd Targets
+.PHONY: systemd-install
+systemd-install: build
+	sudo deploy/install-systemd.sh install bin/$(APP_NAME)
+
+.PHONY: systemd-uninstall
+systemd-uninstall:
+	sudo deploy/install-systemd.sh uninstall
+
+.PHONY: systemd-start
+systemd-start:
+	sudo deploy/install-systemd.sh start
+
+.PHONY: systemd-stop
+systemd-stop:
+	sudo deploy/install-systemd.sh stop
+
+.PHONY: systemd-status
+systemd-status:
+	deploy/install-systemd.sh status
 
 # Development Targets
 .PHONY: dev-deps
@@ -150,8 +217,30 @@ help:
 	@echo "  docker-push    - Push Docker image to registry"
 	@echo ""
 	@echo "Kubernetes targets:"
-	@echo "  k8s-deploy     - Deploy to Kubernetes"
-	@echo "  k8s-delete     - Remove from Kubernetes"
+	@echo "  k8s-deploy     - Deploy with plain YAML"
+	@echo "  k8s-delete     - Remove plain YAML deployment"
+	@echo ""
+	@echo "Helm targets:"
+	@echo "  helm-install   - Install with Helm"
+	@echo "  helm-upgrade   - Upgrade with Helm"
+	@echo "  helm-uninstall - Uninstall with Helm"
+	@echo "  helm-template  - Preview Helm templates"
+	@echo "  helm-lint      - Lint Helm chart"
+	@echo ""
+	@echo "Kustomize targets:"
+	@echo "  kustomize-dev        - Deploy development with Kustomize"
+	@echo "  kustomize-prod       - Deploy production with Kustomize"
+	@echo "  kustomize-delete-dev - Remove development deployment"
+	@echo "  kustomize-delete-prod - Remove production deployment"
+	@echo "  kustomize-preview-dev - Preview development Kustomize"
+	@echo "  kustomize-preview-prod - Preview production Kustomize"
+	@echo ""
+	@echo "Systemd targets:"
+	@echo "  systemd-install  - Install as systemd service"
+	@echo "  systemd-uninstall - Remove systemd service"
+	@echo "  systemd-start    - Start systemd service"
+	@echo "  systemd-stop     - Stop systemd service"
+	@echo "  systemd-status   - Show systemd service status"
 	@echo ""
 	@echo "Quality targets:"
 	@echo "  lint           - Run golangci-lint"
