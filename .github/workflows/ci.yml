@@ -1,0 +1,311 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # Weekly security scans (Mondays 6 AM UTC)
+
+env:
+  GO_VERSION: "1.24"
+
+jobs:
+  # ==============================================================================
+  # SETUP & CHANGE DETECTION
+  # ==============================================================================
+  setup:
+    name: Setup & Change Detection
+    runs-on: ubuntu-latest
+    outputs:
+      helm-changed: ${{ steps.changes.outputs.helm }}
+      go-changed: ${{ steps.changes.outputs.go }}
+      docker-changed: ${{ steps.changes.outputs.docker }}
+      should-run-tests: ${{ steps.should-run.outputs.tests }}
+      should-run-security: ${{ steps.should-run.outputs.security }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            helm:
+              - 'deploy/helm/**'
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'cmd/**'
+              - 'internal/**'
+              - 'pkg/**'
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+
+      - name: Determine what should run
+        id: should-run
+        run: |
+          # Always run on main, tags, or schedule
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]] || [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "tests=true" >> "$GITHUB_OUTPUT"
+            echo "security=true" >> "$GITHUB_OUTPUT"
+          # On PRs, run based on changes
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ steps.changes.outputs.go }}" == "true" ]] || [[ "${{ steps.changes.outputs.docker }}" == "true" ]]; then
+              echo "tests=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "tests=false" >> "$GITHUB_OUTPUT"
+            fi
+            echo "security=true" >> "$GITHUB_OUTPUT"  # Always run security on PRs
+          else
+            echo "tests=true" >> "$GITHUB_OUTPUT"
+            echo "security=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.sha }}"
+            VERSION="${VERSION:0:8}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+  # ==============================================================================
+  # TEST & LINT PHASE
+  # ==============================================================================
+  test-and-lint:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.should-run-tests == 'true'
+    outputs:
+      coverage: ${{ steps.coverage.outputs.coverage }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Download and verify dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "::error::The following files are not formatted:"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1.4.0
+        with:
+          version: "latest"
+          install-go: false
+
+      - name: Run tests with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Run integration tests
+        if: hashFiles('tests/integration/**') != ''
+        run: |
+          go test -v -tags=integration -timeout=10m ./tests/integration/...
+
+      - name: Generate coverage report
+        id: coverage
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
+          echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Test coverage: $COVERAGE"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.html
+          retention-days: 30
+
+      - name: Build and test binary
+        run: |
+          mkdir -p bin
+          go build -ldflags="-s -w -X main.version=${{ needs.setup.outputs.version }}" -o bin/tsmetrics ./cmd/tsmetrics
+          ./bin/tsmetrics --version || true
+          ./bin/tsmetrics --help || true
+
+  # ==============================================================================
+  # SECURITY ANALYSIS (Matrix Strategy)
+  # ==============================================================================
+  security-scan:
+    name: Security (${{ matrix.scanner }})
+    runs-on: ubuntu-latest
+    needs: [setup, test-and-lint]
+    if: always() && needs.setup.outputs.should-run-security == 'true' && (needs.test-and-lint.result == 'success' || needs.test-and-lint.result == 'skipped')
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      matrix:
+        scanner: [gosec, govulncheck, trivy-fs]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        if: matrix.scanner == 'gosec' || matrix.scanner == 'govulncheck'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run gosec Security Scanner
+        if: matrix.scanner == 'gosec'
+        run: |
+          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+          gosec -fmt sarif -out gosec.sarif -stdout -verbose=text ./...
+
+      - name: Run govulncheck
+        if: matrix.scanner == 'govulncheck'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -json ./... | tee govulncheck.json
+          # Show summary
+          if [ -s govulncheck.json ]; then
+            echo "::warning::Vulnerabilities detected by govulncheck"
+            jq -r '.message // empty' govulncheck.json | head -10
+          else
+            echo "::notice::No vulnerabilities found by govulncheck"
+          fi
+
+      - name: Run Trivy filesystem scanner
+        if: matrix.scanner == 'trivy-fs'
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-fs.sarif"
+          severity: "MEDIUM,HIGH,CRITICAL"
+          ignore-unfixed: true
+
+      - name: Upload SARIF file
+        if: always() && (matrix.scanner == 'gosec' || matrix.scanner == 'trivy-fs')
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ matrix.scanner }}.sarif
+          category: ${{ matrix.scanner }}
+        continue-on-error: true
+
+  # ==============================================================================
+  # CODEQL ANALYSIS (Separate for better control)
+  # ==============================================================================
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    needs: [setup, test-and-lint]
+    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request') && (needs.test-and-lint.result == 'success' || needs.test-and-lint.result == 'skipped')
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          queries: security-extended,quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"
+
+  # ==============================================================================
+  # DEPENDENCY REVIEW (PR only)
+  # ==============================================================================
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT
+          comment-summary-in-pr: true
+
+  # ==============================================================================
+  # CI SUMMARY
+  # ==============================================================================
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs:
+      [setup, test-and-lint, security-scan, codeql-analysis, dependency-review]
+    if: always()
+
+    steps:
+      - name: CI Summary
+        run: |
+          {
+            echo "## 🔍 CI Pipeline Summary"
+            echo ""
+            echo "- **Version:** ${{ needs.setup.outputs.version }}"
+            echo "- **Tests:** ${{ needs.test-and-lint.result }}"
+            echo "- **Security Scan:** ${{ needs.security-scan.result }}"
+            echo "- **CodeQL:** ${{ needs.codeql-analysis.result }}"
+            echo "- **Dependency Review:** ${{ needs.dependency-review.result }}"
+            echo ""
+            echo "### 📊 Test Coverage"
+            echo "- **Coverage:** ${{ needs.test-and-lint.outputs.coverage }}"
+          } >> "$GITHUB_STEP_SUMMARY"

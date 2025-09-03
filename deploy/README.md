@@ -79,13 +79,13 @@ kubectl apply -k kustomize/overlays/production
 
 ### Features Comparison
 
-| Feature | Helm | Kustomize Base | Kustomize Dev | Kustomize Prod |
-|---------|------|----------------|---------------|----------------|
-| ServiceMonitor | Optional | ❌ | ❌ | ✅ |
-| External Secrets | ✅ | ✅ | ✅ | ✅ |
-| HPA | Optional | ❌ | ❌ | ✅ |
-| Persistence | Optional | ❌ | ❌ | ✅ |
-| Resource Limits | Configurable | Basic | Reduced | Production |
+| Feature          | Helm         | Kustomize Base | Kustomize Dev | Kustomize Prod |
+|------------------|--------------|----------------|---------------|----------------|
+| ServiceMonitor   | Optional     | ❌              | ❌             | ✅              |
+| External Secrets | ✅            | ✅              | ✅             | ✅              |
+| HPA              | Optional     | ❌              | ❌             | ✅              |
+| Persistence      | Optional     | ❌              | ❌             | ✅              |
+| Resource Limits  | Configurable | Basic          | Reduced       | Production     |
 
 ## Kustomize
 
@@ -135,15 +135,15 @@ kubectl apply -k kustomize/overlays/production
 
 ## Comparison
 
-| Feature | Helm | Kustomize |
-|---------|------|-----------|
-| Templating | ✅ | ❌ |
-| Values Management | ✅ | ❌ |
-| Environment Overlays | ❌ | ✅ |
-| Patch Management | ❌ | ✅ |
-| Package Management | ✅ | ❌ |
-| Version Control | ✅ | ✅ |
-| Learning Curve | Medium | Medium |
+| Feature              | Helm   | Kustomize |
+|----------------------|--------|-----------|
+| Templating           | ✅      | ❌         |
+| Values Management    | ✅      | ❌         |
+| Environment Overlays | ❌      | ✅         |
+| Patch Management     | ❌      | ✅         |
+| Package Management   | ✅      | ❌         |
+| Version Control      | ✅      | ✅         |
+| Learning Curve       | Medium | Medium    |
 
 ## Recommendations
 

@@ -3,7 +3,10 @@
 A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics for complete network observability.
 
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
-[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://hub.docker.com/)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://ghcr.io/sbaerlocher/tsmetrics)
+[![CI/CD](https://github.com/sbaerlocher/tsmetrics/actions/workflows/main.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/main.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sbaerlocher/tsmetrics)](https://goreportcard.com/report/github.com/sbaerlocher/tsmetrics)
+[![Security Scan](https://github.com/sbaerlocher/tsmetrics/actions/workflows/main.yml/badge.svg?event=schedule)](https://github.com/sbaerlocher/tsmetrics/security)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## 🚀 Features
@@ -24,6 +27,7 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 - [Project Structure](#project-structure)
 - [Metrics Reference](#metrics-reference)
 - [Deployment](#deployment)
+- [CI/CD Pipeline](#cicd-pipeline)
 - [Development](#development)
 - [Architecture](#architecture)
 - [Migration Guide](#migration-guide)
@@ -35,7 +39,7 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 
 ### Binary Installation
 
-1. **Download release binary** (when available):
+1. **Download release binary**:
 
    ```bash
    # Download latest release
@@ -160,15 +164,15 @@ tsmetrics/
 
 ### Package Overview
 
-| Package | Description |
-|---------|-------------|
-| `cmd/tsmetrics` | Application entry point and main function |
-| `internal/api` | Tailscale API client with OAuth2 authentication |
-| `internal/config` | Configuration loading and validation |
-| `internal/errors` | Custom error types and error handling |
-| `internal/metrics` | Prometheus metrics definitions and collection |
-| `internal/server` | HTTP server, handlers, and tsnet integration |
-| `pkg/device` | Public device data structures and utilities |
+| Package            | Description                                     |
+|--------------------|-------------------------------------------------|
+| `cmd/tsmetrics`    | Application entry point and main function       |
+| `internal/api`     | Tailscale API client with OAuth2 authentication |
+| `internal/config`  | Configuration loading and validation            |
+| `internal/errors`  | Custom error types and error handling           |
+| `internal/metrics` | Prometheus metrics definitions and collection   |
+| `internal/server`  | HTTP server, handlers, and tsnet integration    |
+| `pkg/device`       | Public device data structures and utilities     |
 
 ### Docker Deployment
 
@@ -203,24 +207,24 @@ docker run -d \
 
 ### Core Settings
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `OAUTH_CLIENT_ID` | Tailscale OAuth2 Client ID | Required |
-| `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret | Required |
-| `TAILNET_NAME` | Tailnet name or "-" for default | Required |
-| `PORT` | HTTP server port | `9100` |
-| `ENV` | `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1 | `development` |
+| Environment Variable  | Description                                            | Default       |
+|-----------------------|--------------------------------------------------------|---------------|
+| `OAUTH_CLIENT_ID`     | Tailscale OAuth2 Client ID                             | Required      |
+| `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret                         | Required      |
+| `TAILNET_NAME`        | Tailnet name or "-" for default                        | Required      |
+| `PORT`                | HTTP server port                                       | `9100`        |
+| `ENV`                 | `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1 | `development` |
 
 ### tsnet Configuration
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `USE_TSNET` | Enable Tailscale tsnet integration | `false` |
-| `TSNET_HOSTNAME` | Hostname in Tailnet | `tsmetrics` |
-| `TSNET_STATE_DIR` | Persistent state directory | `/tmp/tsnet-tsmetrics` |
-| `TSNET_TAGS` | Comma-separated device tags | - |
-| `TS_AUTHKEY` | Auth key for automatic device registration with tags | - |
-| `REQUIRE_EXPORTER_TAG` | Enforce "exporter" tag requirement | `false` |
+| Environment Variable   | Description                                          | Default                |
+|------------------------|------------------------------------------------------|------------------------|
+| `USE_TSNET`            | Enable Tailscale tsnet integration                   | `false`                |
+| `TSNET_HOSTNAME`       | Hostname in Tailnet                                  | `tsmetrics`            |
+| `TSNET_STATE_DIR`      | Persistent state directory                           | `/tmp/tsnet-tsmetrics` |
+| `TSNET_TAGS`           | Comma-separated device tags                          | -                      |
+| `TS_AUTHKEY`           | Auth key for automatic device registration with tags | -                      |
+| `REQUIRE_EXPORTER_TAG` | Enforce "exporter" tag requirement                   | `false`                |
 
 **Note**: To automatically assign tags to the tsnet device, create an auth key in
 the Tailscale admin console with the desired tags and set `TS_AUTHKEY`.
@@ -228,11 +232,11 @@ The `TSNET_TAGS` variable is used for validation only.
 
 ### Performance Tuning
 
-| Environment Variable | Description | Default |
-|---------------------|-------------|---------|
-| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout | `10s` |
-| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes | `10` |
-| `SCRAPE_INTERVAL` | Device discovery interval | `30s` |
+| Environment Variable     | Description               | Default |
+|--------------------------|---------------------------|---------|
+| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout    | `10s`   |
+| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes   | `10`    |
+| `SCRAPE_INTERVAL`        | Device discovery interval | `30s`   |
 
 ### Advanced Configuration
 
@@ -270,26 +274,26 @@ TARGET_DEVICES=production-gateway,backup-server
 
 #### Required Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `OAUTH_CLIENT_ID` | Tailscale OAuth2 Client ID | `k123abc...` |
-| `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret | `tskey-client-...` |
-| `TAILNET_NAME` | Your tailnet name or "-" for personal | `company.ts.net` |
+| Variable              | Description                           | Example            |
+|-----------------------|---------------------------------------|--------------------|
+| `OAUTH_CLIENT_ID`     | Tailscale OAuth2 Client ID            | `k123abc...`       |
+| `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret        | `tskey-client-...` |
+| `TAILNET_NAME`        | Your tailnet name or "-" for personal | `company.ts.net`   |
 
 #### Optional Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `9100` | HTTP server port |
-| `ENV` | `development` | Environment (`production`/`prod` binds 0.0.0.0) |
-| `USE_TSNET` | `false` | Enable tsnet integration |
-| `TSNET_HOSTNAME` | `tsmetrics` | Hostname in tailnet |
-| `TSNET_STATE_DIR` | `/tmp/tsnet-tsmetrics` | Persistent state directory |
-| `TSNET_TAGS` | - | Comma-separated device tags |
-| `TS_AUTHKEY` | - | Auth key for automatic registration |
-| `REQUIRE_EXPORTER_TAG` | `false` | Enforce "exporter" tag requirement |
-| `LOG_LEVEL` | `info` | Logging level |
-| `LOG_FORMAT` | `text` | Log format (`text` or `json`) |
+| Variable               | Default                | Description                                     |
+|------------------------|------------------------|-------------------------------------------------|
+| `PORT`                 | `9100`                 | HTTP server port                                |
+| `ENV`                  | `development`          | Environment (`production`/`prod` binds 0.0.0.0) |
+| `USE_TSNET`            | `false`                | Enable tsnet integration                        |
+| `TSNET_HOSTNAME`       | `tsmetrics`            | Hostname in tailnet                             |
+| `TSNET_STATE_DIR`      | `/tmp/tsnet-tsmetrics` | Persistent state directory                      |
+| `TSNET_TAGS`           | -                      | Comma-separated device tags                     |
+| `TS_AUTHKEY`           | -                      | Auth key for automatic registration             |
+| `REQUIRE_EXPORTER_TAG` | `false`                | Enforce "exporter" tag requirement              |
+| `LOG_LEVEL`            | `info`                 | Logging level                                   |
+| `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                   |
 
 ## Metrics Reference
 
@@ -399,22 +403,28 @@ groups:
 
 ## Deployment
 
-### Helm Chart (Recommended)
+tsmetrics supports modern Kubernetes deployment methods using industry-standard tools.
+Choose between Helm for template-based deployments or Kustomize for overlay-based configurations.
 
-The most flexible deployment option with full configuration management:
+### Helm Chart (Recommended for Production)
+
+Template-based deployment with full lifecycle management:
 
 ```bash
-# Install with default configuration
+# Install from OCI registry (recommended)
+helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics
+
+# Or install from local chart
 helm install tsmetrics deploy/helm/tsmetrics
 
 # Install with custom values
-helm install tsmetrics deploy/helm/tsmetrics \
+helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics \
   --set tailscale.oauthClientId=your-client-id \
   --set tailscale.oauthClientSecret=your-client-secret \
   --set tailscale.tailnetName=your-company
 
 # Or use a values file
-helm install tsmetrics deploy/helm/tsmetrics -f my-values.yaml
+helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics -f my-values.yaml
 ```
 
 **Example values.yaml:**
@@ -445,7 +455,7 @@ persistence:
   size: 2Gi
 ```
 
-### Kustomize
+### Kustomize (Recommended for GitOps)
 
 Environment-specific deployments with overlay management:
 
@@ -469,108 +479,33 @@ kubectl create secret generic tsmetrics-secrets \
   --from-literal=TAILNET_NAME=your-company
 ```
 
-### Plain Kubernetes
-
-Simple deployment for basic setups:
-
-```bash
-# Deploy with plain YAML
-kubectl apply -f deploy/kubernetes.yaml
-
-# Customize by editing the YAML file
-kubectl edit -f deploy/kubernetes.yaml
-```
-
-### Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  tsmetrics:
-    image: ghcr.io/sbaerlocher/tsmetrics:latest
-    environment:
-      - OAUTH_CLIENT_ID=your_client_id
-      - OAUTH_CLIENT_SECRET=your_client_secret
-      - TAILNET_NAME=your-company
-      - USE_TSNET=true
-      - TSNET_HOSTNAME=tsmetrics
-      - TSNET_TAGS=exporter
-    volumes:
-      - tsnet-state:/tmp/tsnet-state
-    restart: unless-stopped
-
-volumes:
-  tsnet-state:
-```
-
-### Systemd Service
-
-For running on Linux servers without Kubernetes:
-
-```bash
-# Build and install as systemd service
-make build
-sudo make systemd-install
-
-# Edit configuration with your Tailscale credentials
-sudo nano /etc/tsmetrics/config
-
-# Start the service
-sudo make systemd-start
-
-# Check status
-make systemd-status
-```
-
-**Manual installation:**
-
-```bash
-# Build binary
-make build
-
-# Install using the helper script
-sudo deploy/install-systemd.sh install bin/tsmetrics
-
-# Configure credentials
-sudo nano /etc/tsmetrics/config
-
-# Start service
-sudo systemctl start tsmetrics
-```
-
 ### Deployment Comparison
 
-| Method | Best For | Pros | Cons |
-|--------|----------|------|------|
-| **Helm** | Production, Multi-env | Full lifecycle management, templating, values | Learning curve, complexity |
-| **Kustomize** | GitOps, Environment overlays | Native k8s, patches, no templating | Limited logic, patch complexity |
-| **Systemd** | Linux servers, VPS | Native Linux service, simple | Single host, manual scaling |
-| **Plain YAML** | Simple deployments | Direct control, simplicity | No environment management |
-| **Docker Compose** | Development, Single host | Easy setup, local development | No orchestration, single host |
+| Method        | Best For                     | Pros                                           | Cons           |
+|---------------|------------------------------|------------------------------------------------|----------------|
+| **Helm**      | Production, Multi-env        | OCI registry, lifecycle management, templating | Learning curve |
+| **Kustomize** | GitOps, Environment overlays | Native k8s, patches, no templating             | Limited logic  |
 
-### Makefile Targets
-
-All deployment methods are available via Makefile:
+### Available Commands
 
 ```bash
-# Helm
-make helm-install        # Install with Helm
-make helm-upgrade        # Upgrade deployment
-make helm-template       # Preview templates
+# Build and Test (CI/CD Pipeline Tasks)
+make build                    # Build binary with GoReleaser
+make test                     # Run test suite
+make lint                     # Run Go linting (golangci-lint)
 
-# Kustomize
-make kustomize-dev       # Deploy development
-make kustomize-prod      # Deploy production
-make kustomize-preview-prod  # Preview changes
+# Container Operations
+docker build -t tsmetrics .   # Build container image
+make container-test           # Run container structure tests
 
-# Plain Kubernetes
-make k8s-deploy          # Simple deployment
-make k8s-delete          # Remove deployment
+# Deployment Validation
+helm lint deploy/helm/tsmetrics                    # Validate Helm chart
+helm template tsmetrics deploy/helm/tsmetrics      # Test Helm templating
+kubectl kustomize deploy/kustomize/overlays/production  # Test Kustomize
 
-# Systemd
-make systemd-install     # Install as service
-make systemd-start       # Start service
-make systemd-status      # Check status
+# Release Testing (Local)
+goreleaser build --snapshot --clean  # Test multi-platform builds
+goreleaser check                      # Validate .goreleaser.yaml
 ```
 
 ### Prometheus Configuration
@@ -584,6 +519,161 @@ scrape_configs:
     metrics_path: /metrics
     timeout: 30s
 ```
+
+## CI/CD Pipeline
+
+tsmetrics uses a modern, automated CI/CD pipeline built with GitHub Actions for continuous integration,
+automated releases, and security scanning.
+
+### Pipeline Overview
+
+The project uses a single, consolidated workflow (`.github/workflows/main.yml`) that handles:
+
+- **Continuous Integration**: Automated testing, linting, and security scanning
+- **Container Registry**: Multi-platform Docker builds with automatic pushes to GitHub Container Registry
+- **Automated Releases**: GoReleaser-powered releases with multi-platform binaries and checksums
+- **Security**: Vulnerability scanning with Trivy and dependency security checks
+- **Quality Assurance**: Go linting, container structure tests, and Helm chart validation
+
+### Workflow Triggers
+
+```yaml
+# Automatic triggers
+on:
+  push:
+    branches: [main]          # CI on main branch commits
+    tags: ['v*']              # Releases on version tags
+  pull_request:
+    branches: [main]          # CI on pull requests
+  schedule:
+    - cron: '0 6 * * 1'       # Weekly security scans (Mondays 6 AM UTC)
+  workflow_dispatch:          # Manual trigger support
+```
+
+### Pipeline Stages
+
+#### 1. Code Quality & Testing
+
+- **Go Linting**: Uses `golangci-lint` with comprehensive rule set
+- **Unit Tests**: Runs complete test suite with coverage reporting
+- **Security Scanning**: SAST analysis with CodeQL and dependency scanning
+
+#### 2. Container Build & Security
+
+- **Multi-Platform Builds**: Linux AMD64/ARM64 using Docker Buildx
+- **Registry Push**: Automatic push to `ghcr.io/sbaerlocher/tsmetrics`
+- **Container Security**: Trivy vulnerability scanning
+- **Structure Testing**: Container structure validation with Google's container-structure-test
+
+#### 3. Release Automation
+
+- **GoReleaser**: Multi-platform binary builds (Linux, macOS, Windows)
+- **Checksums**: SHA256 checksums for all release artifacts
+- **GitHub Releases**: Automated release creation with changelogs
+- **Container Tags**: Semantic versioning with `latest`, `vX.Y.Z`, and `vX.Y` tags
+
+#### 4. Deployment Validation
+
+- **Helm Linting**: Chart validation with `helm lint`
+- **Kustomize Testing**: Kubernetes manifest validation
+- **Template Rendering**: Helm template generation testing
+
+### Container Registry
+
+All container images are available from GitHub Container Registry:
+
+```bash
+# Latest release
+docker pull ghcr.io/sbaerlocher/tsmetrics:latest
+
+# Specific version
+docker pull ghcr.io/sbaerlocher/tsmetrics:v2.0.0
+
+# Development builds (from main branch)
+docker pull ghcr.io/sbaerlocher/tsmetrics:main
+```
+
+### Release Process
+
+Releases are fully automated through GoReleaser:
+
+1. **Tag Creation**: Push a version tag (e.g., `v2.0.0`)
+
+   ```bash
+   git tag v2.0.0
+   git push origin v2.0.0
+   ```
+
+2. **Automatic Build**: Pipeline creates:
+   - Multi-platform binaries (Linux/macOS/Windows, AMD64/ARM64)
+   - Container images with proper tags
+   - SHA256 checksums
+   - GitHub release with auto-generated changelog
+
+3. **Artifact Distribution**:
+   - Binaries available at GitHub Releases
+   - Container images pushed to ghcr.io
+   - Helm charts published to OCI registry
+
+### Security Features
+
+- **Vulnerability Scanning**: Daily Trivy scans for container vulnerabilities
+- **Dependency Updates**: Automated security updates via Dependabot
+- **SAST Analysis**: CodeQL static analysis for Go code
+- **Supply Chain Security**: SLSA-compliant builds with provenance attestation
+- **Secrets Management**: No hardcoded secrets, environment-based configuration
+
+### Local Pipeline Testing
+
+Test pipeline components locally before pushing:
+
+```bash
+# Test Go linting (same as CI)
+golangci-lint run
+
+# Test Go builds with GoReleaser
+goreleaser build --snapshot --clean
+
+# Test container build
+docker build -t tsmetrics:test .
+
+# Test container structure
+container-structure-test test --image tsmetrics:test --config tests/structure/container-test.yml
+
+# Test Helm chart
+helm lint deploy/helm/tsmetrics
+helm template tsmetrics deploy/helm/tsmetrics
+
+# Test Kustomize
+kubectl kustomize deploy/kustomize/overlays/production
+```
+
+### Performance & Efficiency
+
+- **Caching**: Aggressive Go module and Docker layer caching
+- **Parallel Jobs**: Independent jobs run concurrently
+- **Conditional Execution**: Smart job skipping based on changes
+- **Optimized Builds**: Multi-stage Docker builds with minimal final images
+
+### Monitoring & Observability
+
+The pipeline includes comprehensive monitoring:
+
+- **Build Metrics**: Duration, success rates, artifact sizes
+- **Security Metrics**: Vulnerability counts, severity levels
+- **Quality Metrics**: Test coverage, linting issues
+- **Performance Metrics**: Build times, cache hit rates
+
+### Branch Protection
+
+Main branch is protected with:
+
+- **Required Status Checks**: All CI jobs must pass
+- **PR Reviews**: Code review required before merge
+- **No Force Push**: History preservation enforced
+- **Admin Enforcement**: Rules apply to all contributors
+
+For detailed pipeline documentation, see [`.github/workflows/README.md`](.github/workflows/README.md).
 
 ## Development
 
@@ -923,11 +1013,11 @@ The new structure provides:
 
 ### Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/metrics` | GET | Prometheus metrics |
-| `/health` | GET | Health check |
-| `/debug` | GET | Debug information |
+| Endpoint   | Method | Description        |
+|------------|--------|--------------------|
+| `/metrics` | GET    | Prometheus metrics |
+| `/health`  | GET    | Health check       |
+| `/debug`   | GET    | Debug information  |
 
 ### Health Check Response
 
@@ -1042,56 +1132,6 @@ scrape_configs:
 }
 ```
 
-### CI/CD Integration
-
-#### GitHub Actions
-
-```yaml
-name: Deploy tsmetrics
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build and push Docker image
-        run: |
-          docker build -t ghcr.io/${{ github.repository }}:latest .
-          docker push ghcr.io/${{ github.repository }}:latest
-
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl set image deployment/tsmetrics \
-            tsmetrics=ghcr.io/${{ github.repository }}:latest
-```
-
-#### ArgoCD Application
-
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: tsmetrics
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/sbaerlocher/tsmetrics
-    targetRevision: HEAD
-    path: deploy
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: monitoring
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-```
-
 ## Contributing
 
 ### Development Setup
@@ -1133,6 +1173,7 @@ spec:
    ```bash
    make test
    make lint
+   goreleaser check  # Validate release configuration
    ```
 
 5. **Update documentation if needed**
@@ -1159,8 +1200,10 @@ spec:
 - Follow Go best practices and idioms
 - Add tests for new functionality
 - Update documentation for user-facing changes
-- Use conventional commit messages
-- Ensure code passes all linters
+- Use conventional commit messages (`feat:`, `fix:`, `docs:`, etc.)
+- Ensure code passes all linters and security scans
+- Test changes locally with `goreleaser build --snapshot`
+- Validate container changes with structure tests
 
 ### Testing
 
@@ -1182,7 +1225,17 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Changelog
 
-### v2.0.0 (Current)
+### v2.1.0 (Current)
+
+- **Modern CI/CD Pipeline**: Consolidated to single workflow with GitHub Actions
+- **Automated Releases**: GoReleaser integration with multi-platform builds
+- **Container Registry**: GitHub Container Registry with automated pushes
+- **Security Enhancements**: Trivy vulnerability scanning and CodeQL analysis
+- **Quality Assurance**: Comprehensive linting, testing, and container validation
+- **Performance Optimization**: Aggressive caching and parallel job execution
+- **Documentation**: Enhanced README and workflow documentation
+
+### v2.0.0
 
 - **Major Restructure**: Migrated to standard Go project structure
 - **Modular Architecture**: Split code into logical packages (`internal/`, `pkg/`)

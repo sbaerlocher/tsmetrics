@@ -8,39 +8,39 @@ image:
   repository: ghcr.io/sbaerlocher/tsmetrics
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ''
+  tag: ""
 
 imagePullSecrets: []
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 
 # Tailscale configuration
 tailscale:
   # OAuth2 credentials (required)
-  oauthClientId: ''
-  oauthClientSecret: ''
-  tailnetName: ''
+  oauthClientId: ""
+  oauthClientSecret: ""
+  tailnetName: ""
 
   # tsnet configuration
   tsnet:
     enabled: true
-    hostname: 'tsmetrics'
-    tags: 'exporter'
-    stateDir: '/tmp/tsnet-state'
+    hostname: "tsmetrics"
+    tags: "exporter"
+    stateDir: "/tmp/tsnet-state"
     requireExporterTag: false
     # authKey: ""  # Optional: for automatic registration
 
 # Application configuration
 config:
   port: 9100
-  env: 'production'
-  logLevel: 'info'
-  logFormat: 'text'
+  env: "production"
+  logLevel: "info"
+  logFormat: "text"
 
   # Performance settings
-  clientMetricsTimeout: '10s'
+  clientMetricsTimeout: "10s"
   maxConcurrentScrapes: 10
-  scrapeInterval: '30s'
+  scrapeInterval: "30s"
   clientMetricsPort: 5252
 
 # Service configuration
@@ -53,7 +53,7 @@ service:
 # Ingress configuration
 ingress:
   enabled: false
-  className: ''
+  className: ""
   annotations:
     {}
     # kubernetes.io/ingress.class: nginx
@@ -83,13 +83,13 @@ externalSecret:
   # You need to create a secret named "tsmetrics-secrets" manually
   enabled: false
   # Name of existing secret (default: tsmetrics-secrets)
-  secretName: 'tsmetrics-secrets'
+  secretName: "tsmetrics-secrets"
   # Keys for the secret
   keys:
-    oauthClientId: 'OAUTH_CLIENT_ID'
-    oauthClientSecret: 'OAUTH_CLIENT_SECRET'
-    tailnetName: 'TAILNET_NAME'
-    authKey: 'TS_AUTHKEY' # optional
+    oauthClientId: "OAUTH_CLIENT_ID"
+    oauthClientSecret: "OAUTH_CLIENT_SECRET"
+    tailnetName: "TAILNET_NAME"
+    authKey: "TS_AUTHKEY" # optional
 
 # Pod configuration
 podAnnotations: {}
@@ -121,7 +121,7 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 1Gi
-  storageClass: ''
+  storageClass: ""
   annotations: {}
 
 # Liveness and readiness probes

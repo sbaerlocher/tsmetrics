@@ -7,6 +7,7 @@ toolchain go1.24.5
 require (
 	github.com/prometheus/client_golang v1.23.0
 	golang.org/x/oauth2 v0.30.0
+	golang.org/x/time v0.11.0
 	tailscale.com v1.86.5
 )
 
@@ -81,7 +82,6 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect

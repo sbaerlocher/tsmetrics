@@ -1,3 +1,4 @@
+// Package config provides configuration management for TSMetrics.
 package config
 
 import (
@@ -9,6 +10,7 @@ import (
 	"time"
 )
 
+// Config holds all configuration settings for TSMetrics.
 type Config struct {
 	UseTsnet             bool
 	TsnetHostname        string
@@ -27,6 +29,7 @@ type Config struct {
 	ClientMetricsPort    string
 }
 
+// Load reads configuration from environment variables and returns a Config struct.
 func Load() Config {
 	cfg := Config{}
 	if strings.ToLower(os.Getenv("USE_TSNET")) == "true" {
@@ -91,6 +94,7 @@ func Load() Config {
 	return cfg
 }
 
+// Validate checks the configuration for consistency and required values.
 func (cfg Config) Validate() error {
 	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
 	hasToken := os.Getenv("OAUTH_TOKEN") != ""
@@ -149,6 +153,7 @@ func (cfg Config) Validate() error {
 	return nil
 }
 
+// SetupTsnetStateDir creates and validates the tsnet state directory.
 func SetupTsnetStateDir(dir string) string {
 	if dir == "" {
 		dir = "/tmp/tsnet-tsmetrics"

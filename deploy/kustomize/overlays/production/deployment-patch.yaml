@@ -9,11 +9,11 @@ spec:
         - name: tsmetrics
           env:
             - name: LOG_LEVEL
-              value: 'info'
+              value: "info"
             - name: ENV
-              value: 'production'
+              value: "production"
             - name: REQUIRE_EXPORTER_TAG
-              value: 'true'
+              value: "true"
           resources:
             requests:
               cpu: 200m

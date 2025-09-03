@@ -5,9 +5,9 @@ metadata:
   labels:
     app.kubernetes.io/name: tsmetrics
   annotations:
-    prometheus.io/scrape: 'true'
-    prometheus.io/port: '9100'
-    prometheus.io/path: '/metrics'
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+    prometheus.io/path: "/metrics"
 spec:
   type: ClusterIP
   ports:

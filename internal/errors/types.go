@@ -1,3 +1,4 @@
+// Package errors provides error types and handling utilities for TSMetrics.
 package errors
 
 import (

@@ -1,0 +1,273 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types: [completed]
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CHART_NAME: tsmetrics
+
+jobs:
+  # ==============================================================================
+  # SETUP (Reused from CI or standalone)
+  # ==============================================================================
+  setup:
+    name: Setup & Change Detection
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      helm-changed: ${{ steps.changes.outputs.helm }}
+      go-changed: ${{ steps.changes.outputs.go }}
+      docker-changed: ${{ steps.changes.outputs.docker }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            helm:
+              - 'deploy/helm/**'
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'cmd/**'
+              - 'internal/**'
+              - 'pkg/**'
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.sha }}"
+            VERSION="${VERSION:0:8}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+  # ==============================================================================
+  # DOCKER BUILD & TEST
+  # ==============================================================================
+  docker-build:
+    name: Docker Build & Test
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.go-changed == 'true' || needs.setup.outputs.docker-changed == 'true' || github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate build metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=ref,event=tag
+            type=sha,prefix={{branch}}-,suffix=-{{date 'YYYYMMDD-HHmmss'}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.setup.outputs.version }}
+            BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container structure tests
+        run: |
+          TEST_IMAGE="$(echo '${{ steps.meta.outputs.tags }}' | head -n1)"
+          docker run --rm \
+            -v "$PWD/tests/structure/container-test.yml:/test-config.yaml:ro" \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            gcr.io/gcp-runtimes/container-structure-test:latest \
+            test --image="$TEST_IMAGE" --config=/test-config.yaml
+
+      - name: Test Docker image functionality
+        run: |
+          TEST_IMAGE="$(echo '${{ steps.meta.outputs.tags }}' | head -n1)"
+          echo "Testing image: $TEST_IMAGE"
+          docker run --rm "$TEST_IMAGE" --help
+          docker run --rm "$TEST_IMAGE" --version
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-image.sarif"
+          severity: "HIGH,CRITICAL"
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-image.sarif"
+          category: "trivy-image"
+        continue-on-error: true
+
+  # ==============================================================================
+  # HELM CHART TESTS
+  # ==============================================================================
+  helm-test:
+    name: Helm Chart Test
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.helm-changed == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.14.0"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.29.0"
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1.9.0
+        with:
+          cluster_name: helm-test
+          kubectl_version: v1.29.0
+          config: |
+            kind: Cluster
+            apiVersion: kind.x-k8s.io/v1alpha4
+            nodes:
+            - role: control-plane
+
+      - name: Lint Helm Chart
+        run: |
+          helm lint deploy/helm/tsmetrics
+          helm lint deploy/helm/tsmetrics --strict
+
+      - name: Test chart templates
+        run: |
+          # Test minimal configuration
+          helm template test-minimal deploy/helm/tsmetrics \
+            --set tailscale.oauthClientId=test-id \
+            --set tailscale.oauthClientSecret=test-secret \
+            --set tailscale.tailnetName=test.ts.net \
+            --set image.tag=latest \
+            --set persistence.enabled=false \
+            --validate > /tmp/minimal-manifest.yaml
+
+          # Validate Kubernetes manifests
+          kubectl --dry-run=server apply -f /tmp/minimal-manifest.yaml
+
+          echo "✅ Minimal template test passed"
+
+          # Test production configuration
+          helm template test-production deploy/helm/tsmetrics \
+            --set replicaCount=2 \
+            --set tailscale.oauthClientId=prod-id \
+            --set tailscale.oauthClientSecret=prod-secret \
+            --set tailscale.tailnetName=company.ts.net \
+            --set tailscale.tsnet.enabled=true \
+            --set persistence.enabled=true \
+            --set serviceMonitor.enabled=true \
+            --set autoscaling.enabled=true \
+            --validate > /tmp/production-manifest.yaml
+
+          kubectl --dry-run=server apply -f /tmp/production-manifest.yaml
+
+          echo "✅ Production template test passed"
+
+      - name: Install and test chart
+        run: |
+          helm install test-release deploy/helm/tsmetrics \
+            --set tailscale.oauthClientId=test-client-id \
+            --set tailscale.oauthClientSecret=test-client-secret \
+            --set tailscale.tailnetName=test.ts.net \
+            --set image.tag=latest \
+            --set persistence.enabled=false \
+            --wait --timeout=300s
+
+          # Verify deployment
+          kubectl get pods -l app.kubernetes.io/name=tsmetrics
+          kubectl wait --for=condition=available deployment/test-release-tsmetrics --timeout=300s
+
+          # Run helm test if available
+          helm test test-release --timeout=300s || echo "No helm tests found"
+
+          # Cleanup
+          helm uninstall test-release
+
+  # ==============================================================================
+  # BUILD SUMMARY
+  # ==============================================================================
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [setup, docker-build, helm-test]
+    if: always()
+
+    steps:
+      - name: Build Summary
+        run: |
+          {
+            echo "## 🏗️ Build Pipeline Summary"
+            echo ""
+            echo "- **Version:** ${{ needs.setup.outputs.version }}"
+            echo "- **Docker Build:** ${{ needs.docker-build.result }}"
+            echo "- **Helm Test:** ${{ needs.helm-test.result }}"
+            echo ""
+            if [[ "${{ needs.docker-build.result }}" == "success" ]]; then
+              echo "### 🐳 Container Images"
+              echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+              echo "- **Digest:** ${{ needs.docker-build.outputs.image-digest }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

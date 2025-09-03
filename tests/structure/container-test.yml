@@ -1,0 +1,39 @@
+schemaVersion: 2.0.0
+
+metadataTest:
+  exposedPorts: ["9100"]
+  workdir: "/app"
+  user: "nobody"
+
+commandTests:
+  - name: "help command works"
+    command: "./tsmetrics"
+    args: ["--help"]
+    expectedOutput: ["Usage", "tsmetrics"]
+    exitCode: 0
+
+  - name: "version command works"
+    command: "./tsmetrics"
+    args: ["--version"]
+    exitCode: 0
+
+fileExistenceTests:
+  - name: "Binary exists and is executable"
+    path: "/app/tsmetrics"
+    shouldExist: true
+    permissions: "-rwxr-xr-x"
+
+  - name: "No package managers"
+    path: "/usr/bin/apt"
+    shouldExist: false
+
+  - name: "No package managers"
+    path: "/usr/bin/yum"
+    shouldExist: false
+
+fileContentTests:
+  - name: "Check if binary is statically linked"
+    path: "/app/tsmetrics"
+    expectedContents: [".*"]
+    command: ["file", "/app/tsmetrics"]
+    expectedOutput: ["statically linked"]

@@ -1,3 +1,4 @@
+// Package api provides HTTP client functionality for interacting with the Tailscale API.
 package api
 
 import (
@@ -15,12 +16,14 @@ import (
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
+// Client provides HTTP client functionality for the Tailscale API.
 type Client struct {
 	httpClient  *http.Client
 	oauthConfig *clientcredentials.Config
 	baseURL     string
 }
 
+// NewClient creates a new Tailscale API client using OAuth credentials.
 func NewClient(clientID, clientSecret, tailnet string) *Client {
 	var httpClient *http.Client
 
@@ -50,6 +53,7 @@ func NewClient(clientID, clientSecret, tailnet string) *Client {
 	}
 }
 
+// NewClientWithToken creates a new Tailscale API client using a direct OAuth token.
 func NewClientWithToken(token, tailnet string) *Client {
 	httpClient := &http.Client{
 		Timeout: 30 * time.Second,

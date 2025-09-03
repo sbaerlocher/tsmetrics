@@ -9,11 +9,11 @@ spec:
         - name: tsmetrics
           env:
             - name: LOG_LEVEL
-              value: 'debug'
+              value: "debug"
             - name: ENV
-              value: 'development'
+              value: "development"
             - name: TSNET_HOSTNAME
-              value: 'tsmetrics-dev'
+              value: "tsmetrics-dev"
           resources:
             requests:
               cpu: 50m

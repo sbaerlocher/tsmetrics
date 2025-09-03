@@ -1,3 +1,4 @@
+// Package metrics provides Prometheus metrics definitions and collection utilities.
 package metrics
 
 import (
@@ -6,6 +7,7 @@ import (
 )
 
 var (
+	// ScrapeDuration tracks the time spent scraping metrics from targets.
 	ScrapeDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "tsmetrics_scrape_duration_seconds",
@@ -192,6 +194,7 @@ var (
 	)
 )
 
+// CleanupDeviceMetrics removes all metrics associated with a specific device.
 func CleanupDeviceMetrics(deviceID string) {
 	InboundBytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	OutboundBytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})

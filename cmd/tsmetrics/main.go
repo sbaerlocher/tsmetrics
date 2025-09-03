@@ -1,3 +1,6 @@
+// Package main provides the TSMetrics application entry point.
+// TSMetrics is a Tailscale device metrics collector that exposes Prometheus metrics
+// for monitoring and alerting on Tailscale network devices.
 package main
 
 import (

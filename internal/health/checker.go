@@ -1,3 +1,4 @@
+// Package health provides health checking functionality for TSMetrics components.
 package health
 
 import (

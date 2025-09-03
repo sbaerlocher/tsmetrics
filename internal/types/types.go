@@ -1,3 +1,6 @@
+// Package types provides core domain types and validation utilities for TSMetrics.
+// This package defines fundamental types like DeviceID, DeviceName, MetricName and TagName
+// along with their validation logic and error definitions.
 package types
 
 import (
@@ -8,12 +11,20 @@ import (
 	"strings"
 )
 
+// DeviceID represents a unique identifier for a Tailscale device.
 type DeviceID string
+
+// DeviceName represents a human-readable name for a Tailscale device.
 type DeviceName string
+
+// MetricName represents a Prometheus metric name.
 type MetricName string
+
+// TagName represents a metric tag name.
 type TagName string
 
 var (
+	// ErrInvalidDeviceID is returned when a device ID is invalid.
 	ErrInvalidDeviceID   = errors.New("invalid device ID")
 	ErrInvalidDeviceName = errors.New("invalid device name")
 	ErrInvalidMetricName = errors.New("invalid metric name")
@@ -27,6 +38,7 @@ var (
 	tagNameRegex    = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_\-]*$`)
 )
 
+// NewDeviceID creates a new DeviceID with validation.
 func NewDeviceID(id string) (DeviceID, error) {
 	if id == "" {
 		return "", fmt.Errorf("device ID cannot be empty")
@@ -37,6 +49,7 @@ func NewDeviceID(id string) (DeviceID, error) {
 	return DeviceID(id), nil
 }
 
+// IsValid checks if the DeviceID is valid.
 func (d DeviceID) IsValid() bool {
 	return len(d) > 0 && len(d) <= 64
 }
@@ -45,6 +58,7 @@ func (d DeviceID) String() string {
 	return string(d)
 }
 
+// NewDeviceName creates a new DeviceName with validation.
 func NewDeviceName(name string) (DeviceName, error) {
 	if name == "" {
 		return "", fmt.Errorf("device name cannot be empty")
@@ -58,6 +72,7 @@ func NewDeviceName(name string) (DeviceName, error) {
 	return DeviceName(name), nil
 }
 
+// Sanitize cleans and normalizes a device name to ensure it's valid for Prometheus metrics.
 func (d DeviceName) Sanitize() DeviceName {
 	sanitized := strings.ToLower(string(d))
 	sanitized = regexp.MustCompile(`[^a-zA-Z0-9\-._]`).ReplaceAllString(sanitized, "-")
@@ -71,6 +86,7 @@ func (d DeviceName) Sanitize() DeviceName {
 	return DeviceName(sanitized)
 }
 
+// IsValid checks if the DeviceName meets validation requirements.
 func (d DeviceName) IsValid() bool {
 	return len(d) > 0 && len(d) <= 253 && deviceNameRegex.MatchString(string(d))
 }
@@ -79,6 +95,7 @@ func (d DeviceName) String() string {
 	return string(d)
 }
 
+// NewMetricName creates a new MetricName with validation.
 func NewMetricName(name string) (MetricName, error) {
 	if name == "" {
 		return "", fmt.Errorf("metric name cannot be empty")
@@ -89,6 +106,7 @@ func NewMetricName(name string) (MetricName, error) {
 	return MetricName(name), nil
 }
 
+// IsValid checks if the MetricName meets validation requirements.
 func (m MetricName) IsValid() bool {
 	return len(m) > 0 && metricNameRegex.MatchString(string(m))
 }
@@ -97,6 +115,7 @@ func (m MetricName) String() string {
 	return string(m)
 }
 
+// NewTagName creates a new TagName with validation.
 func NewTagName(name string) (TagName, error) {
 	if name == "" {
 		return "", fmt.Errorf("tag name cannot be empty")
@@ -107,6 +126,7 @@ func NewTagName(name string) (TagName, error) {
 	return TagName(name), nil
 }
 
+// IsValid checks if the TagName meets validation requirements.
 func (t TagName) IsValid() bool {
 	return len(t) > 0 && tagNameRegex.MatchString(string(t))
 }
@@ -115,6 +135,7 @@ func (t TagName) String() string {
 	return string(t)
 }
 
+// ValidateHostname validates that a hostname is acceptable for use.
 func ValidateHostname(hostname string) error {
 	if len(hostname) == 0 {
 		return fmt.Errorf("hostname cannot be empty")

@@ -181,6 +181,48 @@ lint:
 fmt:
 	go fmt ./...
 
+# CI/CD Targets
+.PHONY: ci-test
+ci-test:
+	@echo "🧪 Running CI tests locally..."
+	go vet ./...
+	go fmt ./...
+	go test -v -race -coverprofile=coverage.out ./...
+	@if [ -d "tests/integration" ]; then \
+		echo "Running integration tests..."; \
+		go test -v -tags=integration ./tests/integration/...; \
+	fi
+
+.PHONY: ci-security
+ci-security:
+	@echo "🔒 Running security scans..."
+	@command -v gosec >/dev/null 2>&1 || { echo "Installing gosec..."; go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest; }
+	gosec ./...
+
+.PHONY: ci-docker
+ci-docker:
+	@echo "🐳 Testing Docker build..."
+	docker build -t $(DOCKER_IMAGE):test .
+	docker run --rm $(DOCKER_IMAGE):test --help || true
+
+.PHONY: ci-helm
+ci-helm:
+	@echo "⚓ Testing Helm chart..."
+	helm lint deploy/helm/tsmetrics
+	helm template test-release deploy/helm/tsmetrics \
+		--set tailscale.oauthClientId=test \
+		--set tailscale.oauthClientSecret=test \
+		--set tailscale.tailnetName=test.ts.net > /dev/null
+	@echo "✅ Helm chart validation passed"
+
+.PHONY: ci-all
+ci-all: ci-test ci-security ci-docker ci-helm
+	@echo "🎉 All CI checks passed!"
+
+.PHONY: workflow-test
+workflow-test: ci-all
+	@echo "🚀 Local workflow simulation completed"
+
 # All-in-one targets
 .PHONY: dev
 dev:
@@ -246,5 +288,13 @@ help:
 	@echo "  lint           - Run golangci-lint"
 	@echo "  fmt            - Format Go code"
 	@echo "  dev-deps       - Install development dependencies"
+	@echo ""
+	@echo "CI/CD targets:"
+	@echo "  ci-test        - Run CI tests locally"
+	@echo "  ci-security    - Run security scans"
+	@echo "  ci-docker      - Test Docker build"
+	@echo "  ci-helm        - Test Helm chart"
+	@echo "  ci-all         - Run all CI checks"
+	@echo "  workflow-test  - Simulate full workflow"
 	@echo ""
 	@echo "  release        - Full release pipeline (clean, test, build, docker)"

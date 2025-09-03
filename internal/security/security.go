@@ -1,3 +1,4 @@
+// Package security provides security utilities and middleware for TSMetrics.
 package security
 
 import (

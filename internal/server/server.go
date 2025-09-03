@@ -1,3 +1,4 @@
+// Package server provides HTTP server functionality for TSMetrics.
 package server
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
+// SetupRoutes configures and returns the HTTP routes for the TSMetrics server.
 func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())

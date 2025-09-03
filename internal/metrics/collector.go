@@ -21,12 +21,14 @@ var (
 	testDevicesWarningMutex    sync.Mutex
 )
 
+// Collector manages the collection of metrics from Tailscale devices.
 type Collector struct {
 	cfg       config.Config
 	apiClient *api.Client
 	tracker   *DeviceMetricsTracker
 }
 
+// NewCollector creates a new metrics collector with the given configuration.
 func NewCollector(cfg config.Config) *Collector {
 	var apiClient *api.Client
 
@@ -49,6 +51,7 @@ func NewCollector(cfg config.Config) *Collector {
 	}
 }
 
+// FetchDevices retrieves the list of devices from the Tailscale API or returns test devices.
 func (c *Collector) FetchDevices() ([]device.Device, error) {
 	targetDevices := []string{}
 	if v := os.Getenv("TARGET_DEVICES"); v != "" {
@@ -131,6 +134,7 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 	return []device.Device{}, nil
 }
 
+// UpdateMetrics updates all device metrics for the specified target.
 func (c *Collector) UpdateMetrics(target string) error {
 	start := time.Now()
 	defer func() {
