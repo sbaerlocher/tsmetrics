@@ -1,33 +1,38 @@
-# Kubernetes Deployment Options
+# TSMetrics Deployment
 
-This directory contains multiple deployment options for tsmetrics:
-
-## Plain Kubernetes (deprecated)
-
-- `kubernetes.yaml` - Simple deployment with basic configuration
+This directory contains modern Kubernetes deployment options for tsmetrics using industry-standard tools.
 
 ## Helm Chart
 
 Location: `helm/tsmetrics/`
 
 ### Features
+
 - Configurable values via `values.yaml`
 - Secret management
 - Resource limits and requests
 - Health checks
 - Optional persistence
+- ServiceMonitor for Prometheus Operator
+- OCI registry support
 
 ### Installation
 
 ```bash
-# Install with default values
-helm install tsmetrics ./helm/tsmetrics
+# Install from OCI registry (recommended)
+helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics
 
 # Install with custom values
-helm install tsmetrics ./helm/tsmetrics -f my-values.yaml
+helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics \
+  --set tailscale.oauthClientId=your-id \
+  --set tailscale.oauthClientSecret=your-secret \
+  --set tailscale.tailnetName=your-company
+
+# Install from local chart
+helm install tsmetrics ./helm/tsmetrics
 
 # Upgrade
-helm upgrade tsmetrics ./helm/tsmetrics
+helm upgrade tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics
 ```
 
 ### Configuration
@@ -130,21 +135,20 @@ kubectl apply -k kustomize/overlays/production
 
 ## Comparison
 
-| Feature | Plain YAML | Helm | Kustomize |
-|---------|------------|------|-----------|
-| Templating | ❌ | ✅ | ❌ |
-| Values Management | ❌ | ✅ | ❌ |
-| Environment Overlays | ❌ | ❌ | ✅ |
-| Patch Management | ❌ | ❌ | ✅ |
-| Package Management | ❌ | ✅ | ❌ |
-| Version Control | ✅ | ✅ | ✅ |
-| Learning Curve | Low | Medium | Medium |
+| Feature | Helm | Kustomize |
+|---------|------|-----------|
+| Templating | ✅ | ❌ |
+| Values Management | ✅ | ❌ |
+| Environment Overlays | ❌ | ✅ |
+| Patch Management | ❌ | ✅ |
+| Package Management | ✅ | ❌ |
+| Version Control | ✅ | ✅ |
+| Learning Curve | Medium | Medium |
 
 ## Recommendations
 
 - **Development**: Use Kustomize overlays for quick iterations
 - **Production**: Use Helm for better lifecycle management
-- **Simple Deployments**: Use plain YAML for basic setups
 - **Multi-Environment**: Use Kustomize for environment-specific configurations
 
 ## Examples

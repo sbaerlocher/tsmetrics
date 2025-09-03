@@ -11,7 +11,7 @@ RUN go mod download && go mod verify
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build \
   -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
-  -o /tsmetrics .
+  -o /tsmetrics ./cmd/tsmetrics
 
 FROM scratch
 # Add ca-certificates for HTTPS calls

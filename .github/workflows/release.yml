@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
   REGISTRY: ghcr.io
@@ -24,7 +24,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.24'
+          go-version: "1.24"
 
       - name: Get version from tag
         id: version
@@ -75,6 +75,11 @@ jobs:
             ### Docker
             ```bash
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+            ```
+
+            ### Helm Chart
+            ```bash
+            helm install tsmetrics oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts/tsmetrics --version ${{ steps.version.outputs.VERSION }}
             ```
 
             ### Verification
