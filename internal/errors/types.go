@@ -1,8 +1,18 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"time"
+)
+
+// Error constants for common validation errors
+var (
+	ErrInvalidCollector     = errors.New("invalid collector")
+	ErrInvalidInterval      = errors.New("invalid interval")
+	ErrInvalidTimeout       = errors.New("invalid timeout")
+	ErrInvalidConcurrency   = errors.New("invalid concurrency")
+	ErrInvalidLoadThreshold = errors.New("invalid load threshold")
 )
 
 type ScrapeError struct {

@@ -9,17 +9,23 @@ import (
 	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
+	"github.com/sbaerlocher/tsmetrics/internal/health"
 )
 
 var (
-	version   = "dev"
-	buildTime = "unknown"
-	startTime = time.Now()
+	version       = "dev"
+	buildTime     = "unknown"
+	startTime     = time.Now()
+	healthChecker *health.HealthChecker
 )
 
 func SetVersion(v, bt string) {
 	version = v
 	buildTime = bt
+}
+
+func SetHealthChecker(hc *health.HealthChecker) {
+	healthChecker = hc
 }
 
 func EnhancedHealthHandler(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +85,86 @@ func DebugHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(info)
+}
+
+// Kubernetes Health Endpoints
+func LivenessHandler(w http.ResponseWriter, r *http.Request) {
+	if healthChecker == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	err := healthChecker.LivenessCheck(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status":"unhealthy","error":"` + err.Error() + `"}`))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
+}
+
+func ReadinessHandler(w http.ResponseWriter, r *http.Request) {
+	if healthChecker == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status":"not configured"}`))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	err := healthChecker.ReadinessCheck(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status":"not ready","error":"` + err.Error() + `"}`))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ready"}`))
+}
+
+func StartupHandler(w http.ResponseWriter, r *http.Request) {
+	if healthChecker == nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	err := healthChecker.StartupCheck(ctx)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status":"not started","error":"` + err.Error() + `"}`))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"started"}`))
+}
+
+func DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
+	if healthChecker == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status":"not configured"}`))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	status := healthChecker.GetHealthStatus(ctx)
+	httpStatus := health.DetermineHTTPStatus(status.Overall)
+
+	health.WriteHealthResponse(w, status, httpStatus)
 }
 
 func bToMb(b uint64) uint64 {

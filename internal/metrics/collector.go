@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"strings"
@@ -237,4 +238,21 @@ func countTsnetStartupErrors(err error) int {
 		count += strings.Count(errStr, "no such host")
 	}
 	return count
+}
+
+// CollectDeviceMetrics implements MetricCollector interface
+func (c *Collector) CollectDeviceMetrics(ctx context.Context, device device.Device) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// Implementation details would depend on the specific metric collection logic
+	// For now, this is a placeholder that would integrate with the existing collection code
+	slog.Debug("collecting metrics for device", "device_id", device.ID.String(), "device_name", device.Name.String())
+
+	// In a real implementation, this would call the appropriate scraping functions
+	// and handle the metric collection logic for a single device
+	return nil
 }
