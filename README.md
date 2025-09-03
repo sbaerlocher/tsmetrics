@@ -2,11 +2,11 @@
 
 A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics for complete network observability.
 
-[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://ghcr.io/sbaerlocher/tsmetrics)
-[![CI/CD](https://github.com/sbaerlocher/tsmetrics/actions/workflows/main.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/main.yml)
+[![CI/CD](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sbaerlocher/tsmetrics)](https://goreportcard.com/report/github.com/sbaerlocher/tsmetrics)
-[![Security Scan](https://github.com/sbaerlocher/tsmetrics/actions/workflows/main.yml/badge.svg?event=schedule)](https://github.com/sbaerlocher/tsmetrics/security)
+[![Security Scan](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml/badge.svg?label=security)](https://github.com/sbaerlocher/tsmetrics/security/code-scanning)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## 🚀 Features

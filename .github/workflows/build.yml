@@ -103,13 +103,13 @@ jobs:
           tags: |
             type=sha,prefix={{branch}}-,suffix=-{{date 'YYYYMMDD-HHmmss'}}
 
-      - name: Build and push Docker image
+      - name: Build Docker image for testing
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
-          push: true
+          push: false
           load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -175,43 +175,6 @@ jobs:
           fi
         continue-on-error: true
 
-  # ==============================================================================
-  # CLEANUP JOB (runs always, even on failure)
-  # ==============================================================================
-  cleanup:
-    name: Cleanup Test Images
-    runs-on: ubuntu-latest
-    needs: [docker-build]
-    if: always() && needs.docker-build.result != 'skipped'
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Cleanup ephemeral test images
-        run: |
-          echo "Cleaning up ephemeral test images from registry..."
-
-          # Get all container versions for this repository
-          REPO_NAME=$(echo '${{ env.IMAGE_NAME }}' | cut -d'/' -f2)
-
-          # Delete images older than 1 day that match test patterns
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-               -H "Accept: application/vnd.github.v3+json" \
-               "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | \
-          jq -r '.[] | select(.created_at < (now - 86400 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | select(.metadata.container.tags[]? | test("^(pr-|\\d{8}-\\d{6}$)")) | .id' | \
-          while read version_id; do
-            if [ -n "$version_id" ]; then
-              echo "Deleting old test image version: $version_id"
-              curl -X DELETE \
-                -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$version_id" || echo "Could not delete version $version_id"
-            fi
-          done
-        continue-on-error: true
-
-  # ==============================================================================
   # HELM CHART TESTS
   # ==============================================================================
   helm-test:
@@ -313,7 +276,7 @@ jobs:
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [setup, docker-build, helm-test, cleanup]
+    needs: [setup, docker-build, helm-test]
     if: always()
 
     steps:
@@ -325,11 +288,10 @@ jobs:
             echo "- **Version:** ${{ needs.setup.outputs.version }}"
             echo "- **Docker Build:** ${{ needs.docker-build.result }}"
             echo "- **Helm Test:** ${{ needs.helm-test.result }}"
-            echo "- **Cleanup:** ${{ needs.cleanup.result }}"
             echo ""
             if [[ "${{ needs.docker-build.result }}" == "success" ]]; then
               echo "### 🐳 Container Images"
-              echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-              echo "- **Images cleaned up after testing** ✅"
+              echo "- **Images built and tested locally** ✅"
+              echo "- **No test images pushed to registry** 🚀"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

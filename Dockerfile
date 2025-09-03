@@ -14,6 +14,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
   -o /tsmetrics ./cmd/tsmetrics
 
 FROM scratch
+
+# Add OCI metadata labels
+LABEL org.opencontainers.image.title="tsmetrics"
+LABEL org.opencontainers.image.description="Prometheus exporter for Tailscale metrics and device information"
+LABEL org.opencontainers.image.source="https://github.com/sbaerlocher/tsmetrics"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Add ca-certificates for HTTPS calls
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /tsmetrics /tsmetrics
@@ -23,3 +30,4 @@ USER 65534:65534
 
 EXPOSE 9100
 ENTRYPOINT ["/tsmetrics"]
+CMD []

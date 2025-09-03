@@ -4,7 +4,7 @@ This directory contains build and development scripts for tsmetrics.
 
 ## Scripts Overview
 
-### `env-config.sh`
+### `setup-env.sh`
 
 Central environment variable configuration:
 
@@ -12,7 +12,7 @@ Central environment variable configuration:
 - Can be sourced by other scripts
 - Handles build metadata (VERSION, BUILD_TIME)
 
-### `dev.sh`
+### `start-dev.sh`
 
 Development environment setup:
 
@@ -21,7 +21,7 @@ Development environment setup:
 - Installs and runs air for live reload
 - Provides colored logging and error handling
 
-### `build.sh`
+### `build-app.sh`
 
 Build script for the application:
 
@@ -33,14 +33,27 @@ Build script for the application:
 
 ```bash
 # Start development environment
-make dev                    # Uses scripts/dev.sh
+make dev                    # Uses scripts/start-dev.sh
 
 # Build application
-make build                  # Uses scripts/build.sh
+make build                  # Uses scripts/build-app.sh
+
+# Run directly
+make run                    # Direct go run
 
 # Load environment manually
-source scripts/env-config.sh
+source scripts/setup-env.sh
 ```
+
+## Development Targets Simplified
+
+The Makefile has been streamlined to focus on essential development tasks:
+
+- **`make dev`**: Live reload development (preferred)
+- **`make run`**: Direct go run execution
+- **`make build`**: Production build
+- **`make test`**: Run tests
+- **`make clean-all`**: Full cleanup
 
 ## Best Practices
 
@@ -52,7 +65,7 @@ source scripts/env-config.sh
 
 ## Environment Variables
 
-All environment variables are centrally managed in `env-config.sh`.
+All environment variables are centrally managed in `setup-env.sh`.
 Default values are provided for development, but can be overridden via:
 
 1. `.env` file in project root

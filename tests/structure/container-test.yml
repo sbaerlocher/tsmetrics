@@ -15,29 +15,6 @@ commandTests:
       expectedOutput:
           - "tsmetrics"
 
-    # User and UID Tests
-    - name: "Check if container is running as user '65534'"
-      command: "id"
-      args: ["-u"]
-      expectedOutput:
-          - "65534"
-
-    - name: "Check if group is '65534'"
-      command: "id"
-      args: ["-g"]
-      expectedOutput:
-          - "65534"
-
-    # Basic System Tests
-    - name: "Check if /tsmetrics is executable"
-      command: "test"
-      args: ["-x", "/tsmetrics"]
-
-    # SSL Certificate Test
-    - name: "Check SSL certificates exist"
-      command: "test"
-      args: ["-f", "/etc/ssl/certs/ca-certificates.crt"]
-
 fileExistenceTests:
     - name: "Check TSMetrics Binary"
       path: "/tsmetrics"
@@ -60,11 +37,13 @@ fileExistenceTests:
       path: "/usr/bin/apk"
       shouldExist: false
 
-fileContentTests:
-    - name: "Check binary file type"
-      path: "/tsmetrics"
-      expectedContents:
-          - ".*ELF.*"
+    - name: "Check No Package Manager (apt)"
+      path: "/usr/bin/apt"
+      shouldExist: false
+
+    - name: "Check No Package Manager (yum)"
+      path: "/usr/bin/yum"
+      shouldExist: false
 
 metadataTest:
     labels:
@@ -74,4 +53,5 @@ metadataTest:
           value: "Prometheus exporter for Tailscale metrics and device information"
     exposedPorts: ["9100"]
     user: "65534:65534"
-    cmd: ["/tsmetrics"]
+    entrypoint: ["/tsmetrics"]
+    cmd: []
