@@ -55,57 +55,12 @@ jobs:
           fi
 
   # ==============================================================================
-  # BUILD RELEASE ARTIFACTS
-  # ==============================================================================
-  build-release:
-    name: Build Release
-    runs-on: ubuntu-latest
-    needs: setup
-    outputs:
-      artifacts-uploaded: ${{ steps.set-upload-status.outputs.uploaded }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Build release with GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: build --clean --snapshot
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: false
-
-      - name: Upload release artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts
-          path: |
-            dist/
-            !dist/**/*.json
-          retention-days: 30
-
-      - name: Set upload status
-        id: set-upload-status
-        run: echo "uploaded=true" >> "$GITHUB_OUTPUT"
-
-  # ==============================================================================
   # DOCKER RELEASE
   # ==============================================================================
   docker-release:
     name: Docker Release
     runs-on: ubuntu-latest
-    needs: [setup, build-release]
+    needs: setup
     permissions:
       contents: read
       packages: write
@@ -156,7 +111,7 @@ jobs:
   helm-release:
     name: Helm Release
     runs-on: ubuntu-latest
-    needs: [setup, build-release]
+    needs: setup
     permissions:
       contents: read
       packages: write
@@ -202,8 +157,8 @@ jobs:
   github-release:
     name: GitHub Release
     runs-on: ubuntu-latest
-    needs: [setup, build-release, docker-release, helm-release]
-    if: always() && needs.build-release.result == 'success'
+    needs: [setup, docker-release, helm-release]
+    if: always() && needs.setup.result == 'success'
     permissions:
       contents: write
 
@@ -213,18 +168,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download release artifacts
-        uses: actions/download-artifact@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          name: release-artifacts
-          path: dist/
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Create release with GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --skip=build
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: false
@@ -235,7 +189,7 @@ jobs:
   release-summary:
     name: Release Summary
     runs-on: ubuntu-latest
-    needs: [setup, build-release, docker-release, helm-release, github-release]
+    needs: [setup, docker-release, helm-release, github-release]
     if: always()
 
     steps:
@@ -248,7 +202,6 @@ jobs:
             echo "- **Prerelease:** ${{ needs.setup.outputs.is-prerelease }}"
             echo ""
             echo "### 📦 Release Components"
-            echo "- **Build:** ${{ needs.build-release.result }}"
             echo "- **Docker Release:** ${{ needs.docker-release.result }}"
             echo "- **Helm Release:** ${{ needs.helm-release.result }}"
             echo "- **GitHub Release:** ${{ needs.github-release.result }}"
