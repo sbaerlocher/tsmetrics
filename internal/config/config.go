@@ -32,29 +32,25 @@ type Config struct {
 // Load reads configuration from environment variables and returns a Config struct.
 func Load() Config {
 	cfg := Config{}
-	if strings.ToLower(os.Getenv("USE_TSNET")) == "true" {
-		cfg.UseTsnet = true
-	}
-	cfg.TsnetHostname = os.Getenv("TSNET_HOSTNAME")
-	cfg.TsnetStateDir = os.Getenv("TSNET_STATE_DIR")
-	cfg.TsnetAuthKey = os.Getenv("TS_AUTHKEY")
+
+	cfg.loadNetworkSettings()
+	cfg.loadAuthSettings()
+	cfg.loadTsnetSettings()
+	cfg.loadLoggingSettings()
+	cfg.loadMetricsSettings()
+
+	return cfg
+}
+
+func (cfg *Config) loadNetworkSettings() {
 	cfg.Port = os.Getenv("PORT")
 	if cfg.Port == "" {
 		cfg.Port = "9100"
 	}
-	cfg.OAuthClientID = os.Getenv("OAUTH_CLIENT_ID")
-	cfg.OAuthSecret = os.Getenv("OAUTH_CLIENT_SECRET")
-	cfg.TailnetName = os.Getenv("TAILNET_NAME")
 
-	if v := os.Getenv("CLIENT_METRICS_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			cfg.ClientMetricsTimeout = d
-		} else if sec, err := strconv.Atoi(v); err == nil {
-			cfg.ClientMetricsTimeout = time.Duration(sec) * time.Second
-		}
-	}
-	if cfg.ClientMetricsTimeout == 0 {
-		cfg.ClientMetricsTimeout = 10 * time.Second
+	cfg.ClientMetricsPort = "5252"
+	if v := os.Getenv("CLIENT_METRICS_PORT"); v != "" {
+		cfg.ClientMetricsPort = v
 	}
 
 	cfg.MaxConcurrentScrapes = 10
@@ -63,21 +59,21 @@ func Load() Config {
 			cfg.MaxConcurrentScrapes = n
 		}
 	}
+}
 
-	cfg.LogLevel = "info"
-	if v := os.Getenv("LOG_LEVEL"); v != "" {
-		cfg.LogLevel = strings.ToLower(v)
-	}
+func (cfg *Config) loadAuthSettings() {
+	cfg.OAuthClientID = os.Getenv("OAUTH_CLIENT_ID")
+	cfg.OAuthSecret = os.Getenv("OAUTH_CLIENT_SECRET")
+	cfg.TailnetName = os.Getenv("TAILNET_NAME")
+}
 
-	cfg.LogFormat = "text"
-	if v := os.Getenv("LOG_FORMAT"); v != "" {
-		cfg.LogFormat = strings.ToLower(v)
+func (cfg *Config) loadTsnetSettings() {
+	if strings.ToLower(os.Getenv("USE_TSNET")) == "true" {
+		cfg.UseTsnet = true
 	}
-
-	cfg.ClientMetricsPort = "5252"
-	if v := os.Getenv("CLIENT_METRICS_PORT"); v != "" {
-		cfg.ClientMetricsPort = v
-	}
+	cfg.TsnetHostname = os.Getenv("TSNET_HOSTNAME")
+	cfg.TsnetStateDir = os.Getenv("TSNET_STATE_DIR")
+	cfg.TsnetAuthKey = os.Getenv("TS_AUTHKEY")
 
 	if v := os.Getenv("TSNET_TAGS"); v != "" {
 		parts := strings.Split(v, ",")
@@ -90,19 +86,65 @@ func Load() Config {
 	if strings.ToLower(os.Getenv("REQUIRE_EXPORTER_TAG")) == "true" {
 		cfg.RequireExporterTag = true
 	}
+}
 
-	return cfg
+func (cfg *Config) loadLoggingSettings() {
+	cfg.LogLevel = "info"
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		cfg.LogLevel = strings.ToLower(v)
+	}
+
+	cfg.LogFormat = "text"
+	if v := os.Getenv("LOG_FORMAT"); v != "" {
+		cfg.LogFormat = strings.ToLower(v)
+	}
+}
+
+func (cfg *Config) loadMetricsSettings() {
+	if v := os.Getenv("CLIENT_METRICS_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.ClientMetricsTimeout = d
+		} else if sec, err := strconv.Atoi(v); err == nil {
+			cfg.ClientMetricsTimeout = time.Duration(sec) * time.Second
+		}
+	}
+	if cfg.ClientMetricsTimeout == 0 {
+		cfg.ClientMetricsTimeout = 10 * time.Second
+	}
 }
 
 // Validate checks the configuration for consistency and required values.
 func (cfg Config) Validate() error {
+	if err := cfg.validateAuth(); err != nil {
+		return err
+	}
+
+	if err := cfg.validateLogSettings(); err != nil {
+		return err
+	}
+
+	if err := cfg.validateTsnetSettings(); err != nil {
+		return err
+	}
+
+	if err := cfg.validateNetworkSettings(); err != nil {
+		return err
+	}
+
+	return cfg.validateTailnetSettings()
+}
+
+func (cfg Config) validateAuth() error {
 	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
 	hasToken := os.Getenv("OAUTH_TOKEN") != ""
 
 	if hasOAuth && hasToken {
 		return fmt.Errorf("cannot use both OAuth credentials and direct token")
 	}
+	return nil
+}
 
+func (cfg Config) validateLogSettings() error {
 	validLogLevels := []string{"debug", "info", "warn", "error"}
 	if cfg.LogLevel != "" && !contains(validLogLevels, cfg.LogLevel) {
 		return fmt.Errorf("invalid log level: %s, valid options: %v", cfg.LogLevel, validLogLevels)
@@ -112,7 +154,10 @@ func (cfg Config) Validate() error {
 	if cfg.LogFormat != "" && !contains(validLogFormats, cfg.LogFormat) {
 		return fmt.Errorf("invalid log format: %s, valid options: %v", cfg.LogFormat, validLogFormats)
 	}
+	return nil
+}
 
+func (cfg Config) validateTsnetSettings() error {
 	if cfg.UseTsnet && cfg.RequireExporterTag {
 		hasExporter := false
 		for _, tag := range cfg.TsnetTags {
@@ -126,6 +171,13 @@ func (cfg Config) Validate() error {
 		}
 	}
 
+	if cfg.UseTsnet && cfg.TsnetHostname == "" {
+		return fmt.Errorf("TSNET_HOSTNAME required when USE_TSNET=true")
+	}
+	return nil
+}
+
+func (cfg Config) validateNetworkSettings() error {
 	if cfg.Port == "" {
 		return fmt.Errorf("PORT cannot be empty")
 	}
@@ -137,19 +189,17 @@ func (cfg Config) Validate() error {
 	if cfg.MaxConcurrentScrapes <= 0 {
 		return fmt.Errorf("MAX_CONCURRENT_SCRAPES must be positive")
 	}
+	return nil
+}
 
-	if cfg.UseTsnet && cfg.TsnetHostname == "" {
-		return fmt.Errorf("TSNET_HOSTNAME required when USE_TSNET=true")
-	}
-
-	hasOAuth = cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
-	hasToken = os.Getenv("OAUTH_TOKEN") != ""
+func (cfg Config) validateTailnetSettings() error {
+	hasOAuth := cfg.OAuthClientID != "" && cfg.OAuthSecret != ""
+	hasToken := os.Getenv("OAUTH_TOKEN") != ""
 	hasTailnet := cfg.TailnetName != ""
 
 	if hasTailnet && !hasOAuth && !hasToken {
 		return fmt.Errorf("TAILNET_NAME specified but missing OAuth credentials (OAUTH_CLIENT_ID+SECRET) or OAUTH_TOKEN")
 	}
-
 	return nil
 }
 

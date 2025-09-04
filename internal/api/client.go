@@ -93,6 +93,25 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 		return nil, fmt.Errorf("no tailnet configured")
 	}
 
+	resp, err := c.makeDevicesRequest()
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleAPIError(resp)
+	}
+
+	result, err := c.decodeDevicesResponse(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.convertAPIDevices(result.Devices), nil
+}
+
+func (c *Client) makeDevicesRequest() (*http.Response, error) {
 	apiURL := fmt.Sprintf("%s/devices", c.baseURL)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -103,106 +122,132 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	return resp, nil
+}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
+func (c *Client) handleAPIError(resp *http.Response) error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+}
 
-	var result struct {
-		Devices []struct {
-			ID                string   `json:"id"`
-			Name              string   `json:"name"`
-			Hostname          string   `json:"hostname"`
-			Addresses         []string `json:"addresses"`
-			Online            bool     `json:"online"`
-			Tags              []string `json:"tags"`
-			Authorized        bool     `json:"authorized"`
-			LastSeen          string   `json:"lastSeen"`
-			User              string   `json:"user"`
-			MachineKey        string   `json:"machineKey"`
-			KeyExpiryDisabled bool     `json:"keyExpiryDisabled"`
-			Expires           string   `json:"expires"`
-			AdvertisedRoutes  []string `json:"advertisedRoutes"`
-			EnabledRoutes     []string `json:"enabledRoutes"`
-			IsExitNode        bool     `json:"isExitNode"`
-			ExitNodeOption    bool     `json:"exitNodeOption"`
-			OS                string   `json:"os"`
-			ClientVersion     string   `json:"clientVersion"`
-		} `json:"devices"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+func (c *Client) decodeDevicesResponse(body io.Reader) (*devicesAPIResponse, error) {
+	var result devicesAPIResponse
+	if err := json.NewDecoder(body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
+	return &result, nil
+}
 
-	devices := make([]device.Device, 0, len(result.Devices))
-	for _, d := range result.Devices {
-		host := d.Hostname
-		if host == "" && len(d.Addresses) > 0 {
-			host = d.Addresses[0]
+func (c *Client) convertAPIDevices(apiDevices []apiDevice) []device.Device {
+	devices := make([]device.Device, 0, len(apiDevices))
+	for _, d := range apiDevices {
+		if dev, ok := c.convertSingleDevice(d); ok {
+			devices = append(devices, dev)
 		}
-		if d.ID == "" || d.Name == "" {
-			slog.Warn("skipping device with missing ID or Name", "device", d)
-			continue
-		}
+	}
+	return devices
+}
 
-		var lastSeen, expires time.Time
-		if d.LastSeen != "" {
-			if t, err := time.Parse(time.RFC3339, d.LastSeen); err == nil {
-				lastSeen = t
-			}
-		}
-		if d.Expires != "" && !d.KeyExpiryDisabled {
-			if t, err := time.Parse(time.RFC3339, d.Expires); err == nil {
-				expires = t
-			}
-		}
-
-		deviceID, err := types.NewDeviceID(d.ID)
-		if err != nil {
-			slog.Warn("skipping device with invalid ID", "device", d, "error", err)
-			continue
-		}
-
-		deviceName, err := types.NewDeviceName(d.Name)
-		if err != nil {
-			slog.Warn("skipping device with invalid name", "device", d, "error", err)
-			continue
-		}
-
-		tags := make([]types.TagName, 0, len(d.Tags))
-		for _, tag := range d.Tags {
-			if tagName, err := types.NewTagName(tag); err == nil {
-				tags = append(tags, tagName)
-			} else {
-				slog.Warn("skipping invalid tag", "tag", tag, "device", d.Name, "error", err)
-			}
-		}
-
-		devices = append(devices, device.Device{
-			ID:                deviceID,
-			Name:              deviceName,
-			Host:              host,
-			Tags:              tags,
-			Online:            d.Online,
-			Authorized:        d.Authorized,
-			LastSeen:          lastSeen,
-			User:              d.User,
-			MachineKey:        d.MachineKey,
-			KeyExpiryDisabled: d.KeyExpiryDisabled,
-			Expires:           expires,
-			AdvertisedRoutes:  d.AdvertisedRoutes,
-			EnabledRoutes:     d.EnabledRoutes,
-			IsExitNode:        d.IsExitNode,
-			ExitNodeOption:    d.ExitNodeOption,
-			OS:                d.OS,
-			ClientVersion:     d.ClientVersion,
-		})
+func (c *Client) convertSingleDevice(d apiDevice) (device.Device, bool) {
+	if d.ID == "" || d.Name == "" {
+		slog.Warn("skipping device with missing ID or Name", "device", d)
+		return device.Device{}, false
 	}
 
-	return devices, nil
+	deviceID, err := types.NewDeviceID(d.ID)
+	if err != nil {
+		slog.Warn("skipping device with invalid ID", "device", d, "error", err)
+		return device.Device{}, false
+	}
+
+	deviceName, err := types.NewDeviceName(d.Name)
+	if err != nil {
+		slog.Warn("skipping device with invalid name", "device", d, "error", err)
+		return device.Device{}, false
+	}
+
+	host := d.Hostname
+	if host == "" && len(d.Addresses) > 0 {
+		host = d.Addresses[0]
+	}
+
+	lastSeen, expires := c.parseTimes(d.LastSeen, d.Expires, d.KeyExpiryDisabled)
+	tags := c.parseTags(d.Tags, d.Name)
+
+	return device.Device{
+		ID:                deviceID,
+		Name:              deviceName,
+		Host:              host,
+		Tags:              tags,
+		Online:            d.Online,
+		Authorized:        d.Authorized,
+		LastSeen:          lastSeen,
+		User:              d.User,
+		MachineKey:        d.MachineKey,
+		KeyExpiryDisabled: d.KeyExpiryDisabled,
+		Expires:           expires,
+		AdvertisedRoutes:  d.AdvertisedRoutes,
+		EnabledRoutes:     d.EnabledRoutes,
+		IsExitNode:        d.IsExitNode,
+		ExitNodeOption:    d.ExitNodeOption,
+		OS:                d.OS,
+		ClientVersion:     d.ClientVersion,
+	}, true
+}
+
+func (c *Client) parseTimes(lastSeenStr, expiresStr string, keyExpiryDisabled bool) (time.Time, time.Time) {
+	var lastSeen, expires time.Time
+
+	if lastSeenStr != "" {
+		if t, err := time.Parse(time.RFC3339, lastSeenStr); err == nil {
+			lastSeen = t
+		}
+	}
+
+	if expiresStr != "" && !keyExpiryDisabled {
+		if t, err := time.Parse(time.RFC3339, expiresStr); err == nil {
+			expires = t
+		}
+	}
+
+	return lastSeen, expires
+}
+
+func (c *Client) parseTags(tagsStr []string, deviceName string) []types.TagName {
+	tags := make([]types.TagName, 0, len(tagsStr))
+	for _, tag := range tagsStr {
+		if tagName, err := types.NewTagName(tag); err == nil {
+			tags = append(tags, tagName)
+		} else {
+			slog.Warn("skipping invalid tag", "tag", tag, "device", deviceName, "error", err)
+		}
+	}
+	return tags
+}
+
+type devicesAPIResponse struct {
+	Devices []apiDevice `json:"devices"`
+}
+
+type apiDevice struct {
+	ID                string   `json:"id"`
+	Name              string   `json:"name"`
+	Hostname          string   `json:"hostname"`
+	Addresses         []string `json:"addresses"`
+	Online            bool     `json:"online"`
+	Tags              []string `json:"tags"`
+	Authorized        bool     `json:"authorized"`
+	LastSeen          string   `json:"lastSeen"`
+	User              string   `json:"user"`
+	MachineKey        string   `json:"machineKey"`
+	KeyExpiryDisabled bool     `json:"keyExpiryDisabled"`
+	Expires           string   `json:"expires"`
+	AdvertisedRoutes  []string `json:"advertisedRoutes"`
+	EnabledRoutes     []string `json:"enabledRoutes"`
+	IsExitNode        bool     `json:"isExitNode"`
+	ExitNodeOption    bool     `json:"exitNodeOption"`
+	OS                string   `json:"os"`
+	ClientVersion     string   `json:"clientVersion"`
 }
 
 func (c *Client) TestConnectivity(ctx context.Context) (bool, error) {

@@ -6,7 +6,7 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://ghcr.io/sbaerlocher/tsmetrics)
 [![CI/CD](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sbaerlocher/tsmetrics)](https://goreportcard.com/report/github.com/sbaerlocher/tsmetrics)
-[![Security Scan](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml/badge.svg?label=security)](https://github.com/sbaerlocher/tsmetrics/security/code-scanning)
+[![CodeQL](https://github.com/sbaerlocher/tsmetrics/workflows/CodeQL/badge.svg)](https://github.com/sbaerlocher/tsmetrics/security/code-scanning)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## 🚀 Features
@@ -1248,6 +1248,17 @@ MIT License - see [LICENSE](LICENSE) for details.
 - Initial release with monolithic structure
 - Basic Tailscale API integration
 - Docker and Kubernetes deployment support
+
+## Disclaimer
+
+**Trademark Notice**: Tailscale is a trademark of Tailscale Inc. This project is not affiliated with, endorsed by, or
+sponsored by Tailscale Inc.
+
+**Legal**: This is an independent, community-developed tool that interfaces with Tailscale's public APIs.
+Use at your own risk.
+
+**Support**: For Tailscale-related issues, please contact [Tailscale Support](https://tailscale.com/contact/support/).
+For issues specific to this exporter, please use the GitHub Issues.
 
 ## Related Projects
 

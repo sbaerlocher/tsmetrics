@@ -33,8 +33,6 @@ func setupLogger(cfg config.Config) {
 		level = slog.LevelWarn
 	case "error":
 		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
 	}
 
 	opts := &slog.HandlerOptions{Level: level}

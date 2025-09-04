@@ -140,19 +140,40 @@ func isTsnetStartupError(err error) bool {
 }
 
 func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) error {
+	resp, err := fetchDeviceMetrics(dev, client, cfg)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return handleHTTPError(dev, resp, buildMetricsURL(dev, cfg))
+	}
+
+	return parseMetricsResponse(dev, resp.Body)
+}
+
+func buildMetricsURL(dev device.Device, cfg config.Config) string {
+	hostForURL := dev.Host
+	if hostForURL == "" {
+		hostForURL = dev.Name.String()
+	}
+	host := net.JoinHostPort(hostForURL, cfg.ClientMetricsPort)
+	u := url.URL{Scheme: "http", Host: host, Path: "/metrics"}
+	return u.String()
+}
+
+func fetchDeviceMetrics(dev device.Device, client *http.Client, cfg config.Config) (*http.Response, error) {
 	hostForURL := dev.Host
 	if hostForURL == "" {
 		hostForURL = dev.Name.String()
 	}
 
 	if err := validateHostname(hostForURL); err != nil {
-		return fmt.Errorf("invalid hostname %s: %w", hostForURL, err)
+		return nil, fmt.Errorf("invalid hostname %s: %w", hostForURL, err)
 	}
 
-	host := net.JoinHostPort(hostForURL, cfg.ClientMetricsPort)
-	u := url.URL{Scheme: "http", Host: host, Path: "/metrics"}
-	urlStr := u.String()
-
+	urlStr := buildMetricsURL(dev, cfg)
 	resp, err := client.Get(urlStr)
 	if err != nil {
 		deviceErr := errors.DeviceError{
@@ -165,32 +186,34 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 			Timestamp:  time.Now(),
 		}
 		DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), "network", "true").Inc()
-		return deviceErr
+		return nil, deviceErr
 	}
-	defer resp.Body.Close()
+	return resp, nil
+}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		retryable := resp.StatusCode >= 500 || resp.StatusCode == 429
-		errorType := "http_client"
-		if resp.StatusCode >= 500 {
-			errorType = "http_server"
-		}
-
-		deviceErr := errors.DeviceError{
-			DeviceID:   dev.ID.String(),
-			DeviceName: dev.Name.String(),
-			ErrorType:  errorType,
-			Underlying: fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, urlStr, string(body)),
-			Retryable:  retryable,
-			RetryAfter: 30 * time.Second,
-			Timestamp:  time.Now(),
-		}
-		DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), errorType, fmt.Sprintf("%t", retryable)).Inc()
-		return deviceErr
+func handleHTTPError(dev device.Device, resp *http.Response, urlStr string) error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	retryable := resp.StatusCode >= 500 || resp.StatusCode == 429
+	errorType := "http_client"
+	if resp.StatusCode >= 500 {
+		errorType = "http_server"
 	}
 
-	r := bufio.NewReader(resp.Body)
+	deviceErr := errors.DeviceError{
+		DeviceID:   dev.ID.String(),
+		DeviceName: dev.Name.String(),
+		ErrorType:  errorType,
+		Underlying: fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, urlStr, string(body)),
+		Retryable:  retryable,
+		RetryAfter: 30 * time.Second,
+		Timestamp:  time.Now(),
+	}
+	DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), errorType, fmt.Sprintf("%t", retryable)).Inc()
+	return deviceErr
+}
+
+func parseMetricsResponse(dev device.Device, body io.Reader) error {
+	r := bufio.NewReader(body)
 	for {
 		line, err := r.ReadString('\n')
 		if err != nil && err != io.EOF {
@@ -198,42 +221,8 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 		}
 		line = strings.TrimSpace(line)
 		if line != "" && !strings.HasPrefix(line, "#") {
-			m := metricLineRE.FindStringSubmatch(line)
-			if len(m) == 4 {
-				name := m[1]
-				labelsStr := m[2]
-				valStr := m[3]
-				val, err := strconv.ParseFloat(valStr, 64)
-				if err != nil {
-					continue
-				}
-				labels := parseLabels(labelsStr)
-				switch name {
-				case "tailscaled_inbound_bytes_total":
-					path := labels["path"]
-					InboundBytes.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
-				case "tailscaled_outbound_bytes_total":
-					path := labels["path"]
-					OutboundBytes.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
-				case "tailscaled_inbound_packets_total":
-					path := labels["path"]
-					InboundPackets.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
-				case "tailscaled_outbound_packets_total":
-					path := labels["path"]
-					OutboundPackets.WithLabelValues(dev.ID.String(), dev.Name.String(), path).Set(val)
-				case "tailscaled_inbound_dropped_packets_total":
-					InboundDroppedPackets.WithLabelValues(dev.ID.String(), dev.Name.String()).Set(val)
-				case "tailscaled_outbound_dropped_packets_total":
-					reason := labels["reason"]
-					OutboundDroppedPackets.WithLabelValues(dev.ID.String(), dev.Name.String(), reason).Set(val)
-				case "tailscaled_health_messages":
-					typeLabel := labels["type"]
-					HealthMessages.WithLabelValues(dev.ID.String(), dev.Name.String(), typeLabel).Set(val)
-				case "tailscaled_advertised_routes":
-					AdvertisedRoutes.WithLabelValues(dev.ID.String(), dev.Name.String()).Set(val)
-				case "tailscaled_approved_routes":
-					ApprovedRoutes.WithLabelValues(dev.ID.String(), dev.Name.String()).Set(val)
-				}
+			if err := processMetricLine(dev, line); err != nil {
+				continue // Skip invalid lines
 			}
 		}
 		if err == io.EOF {
@@ -244,6 +233,58 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 		}
 	}
 	return nil
+}
+
+func processMetricLine(dev device.Device, line string) error {
+	m := metricLineRE.FindStringSubmatch(line)
+	if len(m) != 4 {
+		return fmt.Errorf("invalid metric line format")
+	}
+
+	name := m[1]
+	labelsStr := m[2]
+	valStr := m[3]
+
+	val, err := strconv.ParseFloat(valStr, 64)
+	if err != nil {
+		return err
+	}
+
+	labels := parseLabels(labelsStr)
+	updateDeviceMetric(dev, name, labels, val)
+	return nil
+}
+
+func updateDeviceMetric(dev device.Device, name string, labels map[string]string, val float64) {
+	deviceID := dev.ID.String()
+	deviceName := dev.Name.String()
+
+	switch name {
+	case "tailscaled_inbound_bytes_total":
+		path := labels["path"]
+		InboundBytes.WithLabelValues(deviceID, deviceName, path).Set(val)
+	case "tailscaled_outbound_bytes_total":
+		path := labels["path"]
+		OutboundBytes.WithLabelValues(deviceID, deviceName, path).Set(val)
+	case "tailscaled_inbound_packets_total":
+		path := labels["path"]
+		InboundPackets.WithLabelValues(deviceID, deviceName, path).Set(val)
+	case "tailscaled_outbound_packets_total":
+		path := labels["path"]
+		OutboundPackets.WithLabelValues(deviceID, deviceName, path).Set(val)
+	case "tailscaled_inbound_dropped_packets_total":
+		InboundDroppedPackets.WithLabelValues(deviceID, deviceName).Set(val)
+	case "tailscaled_outbound_dropped_packets_total":
+		reason := labels["reason"]
+		OutboundDroppedPackets.WithLabelValues(deviceID, deviceName, reason).Set(val)
+	case "tailscaled_health_messages":
+		typeLabel := labels["type"]
+		HealthMessages.WithLabelValues(deviceID, deviceName, typeLabel).Set(val)
+	case "tailscaled_advertised_routes":
+		AdvertisedRoutes.WithLabelValues(deviceID, deviceName).Set(val)
+	case "tailscaled_approved_routes":
+		ApprovedRoutes.WithLabelValues(deviceID, deviceName).Set(val)
+	}
 }
 
 func parseLabels(s string) map[string]string {
