@@ -58,7 +58,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	localAddr := fmt.Sprintf("127.0.0.1:%s", cfg.Port)
+	localAddr := "0.0.0.0:" + cfg.Port  // Bind auf alle Interfaces für Kubernetes Probes
 	localHTTPServer := &http.Server{
 		Addr:              localAddr,
 		Handler:           mux,
