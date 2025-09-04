@@ -101,7 +101,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix={{branch}}-,suffix=-{{date 'YYYYMMDD-HHmmss'}}
+            type=sha,prefix=sha-,suffix=-{{date 'YYYYMMDD-HHmmss'}}
 
       - name: Build Docker image for testing
         id: build

@@ -6,7 +6,6 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://ghcr.io/sbaerlocher/tsmetrics)
 [![CI/CD](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sbaerlocher/tsmetrics)](https://goreportcard.com/report/github.com/sbaerlocher/tsmetrics)
-[![CodeQL](https://github.com/sbaerlocher/tsmetrics/workflows/CodeQL/badge.svg)](https://github.com/sbaerlocher/tsmetrics/security/code-scanning)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## 🚀 Features
