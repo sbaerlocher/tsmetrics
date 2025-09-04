@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/prometheus/client_golang v1.23.0
 	golang.org/x/oauth2 v0.30.0
-	golang.org/x/time v0.11.0
+	golang.org/x/time v0.12.0
 	tailscale.com v1.86.5
 )
 
