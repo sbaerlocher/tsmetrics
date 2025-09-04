@@ -215,13 +215,13 @@ jobs:
 
       - name: Lint Helm Chart
         run: |
-          helm lint deploy/helm/tsmetrics
-          helm lint deploy/helm/tsmetrics --strict
+          helm lint deploy/helm
+          helm lint deploy/helm --strict
 
       - name: Test chart templates
         run: |
           # Test minimal configuration
-          helm template test-minimal deploy/helm/tsmetrics \
+          helm template test-minimal deploy/helm \
             --set tailscale.oauthClientId=test-id \
             --set tailscale.oauthClientSecret=test-secret \
             --set tailscale.tailnetName=test.ts.net \
@@ -235,7 +235,7 @@ jobs:
           echo "✅ Minimal template test passed"
 
           # Test production configuration
-          helm template test-production deploy/helm/tsmetrics \
+          helm template test-production deploy/helm \
             --set replicaCount=2 \
             --set tailscale.oauthClientId=prod-id \
             --set tailscale.oauthClientSecret=prod-secret \
@@ -252,7 +252,7 @@ jobs:
 
       - name: Install and test chart
         run: |
-          helm install test-release deploy/helm/tsmetrics \
+          helm install test-release deploy/helm \
             --set tailscale.oauthClientId=test-client-id \
             --set tailscale.oauthClientSecret=test-client-secret \
             --set tailscale.tailnetName=test.ts.net \

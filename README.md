@@ -414,7 +414,7 @@ Template-based deployment with full lifecycle management:
 helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics
 
 # Or install from local chart
-helm install tsmetrics deploy/helm/tsmetrics
+helm install tsmetrics deploy/helm
 
 # Install with custom values
 helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics \
@@ -498,8 +498,8 @@ docker build -t tsmetrics .   # Build container image
 make container-test           # Run container structure tests
 
 # Deployment Validation
-helm lint deploy/helm/tsmetrics                    # Validate Helm chart
-helm template tsmetrics deploy/helm/tsmetrics      # Test Helm templating
+helm lint deploy/helm                    # Validate Helm chart
+helm template tsmetrics deploy/helm      # Test Helm templating
 kubectl kustomize deploy/kustomize/overlays/production  # Test Kustomize
 
 # Release Testing (Local)
@@ -640,8 +640,8 @@ docker build -t tsmetrics:test .
 container-structure-test test --image tsmetrics:test --config tests/structure/container-test.yml
 
 # Test Helm chart
-helm lint deploy/helm/tsmetrics
-helm template tsmetrics deploy/helm/tsmetrics
+helm lint deploy/helm
+helm template tsmetrics deploy/helm
 
 # Test Kustomize
 kubectl kustomize deploy/kustomize/overlays/production

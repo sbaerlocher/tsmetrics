@@ -130,16 +130,16 @@ jobs:
           VERSION="${{ needs.setup.outputs.version }}"
           VERSION="${VERSION#v}"  # Remove 'v' prefix if present
 
-          sed -i "s/^version:.*/version: $VERSION/" deploy/helm/tsmetrics/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" deploy/helm/tsmetrics/Chart.yaml
+          sed -i "s/^version:.*/version: $VERSION/" deploy/helm/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" deploy/helm/Chart.yaml
 
           echo "Updated Chart.yaml:"
-          grep -E "(version|appVersion):" deploy/helm/tsmetrics/Chart.yaml
+          grep -E "(version|appVersion):" deploy/helm/Chart.yaml
 
       - name: Package and publish Helm chart
         run: |
           # Package chart
-          helm package deploy/helm/tsmetrics --destination .
+          helm package deploy/helm --destination .
 
           # Login to registry
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${{ env.REGISTRY }}" --username "${{ github.actor }}" --password-stdin

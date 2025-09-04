@@ -5,6 +5,11 @@ metadata:
 spec:
   template:
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
       containers:
         - name: tsmetrics
           env:
@@ -23,8 +28,9 @@ spec:
               memory: 1Gi
           volumeMounts:
             - name: tsnet-state
-              mountPath: /tmp/tsnet-state
+              mountPath: /var/lib/tsmetrics/state
       volumes:
         - name: tsnet-state
+          emptyDir: null
           persistentVolumeClaim:
             claimName: tsmetrics-state

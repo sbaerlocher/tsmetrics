@@ -13,7 +13,7 @@ data:
   USE_TSNET: "true"
   TSNET_HOSTNAME: "tsmetrics"
   TSNET_TAGS: "exporter"
-  TSNET_STATE_DIR: "/tmp/tsnet-state"
+  TSNET_STATE_DIR: "/var/lib/tsmetrics/state"
   REQUIRE_EXPORTER_TAG: "false"
 
   # Performance settings
@@ -21,3 +21,6 @@ data:
   MAX_CONCURRENT_SCRAPES: "10"
   SCRAPE_INTERVAL: "30s"
   CLIENT_METRICS_PORT: "5252"
+
+  # Target devices (empty = all devices)
+  TARGET_DEVICES: ""

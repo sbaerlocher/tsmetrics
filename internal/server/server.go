@@ -22,6 +22,13 @@ func SetupRoutes() *http.ServeMux {
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/health", EnhancedHealthHandler)
 	mux.HandleFunc("/debug", DebugHandler)
+
+	// Kubernetes health endpoints
+	mux.HandleFunc("/livez", LivenessHandler)
+	mux.HandleFunc("/readyz", ReadinessHandler)
+	mux.HandleFunc("/startupz", StartupHandler)
+	mux.HandleFunc("/healthz", DetailedHealthHandler)
+
 	return mux
 }
 

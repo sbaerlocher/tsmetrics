@@ -5,7 +5,7 @@
       "label": "Helm Lint",
       "type": "shell",
       "command": "helm",
-      "args": ["lint", "./deploy/helm/tsmetrics"],
+      "args": ["lint", "./deploy/helm"],
       "group": "test",
       "presentation": {
         "echo": true,
@@ -22,7 +22,7 @@
       "label": "Helm Template",
       "type": "shell",
       "command": "helm",
-      "args": ["template", "tsmetrics", "./deploy/helm/tsmetrics"],
+      "args": ["template", "tsmetrics", "./deploy/helm"],
       "group": "build",
       "presentation": {
         "echo": true,

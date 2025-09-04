@@ -20,6 +20,43 @@ spec:
         app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+{{- if .Values.security.useInitContainer }}
+      initContainers:
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              # Create directory and set minimal permissions
+              mkdir -p {{ .Values.tailscale.tsnet.stateDir }}
+              # If running as non-root, this will fail gracefully
+              if [ "$(id -u)" = "0" ]; then
+                chown 65534:65534 {{ .Values.tailscale.tsnet.stateDir }} || true
+                chmod 755 {{ .Values.tailscale.tsnet.stateDir }} || true
+              fi
+          securityContext:
+            runAsNonRoot: {{ not .Values.security.initContainerPrivileged }}
+            {{- if .Values.security.initContainerPrivileged }}
+            runAsUser: 0
+            {{- else }}
+            runAsUser: 65534
+            runAsGroup: 65534
+            {{- end }}
+            allowPrivilegeEscalation: {{ .Values.security.initContainerPrivileged }}
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tsnet-state
+              mountPath: {{ .Values.tailscale.tsnet.stateDir }}
+{{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -59,6 +96,10 @@ spec:
               value: {{ .Values.config.scrapeInterval | quote }}
             - name: CLIENT_METRICS_PORT
               value: {{ .Values.config.clientMetricsPort | quote }}
+            {{- if .Values.config.targetDevices }}
+            - name: TARGET_DEVICES
+              value: {{ .Values.config.targetDevices | quote }}
+            {{- end }}
 {{- if not .Values.externalSecret.enabled }}
 {{- if .Values.tailscale.oauthClientId }}
             - name: OAUTH_CLIENT_ID
@@ -94,36 +135,60 @@ spec:
             - secretRef:
                 name: {{ .Values.externalSecret.secretName }}
 {{- end }}
-{{- if .Values.persistence.enabled }}
           volumeMounts:
             - name: tsnet-state
               mountPath: {{ .Values.tailscale.tsnet.stateDir }}
-{{- end }}
           livenessProbe:
             httpGet:
-              path: /health
+              path: /livez
               port: http
-            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /readyz
               port: http
-            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
-            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
-            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
 {{- if .Values.resources }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
 {{- end }}
-{{- if .Values.persistence.enabled }}
       volumes:
         - name: tsnet-state
+{{- if eq .Values.storage.type "pvc" }}
           persistentVolumeClaim:
             claimName: {{ include "tsmetrics.fullname" . }}-state
+{{- else if eq .Values.storage.type "emptyDir" }}
+          emptyDir:
+            {{- if .Values.storage.emptyDir.sizeLimit }}
+            sizeLimit: {{ .Values.storage.emptyDir.sizeLimit }}
+            {{- end }}
+            {{- if .Values.storage.emptyDir.medium }}
+            medium: {{ .Values.storage.emptyDir.medium }}
+            {{- end }}
+{{- else if eq .Values.storage.type "hostPath" }}
+          hostPath:
+            path: {{ .Values.storage.hostPath.path }}
+            type: {{ .Values.storage.hostPath.type }}
+{{- else if eq .Values.storage.type "memory" }}
+          emptyDir:
+            medium: "Memory"
+            {{- if .Values.storage.memory.sizeLimit }}
+            sizeLimit: {{ .Values.storage.memory.sizeLimit }}
+            {{- end }}
 {{- end }}
 {{- with .Values.nodeSelector }}
       nodeSelector:

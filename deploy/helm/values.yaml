@@ -26,7 +26,7 @@ tailscale:
     enabled: true
     hostname: "tsmetrics"
     tags: "exporter"
-    stateDir: "/tmp/tsnet-state"
+    stateDir: "/var/lib/tsmetrics/state"
     requireExporterTag: false
     # authKey: ""  # Optional: for automatic registration
 
@@ -42,6 +42,11 @@ config:
   maxConcurrentScrapes: 10
   scrapeInterval: "30s"
   clientMetricsPort: 5252
+
+  # Target devices configuration
+  # Comma-separated list of device names or IPs to target
+  # Leave empty to scrape all devices
+  targetDevices: ""
 
 # Service configuration
 service:
@@ -116,13 +121,47 @@ resources:
   #   cpu: 100m
   #   memory: 128Mi
 
-# Persistent volume for tsnet state
-persistence:
-  enabled: true
-  accessMode: ReadWriteOnce
-  size: 1Gi
-  storageClass: ""
-  annotations: {}
+# Storage configuration for tsnet state
+# Available storage types:
+# - pvc: PersistentVolumeClaim (CSI/traditional storage)
+# - emptyDir: Temporary storage, persists for pod lifetime
+# - hostPath: Direct host filesystem mount (node-local)
+# - memory: In-memory tmpfs storage (fastest, non-persistent)
+storage:
+  # Storage type: pvc, emptyDir, hostPath, memory
+  type: "pvc"
+
+  # PVC configuration (when type=pvc)
+  pvc:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    storageClass: ""
+    annotations: {}
+
+  # EmptyDir configuration (when type=emptyDir)
+  emptyDir:
+    sizeLimit: "1Gi"
+    # medium: "" for disk, "Memory" for tmpfs
+    medium: ""
+
+  # HostPath configuration (when type=hostPath)
+  hostPath:
+    path: "/var/lib/tsmetrics"
+    type: "DirectoryOrCreate"
+
+  # Memory configuration (when type=memory)
+  memory:
+    sizeLimit: "512Mi"
+
+# Security and permissions
+security:
+  # Use initContainer for permission setup (requires privileged access)
+  # Only enable if fsGroup is insufficient for your storage type
+  useInitContainer: false
+
+  # Alternative: Set securityContext allowPrivilegeEscalation for init
+  initContainerPrivileged: false
 
 # Liveness and readiness probes
 livenessProbe:

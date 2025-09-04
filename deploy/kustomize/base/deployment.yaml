@@ -21,6 +21,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
+        runAsGroup: 65534
         fsGroup: 65534
       containers:
         - name: tsmetrics
@@ -45,7 +46,7 @@ spec:
             - name: TSNET_TAGS
               value: "exporter"
             - name: TSNET_STATE_DIR
-              value: "/tmp/tsnet-state"
+              value: "/var/lib/tsmetrics/state"
             - name: REQUIRE_EXPORTER_TAG
               value: "false"
             - name: CLIENT_METRICS_TIMEOUT
@@ -56,6 +57,8 @@ spec:
               value: "30s"
             - name: CLIENT_METRICS_PORT
               value: "5252"
+            - name: TARGET_DEVICES
+              value: ""
           envFrom:
             - secretRef:
                 name: tsmetrics-secrets
@@ -68,7 +71,7 @@ spec:
               memory: 512Mi
           livenessProbe:
             httpGet:
-              path: /health
+              path: /livez
               port: http
             initialDelaySeconds: 30
             periodSeconds: 30
@@ -76,15 +79,23 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /readyz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           volumeMounts:
             - name: tsnet-state
-              mountPath: /tmp/tsnet-state
+              mountPath: /var/lib/tsmetrics/state
       volumes:
         - name: tsnet-state
           emptyDir: {}
