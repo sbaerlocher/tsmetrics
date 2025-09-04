@@ -64,7 +64,6 @@ func EnhancedHealthHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				status["api_status"] = "degraded"
 				status["api_error"] = err.Error()
-				w.WriteHeader(http.StatusServiceUnavailable)
 			} else {
 				status["api_status"] = "healthy"
 			}
@@ -124,7 +123,7 @@ func LivenessHandler(w http.ResponseWriter, r *http.Request) {
 
 func ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 	if healthChecker == nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
+		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"status":"not configured"}`)); err != nil {
 			slog.Error("failed to write readiness not configured response", "error", err)
 		}

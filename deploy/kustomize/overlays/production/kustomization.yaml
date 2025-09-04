@@ -19,7 +19,7 @@ images:
 
 replicas:
   - name: tsmetrics
-    count: 2
+    count: 1
 
 commonLabels:
   environment: production

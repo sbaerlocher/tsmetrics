@@ -68,6 +68,9 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 		IdleTimeout:       60 * time.Second,
 	}
 
+	// Initialize health checker with appropriate components
+	initializeHealthChecker(cfg, collector)
+
 	StartBackgroundScraper(cfg, ctx, collector)
 
 	errCh := make(chan error, 2)

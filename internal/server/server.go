@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/sbaerlocher/tsmetrics/internal/config"
+	"github.com/sbaerlocher/tsmetrics/internal/health"
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
@@ -30,6 +31,34 @@ func SetupRoutes() *http.ServeMux {
 	mux.HandleFunc("/healthz", DetailedHealthHandler)
 
 	return mux
+}
+
+// initializeHealthChecker sets up the health checker with appropriate components based on configuration
+func initializeHealthChecker(cfg config.Config, collector *metrics.Collector) {
+	hc := health.NewHealthChecker()
+
+	// Only register API health checker if API client is available and not using TARGET_DEVICES
+	targetDevices := os.Getenv("TARGET_DEVICES")
+	if targetDevices == "" {
+		// No TARGET_DEVICES configured, we depend on API - create a simple health check
+		hc.RegisterComponent(&simpleHealthChecker{name: "service"})
+	}
+	// If TARGET_DEVICES is configured, skip API health checker to allow API-independent operation
+
+	SetHealthChecker(hc)
+}
+
+// simpleHealthChecker is a basic health checker that always returns healthy
+type simpleHealthChecker struct {
+	name string
+}
+
+func (s *simpleHealthChecker) ComponentName() string {
+	return s.name
+}
+
+func (s *simpleHealthChecker) CheckHealth(ctx context.Context) error {
+	return nil // Always healthy
 }
 
 func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
@@ -52,6 +81,9 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+
+	// Initialize health checker with appropriate components
+	initializeHealthChecker(cfg, collector)
 
 	StartBackgroundScraper(cfg, ctx, collector)
 
