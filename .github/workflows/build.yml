@@ -250,6 +250,14 @@ jobs:
 
           echo "✅ Production template test passed"
 
+      - name: Test Kustomize templates
+        run: |
+          # Test development configuration (without ServiceMonitor)
+          kubectl kustomize deploy/kustomize/overlays/development > /tmp/kustomize-dev-manifest.yaml
+          kubectl --dry-run=server apply -f /tmp/kustomize-dev-manifest.yaml
+
+          echo "✅ Kustomize development template test passed"
+
       - name: Install and test chart
         run: |
           helm install test-release deploy/helm \
