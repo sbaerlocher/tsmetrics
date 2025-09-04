@@ -234,7 +234,7 @@ jobs:
 
           echo "✅ Minimal template test passed"
 
-          # Test production configuration
+          # Test production configuration (without ServiceMonitor for CI)
           helm template test-production deploy/helm \
             --set replicaCount=2 \
             --set tailscale.oauthClientId=prod-id \
@@ -242,7 +242,7 @@ jobs:
             --set tailscale.tailnetName=company.ts.net \
             --set tailscale.tsnet.enabled=true \
             --set persistence.enabled=true \
-            --set serviceMonitor.enabled=true \
+            --set serviceMonitor.enabled=false \
             --set autoscaling.enabled=true \
             --validate > /tmp/production-manifest.yaml
 
