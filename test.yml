@@ -1,0 +1,56 @@
+    image:
+      tag: 'v0.1.5'
+
+    # Replica configuration
+    replicaCount: 1
+
+    config:
+      targetDevices: "gateway-140207,gateway-130104"
+    # Service configuration with monitoring annotations
+    service:
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9100'
+        prometheus.io/path: '/metrics'
+        grafana.com/scrape: 'true'
+
+    # ServiceMonitor for Prometheus Operator
+    serviceMonitor:
+      enabled: false
+      labels:
+        release: monitoring
+
+    # External secret management
+    externalSecret:
+      enabled: false
+      secretName: 'tsmetrics-secrets'
+
+    # Pod configuration
+    podAnnotations:
+      reloader.stakater.com/auto: 'true'
+
+    # Security context
+    podSecurityContext:
+      fsGroup: 65534
+
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+    # Resource limits
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    # Storage class for persistence
+    persistence:
+      storageClass: 'hcloud-volumes'

@@ -75,7 +75,10 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 
 	errCh := make(chan error, 2)
 
+	slog.Info("starting HTTP servers", "tsnet_port", cfg.Port, "local_port", cfg.Port)
+
 	go func() {
+		slog.Info("starting tsnet HTTP server", "address", ":"+cfg.Port)
 		if err := tsHTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("tsnet http serve failed: %w", err)
 			return
@@ -84,6 +87,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	}()
 
 	go func() {
+		slog.Info("starting local HTTP server", "address", localAddr)
 		if err := localHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("local http serve failed: %w", err)
 			return
