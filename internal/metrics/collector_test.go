@@ -160,7 +160,7 @@ func TestScrapeClient(t *testing.T) {
 	device := device.Device{
 		ID:   deviceID,
 		Name: deviceName,
-		Host: "127.0.0.1",
+		Host: "127.0.0.1", // DevSkim: ignore DS162092 - Test host for unit tests
 	}
 
 	cfg := config.Config{

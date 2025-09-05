@@ -12,6 +12,11 @@ name: Continuous Integration
 env:
   GO_VERSION: "1.25"
 
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
 jobs:
   # ==============================================================================
   # SETUP & CHANGE DETECTION

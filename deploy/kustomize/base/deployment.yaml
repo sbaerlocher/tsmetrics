@@ -27,6 +27,8 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: tsmetrics
           image: ghcr.io/sbaerlocher/tsmetrics:v1.0.0
@@ -35,7 +37,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 65534
             runAsGroup: 65534
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -113,6 +115,10 @@ spec:
           volumeMounts:
             - name: tsnet-state
               mountPath: /var/lib/tsmetrics/state
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: tsnet-state
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}

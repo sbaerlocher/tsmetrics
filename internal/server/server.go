@@ -83,7 +83,7 @@ func (s *simpleHealthChecker) CheckHealth(ctx context.Context) error {
 // RunStandalone starts the HTTP server in standalone mode.
 func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
 	env := strings.ToLower(os.Getenv("ENV"))
-	host := "127.0.0.1"
+	host := "127.0.0.1" // DevSkim: ignore DS162092 - Localhost binding is intentional for development
 	if env == "production" || env == "prod" {
 		host = "0.0.0.0"
 	}

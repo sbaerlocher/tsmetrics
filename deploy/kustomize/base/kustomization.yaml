@@ -5,10 +5,14 @@ kind: Kustomization
 metadata:
   name: tsmetrics-base
 
+namespace: tsmetrics
+
 resources:
+  - namespace.yaml
   - deployment.yaml
   - service.yaml
   - configmap.yaml
+  - networkpolicy.yaml
 
 images:
   - name: ghcr.io/sbaerlocher/tsmetrics
@@ -19,5 +23,3 @@ labels:
       app.kubernetes.io/name: tsmetrics
       app.kubernetes.io/component: exporter
       app.kubernetes.io/part-of: monitoring
-
-namespace: monitoring

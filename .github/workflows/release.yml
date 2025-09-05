@@ -4,18 +4,17 @@ name: Release Pipeline
 "on":
   push:
     tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag (e.g., v1.0.0)"
-        required: true
-        type: string
 
 env:
   GO_VERSION: "1.25"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   CHART_NAME: tsmetrics
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
   # ==============================================================================

@@ -60,7 +60,12 @@ func performHealthCheck() error {
 		Timeout: 5 * time.Second,
 	}
 
-	url := fmt.Sprintf("http://127.0.0.1:%s/livez", cfg.Port)
+	// Use configurable host for health checks
+	host := os.Getenv("HEALTH_CHECK_HOST")
+	if host == "" {
+		host = "127.0.0.1" // DevSkim: ignore DS162092 - Localhost is appropriate for health checks
+	}
+	url := fmt.Sprintf("http://%s:%s/livez", host, cfg.Port)
 	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)

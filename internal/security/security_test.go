@@ -84,7 +84,7 @@ func TestInputValidator_ValidateURL(t *testing.T) {
 		},
 		{
 			name:        "localhost URL",
-			input:       "http://localhost:8080", // #nosec G101 - Test URL
+			input:       "http://localhost:8080", // DevSkim: ignore DS162092 - Test case for localhost validation
 			expectError: true,
 		},
 		{

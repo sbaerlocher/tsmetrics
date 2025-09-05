@@ -155,7 +155,7 @@ func TestValidateHostname(t *testing.T) {
 		{"valid subdomain", "api.example.com", false},
 		{"valid IP", "8.8.8.8", false},
 		{"private IP", "192.168.1.1", true},
-		{"loopback", "127.0.0.1", true},
+		{"loopback", "127.0.0.1", true}, // DevSkim: ignore DS162092 - Test case for IP validation
 		{"empty hostname", "", true},
 		{"too long", string(make([]byte, 254)), true},
 		{"invalid format", "example..com", true},

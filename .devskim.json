@@ -1,0 +1,15 @@
+{
+  "rules": {
+    "DS162092": {
+      "severity": "note",
+      "description": "Localhost references are acceptable in development code and tests"
+    }
+  },
+  "ignores": [
+    {
+      "rule": "DS162092",
+      "paths": ["**/test/**", "**/*_test.go", "**/tests/**"],
+      "reason": "Test files may legitimately use localhost"
+    }
+  ]
+}

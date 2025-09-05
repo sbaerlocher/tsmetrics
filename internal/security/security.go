@@ -69,7 +69,7 @@ func (iv *InputValidator) ValidateURL(input string, fieldName string) error {
 
 	// Prevent localhost/private network access unless explicitly allowed
 	hostname := parsedURL.Hostname()
-	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" { // DevSkim: ignore DS162092 - Security validation intentionally blocks localhost
 		return fmt.Errorf("field %s cannot reference localhost", fieldName)
 	}
 

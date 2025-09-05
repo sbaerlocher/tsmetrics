@@ -22,7 +22,7 @@ func getLocalBindHost() string {
 	if env == "production" || env == "prod" {
 		return "0.0.0.0"
 	}
-	return "127.0.0.1"
+	return "127.0.0.1" // DevSkim: ignore DS162092 - Localhost binding is intentional for development
 }
 
 func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {

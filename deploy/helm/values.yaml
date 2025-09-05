@@ -196,3 +196,54 @@ autoscaling:
   maxReplicas: 3
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
+
+# Network Policy Configuration
+networkPolicy:
+  enabled: true
+
+  # Policy types to enforce
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # Ingress rules
+  ingress:
+    # Allow monitoring systems
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+        - namespaceSelector:
+            matchLabels:
+              name: ingress
+      ports:
+        - protocol: TCP
+          port: 9100
+    # Allow health checks from any source
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 9100
+
+  # Egress rules
+  egress:
+    # Allow HTTPS/HTTP for API calls
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+  # Additional labels for NetworkPolicy
+  labels: {}
+
+  # Additional annotations for NetworkPolicy
+  annotations: {}

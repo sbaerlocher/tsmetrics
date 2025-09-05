@@ -16,6 +16,10 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   CHART_NAME: tsmetrics
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   # ==============================================================================
   # SETUP (Reused from CI or standalone)

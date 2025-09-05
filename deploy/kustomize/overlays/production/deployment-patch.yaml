@@ -12,6 +12,8 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: tsmetrics
           imagePullPolicy: Always
@@ -19,7 +21,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 65534
             runAsGroup: 65534
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
               drop:
