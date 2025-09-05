@@ -1,5 +1,11 @@
-# YAML Lint Configuration for Helm Templates
+# YAML Lint Configuration for TSMetrics
 extends: default
+
+ignore: |
+  deploy/helm/templates/
+  megalinter-reports/
+  .git/
+  tmp/
 
 rules:
   # Allow longer lines for Helm templates
