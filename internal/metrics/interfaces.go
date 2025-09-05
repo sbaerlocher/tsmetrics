@@ -1,3 +1,4 @@
+// Package metrics provides interfaces and types for metrics collection and processing.
 package metrics
 
 import (

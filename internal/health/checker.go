@@ -14,6 +14,7 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
+// Status represents the health status of a component.
 type Status string
 
 const (
@@ -22,6 +23,7 @@ const (
 	StatusDegraded  Status = "degraded"
 )
 
+// CheckResult represents the result of a health check for a specific component.
 type CheckResult struct {
 	Component   string        `json:"component"`
 	Status      Status        `json:"status"`
@@ -31,11 +33,13 @@ type CheckResult struct {
 	LastSuccess *time.Time    `json:"last_success,omitempty"`
 }
 
+// HealthStatus represents the overall health status and individual component checks.
 type HealthStatus struct {
 	Overall Status                 `json:"overall"`
 	Checks  map[string]CheckResult `json:"checks"`
 }
 
+// Checker defines the interface for health checking functionality.
 type Checker interface {
 	LivenessCheck(ctx context.Context) error
 	ReadinessCheck(ctx context.Context) error
@@ -43,11 +47,13 @@ type Checker interface {
 	GetHealthStatus(ctx context.Context) HealthStatus
 }
 
+// ComponentChecker defines the interface for individual component health checks.
 type ComponentChecker interface {
 	CheckHealth(ctx context.Context) error
 	ComponentName() string
 }
 
+// HealthChecker manages health checks for multiple components.
 type HealthChecker struct {
 	components  map[string]ComponentChecker
 	mu          sync.RWMutex
@@ -55,6 +61,7 @@ type HealthChecker struct {
 	startupTime time.Time
 }
 
+// NewHealthChecker creates a new health checker instance.
 func NewHealthChecker() *HealthChecker {
 	return &HealthChecker{
 		components:  make(map[string]ComponentChecker),
@@ -190,10 +197,12 @@ func (hc *HealthChecker) GetHealthStatus(ctx context.Context) HealthStatus {
 }
 
 // API Client Health Checker
+// APIHealthChecker checks the health of the Tailscale API connection.
 type APIHealthChecker struct {
 	client *api.Client
 }
 
+// NewAPIHealthChecker creates a new API health checker.
 func NewAPIHealthChecker(client *api.Client) *APIHealthChecker {
 	return &APIHealthChecker{client: client}
 }
@@ -217,10 +226,12 @@ func (ac *APIHealthChecker) CheckHealth(ctx context.Context) error {
 }
 
 // Cache Health Checker
+// CacheHealthChecker checks the health of the device cache.
 type CacheHealthChecker struct {
 	cache *cache.DeviceCache
 }
 
+// NewCacheHealthChecker creates a new cache health checker.
 func NewCacheHealthChecker(cache *cache.DeviceCache) *CacheHealthChecker {
 	return &CacheHealthChecker{cache: cache}
 }
@@ -247,10 +258,12 @@ func (cc *CacheHealthChecker) CheckHealth(ctx context.Context) error {
 }
 
 // Performance Monitor Health Checker
+// PerformanceHealthChecker checks the health of the performance monitor.
 type PerformanceHealthChecker struct {
 	monitor *metrics.PerformanceMonitor
 }
 
+// NewPerformanceHealthChecker creates a new performance health checker.
 func NewPerformanceHealthChecker(monitor *metrics.PerformanceMonitor) *PerformanceHealthChecker {
 	return &PerformanceHealthChecker{monitor: monitor}
 }

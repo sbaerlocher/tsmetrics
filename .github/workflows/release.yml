@@ -1,6 +1,7 @@
+---
 name: Release Pipeline
 
-on:
+"on":
   push:
     tags: ["v*"]
   workflow_dispatch:
@@ -100,9 +101,11 @@ jobs:
           VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
           VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-          echo "tsnet_version=$TSNET_VERSION" >> "$GITHUB_OUTPUT"
-          echo "version_long=$VERSION_LONG" >> "$GITHUB_OUTPUT"
-          echo "version_short=$VERSION_SHORT" >> "$GITHUB_OUTPUT"
+          {
+            echo "tsnet_version=$TSNET_VERSION"
+            echo "version_long=$VERSION_LONG"
+            echo "version_short=$VERSION_SHORT"
+          } >> "$GITHUB_OUTPUT"
 
           echo "TSNET Version: $TSNET_VERSION"
           echo "Version Long: $VERSION_LONG"

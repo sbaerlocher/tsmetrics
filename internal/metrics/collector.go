@@ -205,7 +205,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 	OnlineDevicesCount.Set(float64(onlineCount))
 
 	if err := ScrapeClientMetrics(devices, c.cfg); err != nil {
-		if errCount := countTsnetStartupErrors(err); errCount > 0 {
+		if errCount := CountTsnetStartupErrors(err); errCount > 0 {
 			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
 		} else {
 			slog.Error("scrapeClientMetrics error", "error", err)
@@ -226,7 +226,8 @@ func (c *Collector) UpdateMetrics(target string) error {
 	return nil
 }
 
-func countTsnetStartupErrors(err error) int {
+// CountTsnetStartupErrors counts common tsnet startup errors in error messages
+func CountTsnetStartupErrors(err error) int {
 	if err == nil {
 		return 0
 	}

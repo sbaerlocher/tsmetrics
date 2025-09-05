@@ -44,7 +44,7 @@ set_build_metadata() {
 
 	# Tailscale version metadata
 	export TSNET_VERSION="${TSNET_VERSION:-$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")}"
-	export VERSION_CLEAN="${VERSION_CLEAN:-$(echo "$VERSION" | sed 's/^v//')}"
+	export VERSION_CLEAN="${VERSION_CLEAN:-${VERSION#v}}"
 	export VERSION_LONG="${VERSION_LONG:-${TSNET_VERSION}-${VERSION_CLEAN}}"
 	export VERSION_SHORT="${VERSION_SHORT:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
 }

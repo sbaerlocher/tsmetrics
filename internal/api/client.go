@@ -79,6 +79,7 @@ func NewClientWithToken(token, tailnet string) *Client {
 	}
 }
 
+// tokenTransport adds authorization token to HTTP requests.
 type tokenTransport struct {
 	token     string
 	transport http.RoundTripper
@@ -175,12 +176,14 @@ func (c *Client) convertSingleDevice(d apiDevice) (device.Device, bool) {
 	lastSeen, expires := c.parseTimes(d.LastSeen, d.Expires, d.KeyExpiryDisabled)
 	tags := c.parseTags(d.Tags, d.Name)
 
+	isOnline := time.Since(lastSeen) < 10*time.Minute
+
 	return device.Device{
 		ID:                deviceID,
 		Name:              deviceName,
 		Host:              host,
 		Tags:              tags,
-		Online:            d.Online,
+		Online:            isOnline,
 		Authorized:        d.Authorized,
 		LastSeen:          lastSeen,
 		User:              d.User,
@@ -238,10 +241,12 @@ func (c *Client) parseTags(tagsStr []string, deviceName string) []types.TagName 
 	return tags
 }
 
+// devicesAPIResponse represents the API response for device listing.
 type devicesAPIResponse struct {
 	Devices []apiDevice `json:"devices"`
 }
 
+// apiDevice represents a device as returned by the Tailscale API.
 type apiDevice struct {
 	ID                string   `json:"id"`
 	Name              string   `json:"name"`

@@ -5,9 +5,11 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-# Script configuration
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Script configuration - Declare and assign separately
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+readonly PROJECT_ROOT
 readonly ENV_FILE="$PROJECT_ROOT/.env"
 readonly AIR_CONFIG="$PROJECT_ROOT/.air.toml"
 
@@ -56,7 +58,7 @@ load_env_file() {
 			[[ -z "${line// /}" ]] && continue
 			# Export valid variable assignments
 			if [[ $line =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-				export "$line"
+				export "${line?}"
 			fi
 		done <"$ENV_FILE"
 		log_success "Environment variables loaded"
@@ -94,7 +96,7 @@ set_development_defaults() {
 
 	# Tailscale version metadata
 	export TSNET_VERSION="${TSNET_VERSION:-$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")}"
-	export VERSION_CLEAN="${VERSION_CLEAN:-$(echo "$VERSION" | sed 's/^v//')}"
+	export VERSION_CLEAN="${VERSION_CLEAN:-${VERSION#v}}"
 	export VERSION_LONG="${VERSION_LONG:-${TSNET_VERSION}-${VERSION_CLEAN}}"
 	export VERSION_SHORT="${VERSION_SHORT:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
 }

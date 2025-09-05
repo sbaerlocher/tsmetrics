@@ -1,6 +1,7 @@
+---
 name: Build & Test
 
-on:
+"on":
   push:
     branches: [main, develop]
   pull_request:
@@ -112,9 +113,11 @@ jobs:
           VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
           VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-          echo "tsnet_version=$TSNET_VERSION" >> "$GITHUB_OUTPUT"
-          echo "version_long=$VERSION_LONG" >> "$GITHUB_OUTPUT"
-          echo "version_short=$VERSION_SHORT" >> "$GITHUB_OUTPUT"
+          {
+            echo "tsnet_version=$TSNET_VERSION"
+            echo "version_long=$VERSION_LONG"
+            echo "version_short=$VERSION_SHORT"
+          } >> "$GITHUB_OUTPUT"
 
           echo "TSNET Version: $TSNET_VERSION"
           echo "Version Long: $VERSION_LONG"
@@ -277,25 +280,23 @@ jobs:
 
           echo "✅ Kustomize development template test passed"
 
-      - name: Install and test chart
+      - name: Test Helm chart templating
         run: |
-          helm install test-release deploy/helm \
+          # Test Helm chart templating (no cluster needed)
+          helm template test-release deploy/helm \
             --set tailscale.oauthClientId=test-client-id \
             --set tailscale.oauthClientSecret=test-client-secret \
             --set tailscale.tailnetName=test.ts.net \
             --set image.tag=latest \
-            --set persistence.enabled=false \
-            --wait --timeout=300s
+            --dry-run --debug > /tmp/helm-output.yaml
 
-          # Verify deployment
-          kubectl get pods -l app.kubernetes.io/name=tsmetrics
-          kubectl wait --for=condition=available deployment/test-release-tsmetrics --timeout=300s
-
-          # Run helm test if available
-          helm test test-release --timeout=300s || echo "No helm tests found"
-
-          # Cleanup
-          helm uninstall test-release
+          # Verify the generated manifests contain expected resources
+          echo "✅ Checking generated manifests..."
+          grep -q "kind: Deployment" /tmp/helm-output.yaml || exit 1
+          grep -q "kind: Service" /tmp/helm-output.yaml || exit 1
+          grep -q "kind: Secret" /tmp/helm-output.yaml || exit 1
+          grep -q "test-client-id" /tmp/helm-output.yaml || exit 1
+          echo "✅ Helm chart templating test passed"
 
   # ==============================================================================
   # BUILD SUMMARY

@@ -25,13 +25,19 @@ type TagName string
 
 var (
 	// ErrInvalidDeviceID is returned when a device ID is invalid.
-	ErrInvalidDeviceID   = errors.New("invalid device ID")
+	ErrInvalidDeviceID = errors.New("invalid device ID")
+	// ErrInvalidDeviceName is returned when a device name is invalid.
 	ErrInvalidDeviceName = errors.New("invalid device name")
+	// ErrInvalidMetricName is returned when a metric name is invalid.
 	ErrInvalidMetricName = errors.New("invalid metric name")
-	ErrInvalidTagName    = errors.New("invalid tag name")
-	ErrHostnameTooLong   = errors.New("hostname too long")
-	ErrInvalidHostname   = errors.New("invalid hostname format")
-	ErrPrivateIP         = errors.New("private IP addresses not allowed")
+	// ErrInvalidTagName is returned when a tag name is invalid.
+	ErrInvalidTagName = errors.New("invalid tag name")
+	// ErrHostnameTooLong is returned when a hostname exceeds maximum length.
+	ErrHostnameTooLong = errors.New("hostname too long")
+	// ErrInvalidHostname is returned when a hostname format is invalid.
+	ErrInvalidHostname = errors.New("invalid hostname format")
+	// ErrPrivateIP is returned when a private IP address is not allowed.
+	ErrPrivateIP = errors.New("private IP addresses not allowed")
 
 	deviceNameRegex = regexp.MustCompile(`^[a-zA-Z0-9\-._]+$`)
 	metricNameRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)

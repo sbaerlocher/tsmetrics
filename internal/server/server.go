@@ -17,6 +17,24 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
+// createHTTPServer creates a configured HTTP server with standard timeouts
+func createHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+}
+
+// initializeServerComponents sets up health checker and background scraping
+func initializeServerComponents(cfg config.Config, ctx context.Context, collector *metrics.Collector) {
+	initializeHealthChecker(cfg, collector)
+	StartBackgroundScraper(cfg, ctx, collector)
+}
+
 // SetupRoutes configures and returns the HTTP routes for the TSMetrics server.
 func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -73,19 +91,10 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	slog.Info("HTTP client configured", "network", "standard")
 
 	mux := SetupRoutes()
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
+	srv := createHTTPServer(addr, mux)
 
-	// Initialize health checker with appropriate components
-	initializeHealthChecker(cfg, collector)
-
-	StartBackgroundScraper(cfg, ctx, collector)
+	// Initialize health checker and background scraper
+	initializeServerComponents(cfg, ctx, collector)
 
 	slog.Info("Server ready", "bind", addr)
 	go func() {
@@ -116,7 +125,7 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 		defer ticker.Stop()
 
 		if err := collector.UpdateMetrics("tailscale"); err != nil {
-			if cfg.UseTsnet && countTsnetStartupErrors(err) > 0 {
+			if cfg.UseTsnet && metrics.CountTsnetStartupErrors(err) > 0 {
 				slog.Info("Initial scrape waiting for connectivity")
 			} else {
 				slog.Error("initial update failed", "error", err)
@@ -129,7 +138,7 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 				return
 			case <-ticker.C:
 				if err := collector.UpdateMetrics("tailscale"); err != nil {
-					if cfg.UseTsnet && countTsnetStartupErrors(err) > 0 {
+					if cfg.UseTsnet && metrics.CountTsnetStartupErrors(err) > 0 {
 						slog.Debug("Scrape waiting for connectivity")
 					} else {
 						slog.Error("updateMetrics error", "error", err)
@@ -138,25 +147,4 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 			}
 		}
 	}()
-}
-
-func countTsnetStartupErrors(err error) int {
-	if err == nil {
-		return 0
-	}
-
-	errStr := err.Error()
-	count := 0
-
-	if strings.Contains(errStr, "backend in state NoState") {
-		count += strings.Count(errStr, "backend in state NoState")
-	}
-	if strings.Contains(errStr, "connection refused") {
-		count += strings.Count(errStr, "connection refused")
-	}
-	if strings.Contains(errStr, "no such host") {
-		count += strings.Count(errStr, "no such host")
-	}
-
-	return count
 }

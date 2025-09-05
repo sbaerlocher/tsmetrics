@@ -1,3 +1,4 @@
+// Package cache provides device caching functionality with TTL and staleness tracking.
 package cache
 
 import (
@@ -39,6 +40,7 @@ var (
 	)
 )
 
+// CachedDevice represents a cached device with metadata.
 type CachedDevice struct {
 	Device      device.Device
 	CachedAt    time.Time
@@ -46,6 +48,7 @@ type CachedDevice struct {
 	AccessCount uint64
 }
 
+// DeviceCache provides a thread-safe cache for Tailscale devices with TTL support.
 type DeviceCache struct {
 	devices     map[string]*CachedDevice
 	lastFetch   time.Time
@@ -57,6 +60,7 @@ type DeviceCache struct {
 	refreshFunc func() ([]device.Device, error)
 }
 
+// CacheStats provides statistics about cache performance and usage.
 type CacheStats struct {
 	HitCount    uint64        `json:"hit_count"`
 	MissCount   uint64        `json:"miss_count"`
@@ -67,6 +71,7 @@ type CacheStats struct {
 	MemoryUsage int64         `json:"memory_usage_bytes"`
 }
 
+// NewDeviceCache creates a new device cache with the specified TTL and maximum age.
 func NewDeviceCache(ttl, maxAge time.Duration, refreshFunc func() ([]device.Device, error)) *DeviceCache {
 	return &DeviceCache{
 		devices:     make(map[string]*CachedDevice),
@@ -76,6 +81,7 @@ func NewDeviceCache(ttl, maxAge time.Duration, refreshFunc func() ([]device.Devi
 	}
 }
 
+// GetDevices returns cached devices or refreshes the cache if needed.
 func (dc *DeviceCache) GetDevices(forceRefresh bool) ([]device.Device, error) {
 	start := time.Now()
 	defer func() {
@@ -154,6 +160,7 @@ func (dc *DeviceCache) refreshCache() ([]device.Device, error) {
 	return devices, nil
 }
 
+// GetCacheStats returns current cache performance statistics.
 func (dc *DeviceCache) GetCacheStats() CacheStats {
 	dc.mutex.RLock()
 	defer dc.mutex.RUnlock()
@@ -178,6 +185,7 @@ func (dc *DeviceCache) GetCacheStats() CacheStats {
 	}
 }
 
+// InvalidateDevice removes a specific device from the cache.
 func (dc *DeviceCache) InvalidateDevice(deviceID types.DeviceID) {
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
@@ -186,6 +194,7 @@ func (dc *DeviceCache) InvalidateDevice(deviceID types.DeviceID) {
 	dc.updateMetrics()
 }
 
+// Clear removes all entries from the cache.
 func (dc *DeviceCache) Clear() {
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
@@ -197,6 +206,7 @@ func (dc *DeviceCache) Clear() {
 	dc.updateMetrics()
 }
 
+// CleanupStaleEntries removes expired entries and returns the number of entries removed.
 func (dc *DeviceCache) CleanupStaleEntries() int {
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
@@ -237,5 +247,6 @@ func (dc *DeviceCache) estimateMemoryUsage() int64 {
 }
 
 var (
+	// ErrNoRefreshFunction is returned when no refresh function is provided to the cache.
 	ErrNoRefreshFunction = fmt.Errorf("no refresh function provided")
 )

@@ -73,8 +73,8 @@ func TestInputValidator_ValidateURL(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "valid HTTP URL for testing",
-			input:       "http://example.com", // #nosec G101 - Test URL
+			name:        "valid HTTPS URL for testing",
+			input:       "https://example.com", // Test URL
 			expectError: false,
 		},
 		{

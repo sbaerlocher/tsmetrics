@@ -61,28 +61,15 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	}
 
 	mux := SetupRoutes()
-	tsHTTPServer := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
+	tsHTTPServer := createHTTPServer("", mux) // No Addr for tsnet server
+	tsHTTPServer.Addr = ""                    // Clear Addr for tsnet
 
 	host := getLocalBindHost()
 	localAddr := fmt.Sprintf("%s:%s", host, cfg.Port)
+	localHTTPServer := createHTTPServer(localAddr, mux)
 
-	localHTTPServer := &http.Server{
-		Addr:              localAddr,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-
-	// Initialize health checker with appropriate components
-	initializeHealthChecker(cfg, collector)
+	// Initialize health checker and background scraper
+	initializeServerComponents(cfg, ctx, collector)
 
 	StartBackgroundScraper(cfg, ctx, collector)
 

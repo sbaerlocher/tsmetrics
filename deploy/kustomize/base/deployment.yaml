@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,6 +21,7 @@ spec:
         prometheus.io/port: "9100"
         prometheus.io/path: "/metrics"
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -27,7 +29,20 @@ spec:
         fsGroup: 65534
       containers:
         - name: tsmetrics
-          image: ghcr.io/sbaerlocher/tsmetrics:latest
+          image: ghcr.io/sbaerlocher/tsmetrics:v1.0.0
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add: []
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 9100

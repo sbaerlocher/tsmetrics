@@ -6,7 +6,8 @@ ARG BUILD_TIME=unknown
 ARG VERSION_LONG=""
 ARG VERSION_SHORT=""
 
-RUN apk add --no-cache git
+RUN apk update && \
+  apk add --no-cache git=~2.49
 
 WORKDIR /src
 
@@ -39,5 +40,9 @@ COPY --from=builder /tsmetrics /tsmetrics
 USER 65534:65534
 
 EXPOSE 9100
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD ["/tsmetrics", "-health-check"]
+
 ENTRYPOINT ["/tsmetrics"]
 CMD []

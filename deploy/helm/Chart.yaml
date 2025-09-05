@@ -1,3 +1,4 @@
+---
 apiVersion: v2
 name: tsmetrics
 description: A Helm chart for tsmetrics - Tailscale Prometheus Exporter

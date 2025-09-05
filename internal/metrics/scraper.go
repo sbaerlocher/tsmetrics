@@ -1,3 +1,4 @@
+// Package metrics provides client metrics scraping functionality.
 package metrics
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
+// HTTPClientProvider provides HTTP clients for metrics scraping.
 type HTTPClientProvider interface {
 	GetClient() *http.Client
 }
@@ -65,6 +67,7 @@ func SetHTTPClientProvider(provider HTTPClientProvider) {
 	httpClientProvider = provider
 }
 
+// ScrapeClientMetrics scrapes metrics from the provided devices using the given configuration.
 func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 	if cfg.TsnetScrapeTag != "" {
 		slog.Info("scraping devices with tag filter", "requiredTag", cfg.TsnetScrapeTag)
@@ -93,10 +96,6 @@ func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 	}
 
 	for _, d := range devices {
-		if !d.Online {
-			continue
-		}
-
 		if cfg.TsnetScrapeTag != "" && !hasTag(d, cfg.TsnetScrapeTag) {
 			slog.Debug("skipping device without required scrape tag", "device", d.Name.String(), "requiredTag", cfg.TsnetScrapeTag, "deviceTags", getDeviceTagsString(d))
 			continue

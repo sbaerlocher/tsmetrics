@@ -16,6 +16,7 @@ var (
 	ErrInvalidLoadThreshold = errors.New("invalid load threshold")
 )
 
+// ScrapeError represents an error that occurred during device scraping.
 type ScrapeError struct {
 	DeviceID   string
 	DeviceName string
@@ -27,6 +28,7 @@ func (e ScrapeError) Error() string {
 	return fmt.Sprintf("device %s (%s): %s: %v", e.DeviceName, e.DeviceID, e.Type, e.Underlying)
 }
 
+// DeviceError represents an error related to a specific device.
 type DeviceError struct {
 	DeviceID   string
 	DeviceName string
@@ -49,10 +51,12 @@ func (e DeviceError) Unwrap() error {
 	return e.Underlying
 }
 
+// IsRetryable returns whether the device error is retryable.
 func (e DeviceError) IsRetryable() bool {
 	return e.Retryable
 }
 
+// ConfigurationError represents an error in configuration validation.
 type ConfigurationError struct {
 	Field  string
 	Value  string
@@ -63,6 +67,7 @@ func (e ConfigurationError) Error() string {
 	return fmt.Sprintf("configuration error in field %s (value: %s): %s", e.Field, e.Value, e.Reason)
 }
 
+// APIError represents an error that occurred during API communication.
 type APIError struct {
 	Endpoint   string
 	StatusCode int
@@ -80,10 +85,12 @@ func (e APIError) Unwrap() error {
 	return e.Underlying
 }
 
+// IsRetryable returns whether the API error is retryable.
 func (e APIError) IsRetryable() bool {
 	return e.Retryable
 }
 
+// NewAPIError creates a new API error with the provided details.
 func NewAPIError(endpoint string, statusCode int, err error) *APIError {
 	retryable := statusCode >= 500 || statusCode == 429 || statusCode == 408
 	return &APIError{
@@ -96,6 +103,7 @@ func NewAPIError(endpoint string, statusCode int, err error) *APIError {
 	}
 }
 
+// RetryConfig configures retry behavior for failed operations.
 type RetryConfig struct {
 	MaxAttempts int
 	BaseDelay   time.Duration
@@ -103,6 +111,7 @@ type RetryConfig struct {
 	Multiplier  float64
 }
 
+// DefaultRetryConfig returns a default retry configuration.
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		MaxAttempts: 3,
@@ -112,6 +121,7 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
+// CalculateDelay calculates the delay for the given retry attempt.
 func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	if attempt <= 0 {
 		return rc.BaseDelay
@@ -129,6 +139,7 @@ func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	return time.Duration(delay)
 }
 
+// RetryableError wraps an error to indicate it can be retried.
 type RetryableError struct {
 	Underlying error
 	RetryAfter time.Duration

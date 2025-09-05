@@ -8,10 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
@@ -49,13 +51,47 @@ func setupLogger(cfg config.Config) {
 	slog.SetDefault(logger)
 }
 
+// performHealthCheck performs a simple health check by trying to connect to the health endpoint
+func performHealthCheck() error {
+	cfg := config.Load()
+
+	// Try to connect to the health endpoint
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	url := fmt.Sprintf("http://127.0.0.1:%d/livez", cfg.Port)
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("health check failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check failed: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 func main() {
 	var showVersion bool
 	var showHelp bool
+	var healthCheck bool
 
 	flag.BoolVar(&showVersion, "version", false, "show version information")
 	flag.BoolVar(&showHelp, "help", false, "show help information")
+	flag.BoolVar(&healthCheck, "health-check", false, "perform health check and exit")
 	flag.Parse()
+
+	if healthCheck {
+		if err := performHealthCheck(); err != nil {
+			slog.Error("Health check failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("Health check passed")
+		os.Exit(0)
+	}
 
 	if showVersion {
 		fmt.Printf("tsmetrics %s (built: %s)\n", version, buildTime)
@@ -85,8 +121,8 @@ func main() {
 		fmt.Printf("  LOG_FORMAT            Log format: text, json (default: text)\n")
 		fmt.Printf("  USE_TSNET             Use tsnet for networking (default: false)\n")
 		fmt.Printf("  TSNET_HOSTNAME        Hostname for tsnet (default: tsmetrics)\n")
-		fmt.Printf("  TSNET_TAGS            Comma-separated list of tsnet tags\n")
-		fmt.Printf("  SCRAPE_TAG            Tag required for devices to be scraped (default: exporter)\n")
+		fmt.Printf("  TSNET_TAGS            Comma-separated list of tags for this tsnet instance\n")
+		fmt.Printf("  SCRAPE_TAG            Tag filter for devices to scrape (empty = all devices)\n")
 		fmt.Printf("\nFor more information, visit: https://github.com/sbaerlocher/tsmetrics\n")
 		os.Exit(0)
 	}
@@ -100,7 +136,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server.SetVersion(version, buildTime)
+	server.SetVersion(version)
 
 	slog.Info("Starting tsmetrics",
 		"version", version,

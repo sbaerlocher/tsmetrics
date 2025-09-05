@@ -4,12 +4,16 @@
 
 set -euo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Declare and assign separately to avoid masking return values
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+readonly PROJECT_ROOT
 readonly APP_NAME="tsmetrics"
 
 # Source environment configuration
 # shellcheck source=./setup-env.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/setup-env.sh"
 
 # Colors

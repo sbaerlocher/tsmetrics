@@ -1,3 +1,4 @@
+// Package metrics provides functionality for collecting and tracking Tailscale network metrics.
 package metrics
 
 import (
@@ -6,12 +7,14 @@ import (
 	"time"
 )
 
+// DeviceMetricsTracker tracks active devices and their last seen timestamps.
 type DeviceMetricsTracker struct {
 	mu           sync.RWMutex
 	knownDevices map[string]bool
 	lastSeen     map[string]time.Time
 }
 
+// NewDeviceMetricsTracker creates a new instance of DeviceMetricsTracker.
 func NewDeviceMetricsTracker() *DeviceMetricsTracker {
 	return &DeviceMetricsTracker{
 		knownDevices: make(map[string]bool),
@@ -19,6 +22,7 @@ func NewDeviceMetricsTracker() *DeviceMetricsTracker {
 	}
 }
 
+// MarkDeviceActive marks a device as active and updates its last seen timestamp.
 func (d *DeviceMetricsTracker) MarkDeviceActive(deviceID string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -26,6 +30,7 @@ func (d *DeviceMetricsTracker) MarkDeviceActive(deviceID string) {
 	d.lastSeen[deviceID] = time.Now()
 }
 
+// CleanupStaleDevices removes devices that haven't been seen for longer than the specified duration and returns their IDs.
 func (d *DeviceMetricsTracker) CleanupStaleDevices(staleDuration time.Duration) []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -44,6 +49,7 @@ func (d *DeviceMetricsTracker) CleanupStaleDevices(staleDuration time.Duration) 
 	return staleDevices
 }
 
+// CleanupRemovedDevices removes metrics for devices that are no longer discovered and updates tracking for currently seen devices.
 func (d *DeviceMetricsTracker) CleanupRemovedDevices(seenDevices map[string]struct{}) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

@@ -1,3 +1,4 @@
+// Package server provides HTTP handlers for the TSMetrics server.
 package server
 
 import (
@@ -20,16 +21,18 @@ var (
 	healthChecker *health.HealthChecker
 )
 
-func SetVersion(v, bt string) {
+// SetVersion sets the global version string for handlers.
+func SetVersion(v string) {
 	version = v
-	buildTime = bt
 }
 
+// SetHealthChecker sets the global health checker for handlers.
 func SetHealthChecker(hc *health.HealthChecker) {
 	healthChecker = hc
 }
 
-func EnhancedHealthHandler(w http.ResponseWriter, r *http.Request) {
+// EnhancedHealthHandler provides enhanced health check information.
+func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
@@ -81,7 +84,7 @@ func EnhancedHealthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func DebugHandler(w http.ResponseWriter, r *http.Request) {
+func DebugHandler(w http.ResponseWriter, _ *http.Request) {
 	info := map[string]interface{}{
 		"version":    version,
 		"build_time": buildTime,

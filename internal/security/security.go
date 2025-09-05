@@ -16,11 +16,13 @@ import (
 )
 
 // Input Validation
+// InputValidator provides input validation for security purposes.
 type InputValidator struct {
 	maxStringLength int
 	allowedChars    *regexp.Regexp
 }
 
+// NewInputValidator creates a new input validator with default security settings.
 func NewInputValidator() *InputValidator {
 	// Allow alphanumeric, dots, dashes, underscores, and colons (for URLs/IPs)
 	allowedChars := regexp.MustCompile(`^[a-zA-Z0-9\.\-_:\/]+$`)
@@ -115,6 +117,7 @@ func (iv *InputValidator) ValidateDeviceID(id string) error {
 }
 
 // Rate Limiting
+// RateLimiter provides per-client rate limiting functionality.
 type RateLimiter struct {
 	limiters map[string]*rate.Limiter
 	mutex    sync.RWMutex
@@ -122,6 +125,7 @@ type RateLimiter struct {
 	burst    int
 }
 
+// NewRateLimiter creates a new rate limiter with the specified requests per second and burst size.
 func NewRateLimiter(rps float64, burst int) *RateLimiter {
 	return &RateLimiter{
 		limiters: make(map[string]*rate.Limiter),
@@ -222,11 +226,13 @@ func getClientID(r *http.Request) string {
 }
 
 // Authentication Utilities
+// AuthValidator manages valid authentication tokens.
 type AuthValidator struct {
 	validTokens map[string]bool
 	mutex       sync.RWMutex
 }
 
+// NewAuthValidator creates a new authentication validator.
 func NewAuthValidator() *AuthValidator {
 	return &AuthValidator{
 		validTokens: make(map[string]bool),
