@@ -60,7 +60,7 @@ func performHealthCheck() error {
 		Timeout: 5 * time.Second,
 	}
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/livez", cfg.Port)
+	url := fmt.Sprintf("http://127.0.0.1:%s/livez", cfg.Port)
 	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
@@ -136,7 +136,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server.SetVersion(version)
+	server.SetVersion(version, buildTime)
 
 	slog.Info("Starting tsmetrics",
 		"version", version,

@@ -1,3 +1,5 @@
+// Package server provides graceful shutdown management and lifecycle
+// control for HTTP servers and background workers.
 package server
 
 import (

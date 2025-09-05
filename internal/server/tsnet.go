@@ -1,3 +1,5 @@
+// Package server provides Tailscale tsnet integration for running
+// the metrics server within the Tailscale network mesh.
 package server
 
 import (

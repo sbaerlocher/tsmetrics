@@ -5,7 +5,7 @@ metadata:
   name: {{ include "tsmetrics.fullname" . }}
   labels:
     {{- include "tsmetrics.labels" . | nindent 4 }}
-{{- with .Values.service.annotations }}
+  {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

@@ -1,3 +1,5 @@
+// Package config provides dynamic configuration management capabilities
+// including file watching, validation, and real-time configuration updates.
 package config
 
 import (

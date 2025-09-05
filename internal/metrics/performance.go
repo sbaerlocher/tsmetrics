@@ -1,3 +1,6 @@
+// Package metrics provides performance monitoring and statistics collection
+// for the tsmetrics application, including real-time tracking of scraping
+// operations, resource usage, and alert management.
 package metrics
 
 import (
@@ -43,6 +46,8 @@ var (
 	}, []string{"queue_type"})
 )
 
+// PerformanceMonitor provides real-time monitoring and statistics collection
+// for application performance metrics including CPU, memory, and scraping operations.
 type PerformanceMonitor struct {
 	interval       time.Duration
 	ctx            context.Context
@@ -54,6 +59,8 @@ type PerformanceMonitor struct {
 	mutex          sync.RWMutex
 }
 
+// PerformanceStats represents a snapshot of application performance metrics
+// at a specific point in time, including resource usage and operational statistics.
 type PerformanceStats struct {
 	Timestamp          time.Time `json:"timestamp"`
 	Goroutines         int       `json:"goroutines"`
@@ -69,6 +76,8 @@ type PerformanceStats struct {
 	ActiveConnections  int       `json:"active_connections"`
 }
 
+// NewPerformanceMonitor creates a new performance monitoring instance with the specified
+// collection interval and returns a configured PerformanceMonitor ready for use.
 func NewPerformanceMonitor(interval time.Duration) *PerformanceMonitor {
 	ctx, cancel := context.WithCancel(context.Background())
 

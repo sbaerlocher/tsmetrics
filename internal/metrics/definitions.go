@@ -16,6 +16,7 @@ var (
 		[]string{"target"},
 	)
 
+	// ScrapeErrors tracks the number of scraping errors by type and target
 	ScrapeErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "tsmetrics_scrape_errors_total",
@@ -24,6 +25,7 @@ var (
 		[]string{"target", "error_type"},
 	)
 
+	// APICallDuration tracks the duration of API calls by endpoint and status.
 	APICallDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tsmetrics_api_call_duration_seconds",
@@ -77,6 +79,7 @@ var (
 		},
 	)
 
+	// DeviceCount tracks the total number of devices discovered.
 	DeviceCount = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "tailscale_device_count",
@@ -84,6 +87,7 @@ var (
 		},
 	)
 
+	// DeviceInfo provides static information about Tailscale devices.
 	DeviceInfo = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "tailscale_device_info",

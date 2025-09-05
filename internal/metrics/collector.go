@@ -1,3 +1,5 @@
+// Package metrics provides the core metrics collection functionality
+// for gathering and exposing Tailscale device metrics via Prometheus.
 package metrics
 
 import (

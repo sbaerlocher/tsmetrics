@@ -17,7 +17,7 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
-// createHTTPServer creates a configured HTTP server with standard timeouts
+// createHTTPServer creates a configured HTTP server with standard timeouts.
 func createHTTPServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
@@ -36,6 +36,7 @@ func initializeServerComponents(cfg config.Config, ctx context.Context, collecto
 }
 
 // SetupRoutes configures and returns the HTTP routes for the TSMetrics server.
+// SetupRoutes configures and returns the main HTTP router with health and metrics endpoints.
 func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
@@ -79,6 +80,7 @@ func (s *simpleHealthChecker) CheckHealth(ctx context.Context) error {
 	return nil // Always healthy
 }
 
+// RunStandalone starts the HTTP server in standalone mode.
 func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
 	env := strings.ToLower(os.Getenv("ENV"))
 	host := "127.0.0.1"

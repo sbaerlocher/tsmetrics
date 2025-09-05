@@ -1,3 +1,6 @@
+// Package metrics provides different strategies for scraping device metrics,
+// including sequential, parallel, priority-based, and adaptive approaches
+// to optimize performance and reliability based on system conditions.
 package metrics
 
 import (

@@ -21,9 +21,10 @@ var (
 	healthChecker *health.HealthChecker
 )
 
-// SetVersion sets the global version string for handlers.
-func SetVersion(v string) {
+// SetVersion sets the global version and build time for handlers.
+func SetVersion(v string, bt string) {
 	version = v
+	buildTime = bt
 }
 
 // SetHealthChecker sets the global health checker for handlers.
@@ -97,6 +98,7 @@ func DebugHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Kubernetes Health Endpoints
+// LivenessHandler provides liveness probe endpoint for Kubernetes.
 func LivenessHandler(w http.ResponseWriter, r *http.Request) {
 	if healthChecker == nil {
 		w.WriteHeader(http.StatusOK)
