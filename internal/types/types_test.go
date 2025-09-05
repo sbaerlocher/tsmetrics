@@ -111,6 +111,40 @@ func TestMetricName(t *testing.T) {
 	}
 }
 
+func TestTagName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid simple tag", "gateway", false},
+		{"valid exporter tag", "exporter", false},
+		{"starts with letter", "production", false},
+		{"starts with underscore", "_internal", false},
+		{"starts with colon", ":invalid", true},
+		{"starts with number", "1invalid", true},
+		{"empty name", "", true},
+		{"valid with dash", "multi-word", false},
+		{"valid with underscore", "multi_word", false},
+		{"valid complex", "multi-word_123", false},
+		{"tag with colon prefix should be rejected", "tag:gateway", true},
+		{"tag with colon prefix exporter", "tag:exporter", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tagName, err := NewTagName(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewTagName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !tagName.IsValid() {
+				t.Errorf("TagName.IsValid() = false, want true")
+			}
+		})
+	}
+}
+
 func TestValidateHostname(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2/clientcredentials"
@@ -216,7 +217,19 @@ func (c *Client) parseTimes(lastSeenStr, expiresStr string, keyExpiryDisabled bo
 func (c *Client) parseTags(tagsStr []string, deviceName string) []types.TagName {
 	tags := make([]types.TagName, 0, len(tagsStr))
 	for _, tag := range tagsStr {
-		if tagName, err := types.NewTagName(tag); err == nil {
+		// Remove "tag:" prefix from Tailscale API tags
+		cleanTag := tag
+		if strings.HasPrefix(tag, "tag:") {
+			cleanTag = strings.TrimPrefix(tag, "tag:")
+		}
+
+		// Skip empty tags after prefix removal
+		if cleanTag == "" {
+			slog.Warn("skipping empty tag", "tag", tag, "device", deviceName)
+			continue
+		}
+
+		if tagName, err := types.NewTagName(cleanTag); err == nil {
 			tags = append(tags, tagName)
 		} else {
 			slog.Warn("skipping invalid tag", "tag", tag, "device", deviceName, "error", err)

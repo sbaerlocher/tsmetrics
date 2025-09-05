@@ -220,3 +220,56 @@ func TestClientTimeout(t *testing.T) {
 		t.Fatal("Expected timeout error")
 	}
 }
+
+func TestParseTags(t *testing.T) {
+	client := NewClient("test-client", "test-secret", "test-tailnet")
+
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+	}{
+		{
+			name:     "tags with prefix",
+			input:    []string{"tag:exporter", "tag:gateway"},
+			expected: []string{"exporter", "gateway"},
+		},
+		{
+			name:     "tags without prefix",
+			input:    []string{"exporter", "gateway"},
+			expected: []string{"exporter", "gateway"},
+		},
+		{
+			name:     "mixed tags",
+			input:    []string{"tag:exporter", "production", "tag:gateway"},
+			expected: []string{"exporter", "production", "gateway"},
+		},
+		{
+			name:     "empty tags",
+			input:    []string{},
+			expected: []string{},
+		},
+		{
+			name:     "invalid tags filtered out",
+			input:    []string{"tag:valid", "tag:", "tag:123invalid"},
+			expected: []string{"valid"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := client.parseTags(tt.input, "test-device")
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("Expected %d tags, got %d", len(tt.expected), len(result))
+				return
+			}
+
+			for i, expected := range tt.expected {
+				if result[i].String() != expected {
+					t.Errorf("Expected tag %s, got %s", expected, result[i].String())
+				}
+			}
+		})
+	}
+}
