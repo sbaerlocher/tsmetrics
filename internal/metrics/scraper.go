@@ -66,10 +66,17 @@ func SetHTTPClientProvider(provider HTTPClientProvider) {
 }
 
 func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
+	if cfg.TsnetScrapeTag != "" {
+		slog.Info("scraping devices with tag filter", "requiredTag", cfg.TsnetScrapeTag)
+	} else {
+		slog.Info("scraping all devices (no tag filter)")
+	}
+
 	sem := make(chan struct{}, cfg.MaxConcurrentScrapes)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var errs []error
+	var scrapedCount int
 
 	var client *http.Client
 	if httpClientProvider != nil {
@@ -86,9 +93,21 @@ func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 	}
 
 	for _, d := range devices {
-		if !d.Online || !hasTag(d, "exporter") {
+		if !d.Online {
 			continue
 		}
+
+		if cfg.TsnetScrapeTag != "" && !hasTag(d, cfg.TsnetScrapeTag) {
+			slog.Debug("skipping device without required scrape tag", "device", d.Name.String(), "requiredTag", cfg.TsnetScrapeTag, "deviceTags", getDeviceTagsString(d))
+			continue
+		}
+
+		slog.Debug("scraping device", "device", d.Name.String(), "tags", getDeviceTagsString(d))
+
+		mu.Lock()
+		scrapedCount++
+		mu.Unlock()
+
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(dev device.Device) {
@@ -112,6 +131,8 @@ func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 
 	wg.Wait()
 
+	slog.Info("scraping completed", "totalDevices", len(devices), "scrapedDevices", scrapedCount, "errors", len(errs))
+
 	if len(errs) > 0 {
 		return fmt.Errorf("%d scraping errors: %v", len(errs), errs)
 	}
@@ -125,6 +146,17 @@ func hasTag(d device.Device, tag string) bool {
 		}
 	}
 	return false
+}
+
+func getDeviceTagsString(d device.Device) string {
+	if len(d.Tags) == 0 {
+		return "none"
+	}
+	var tags []string
+	for _, tag := range d.Tags {
+		tags = append(tags, tag.String())
+	}
+	return strings.Join(tags, ",")
 }
 
 func isTsnetStartupError(err error) bool {

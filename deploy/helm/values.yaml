@@ -27,7 +27,6 @@ tailscale:
     hostname: "tsmetrics"
     tags: "exporter"
     stateDir: "/var/lib/tsmetrics/state"
-    requireExporterTag: false
     # authKey: ""  # Optional: for automatic registration
 
 # Application configuration
@@ -36,6 +35,7 @@ config:
   env: "production"
   logLevel: "info"
   logFormat: "text"
+  scrapeTag: "exporter"
 
   # Performance settings
   clientMetricsTimeout: "10s"

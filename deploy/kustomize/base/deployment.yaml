@@ -49,8 +49,8 @@ spec:
               value: "exporter"
             - name: TSNET_STATE_DIR
               value: "/var/lib/tsmetrics/state"
-            - name: REQUIRE_EXPORTER_TAG
-              value: "false"
+            - name: SCRAPE_TAG
+              value: "exporter"
             - name: CLIENT_METRICS_TIMEOUT
               value: "10s"
             - name: MAX_CONCURRENT_SCRAPES

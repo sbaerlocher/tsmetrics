@@ -34,13 +34,13 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	if cfg.TsnetAuthKey != "" {
 		server.AuthKey = cfg.TsnetAuthKey
 		slog.Info("Tailscale authentication configured", "mode", "auth_key")
-		if len(cfg.TsnetTags) > 0 {
-			slog.Info("Tailscale tags expected", "tags", cfg.TsnetTags)
+		if len(cfg.TsnetOwnTags) > 0 {
+			slog.Info("Tailscale tags expected", "tags", cfg.TsnetOwnTags)
 		}
-	} else if len(cfg.TsnetTags) > 0 {
-		slog.Warn("Tailscale tags configured without auth key",
-			"tags", cfg.TsnetTags,
-			"hint", "Set TS_AUTHKEY with pre-tagged auth key for automatic tag assignment")
+	} else if len(cfg.TsnetOwnTags) > 0 {
+		slog.Warn("tsnet configuration requires tags",
+			"tags", cfg.TsnetOwnTags,
+			"note", "auth_key required for tagged devices")
 	}
 
 	defer server.Close()

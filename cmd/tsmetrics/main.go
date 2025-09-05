@@ -85,8 +85,8 @@ func main() {
 		fmt.Printf("  LOG_FORMAT            Log format: text, json (default: text)\n")
 		fmt.Printf("  USE_TSNET             Use tsnet for networking (default: false)\n")
 		fmt.Printf("  TSNET_HOSTNAME        Hostname for tsnet (default: tsmetrics)\n")
-		fmt.Printf("  REQUIRE_EXPORTER_TAG  Require 'exporter' tag in tsnet tags (default: false)\n")
 		fmt.Printf("  TSNET_TAGS            Comma-separated list of tsnet tags\n")
+		fmt.Printf("  SCRAPE_TAG            Tag required for devices to be scraped (default: exporter)\n")
 		fmt.Printf("\nFor more information, visit: https://github.com/sbaerlocher/tsmetrics\n")
 		os.Exit(0)
 	}
@@ -125,20 +125,6 @@ func main() {
 	if cfg.UseTsnet {
 		if cfg.TsnetHostname == "" {
 			cfg.TsnetHostname = "tsmetrics"
-		}
-		if cfg.RequireExporterTag {
-			has := false
-			for _, t := range cfg.TsnetTags {
-				if t == "exporter" {
-					has = true
-					break
-				}
-			}
-			if !has {
-				slog.Error("REQUIRE_EXPORTER_TAG is set but TSNET_TAGS does not include 'exporter'",
-					"hint", "Set TSNET_TAGS=exporter or add the exporter tag via auth key/console")
-				os.Exit(1)
-			}
 		}
 		slog.Info("Tailscale mode", "hostname", cfg.TsnetHostname, "port", cfg.Port)
 		slog.Info("Initial scraping errors are normal during connection setup")

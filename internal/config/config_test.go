@@ -23,7 +23,7 @@ func TestConfigLoad(t *testing.T) {
 	os.Setenv("LOG_FORMAT", "json")
 	os.Setenv("CLIENT_METRICS_PORT", "5353")
 	os.Setenv("TSNET_TAGS", "exporter,monitoring")
-	os.Setenv("REQUIRE_EXPORTER_TAG", "true")
+	os.Setenv("SCRAPE_TAG", "production")
 
 	cfg := Load()
 
@@ -55,12 +55,12 @@ func TestConfigLoad(t *testing.T) {
 		t.Errorf("Expected LogFormat 'json', got %s", cfg.LogFormat)
 	}
 
-	if len(cfg.TsnetTags) != 2 || cfg.TsnetTags[0] != "exporter" || cfg.TsnetTags[1] != "monitoring" {
-		t.Errorf("Expected TsnetTags ['exporter', 'monitoring'], got %v", cfg.TsnetTags)
+	if len(cfg.TsnetOwnTags) != 2 || cfg.TsnetOwnTags[0] != "exporter" || cfg.TsnetOwnTags[1] != "monitoring" {
+		t.Errorf("Expected TsnetOwnTags ['exporter', 'monitoring'], got %v", cfg.TsnetOwnTags)
 	}
 
-	if !cfg.RequireExporterTag {
-		t.Error("Expected RequireExporterTag to be true")
+	if cfg.TsnetScrapeTag != "production" {
+		t.Errorf("Expected TsnetScrapeTag 'production', got %s", cfg.TsnetScrapeTag)
 	}
 }
 
@@ -175,21 +175,6 @@ func TestConfigValidate(t *testing.T) {
 			name: "tsnet without hostname",
 			config: Config{
 				UseTsnet:             true,
-				Port:                 "9100",
-				ClientMetricsTimeout: 10 * time.Second,
-				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
-			},
-			wantErr: true,
-		},
-		{
-			name: "require exporter tag without exporter tag",
-			config: Config{
-				UseTsnet:             true,
-				TsnetHostname:        "test",
-				RequireExporterTag:   true,
-				TsnetTags:            []string{"monitoring"},
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
 				MaxConcurrentScrapes: 10,

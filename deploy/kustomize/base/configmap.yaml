@@ -14,7 +14,7 @@ data:
   TSNET_HOSTNAME: "tsmetrics"
   TSNET_TAGS: "exporter"
   TSNET_STATE_DIR: "/var/lib/tsmetrics/state"
-  REQUIRE_EXPORTER_TAG: "false"
+  SCRAPE_TAG: "exporter"
 
   # Performance settings
   CLIENT_METRICS_TIMEOUT: "10s"

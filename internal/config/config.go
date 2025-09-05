@@ -22,8 +22,8 @@ type Config struct {
 	TailnetName          string
 	ClientMetricsTimeout time.Duration
 	MaxConcurrentScrapes int
-	TsnetTags            []string
-	RequireExporterTag   bool
+	TsnetOwnTags         []string
+	TsnetScrapeTag       string
 	LogLevel             string
 	LogFormat            string
 	ClientMetricsPort    string
@@ -80,11 +80,12 @@ func (cfg *Config) loadTsnetSettings() {
 		for i := range parts {
 			parts[i] = strings.TrimSpace(parts[i])
 		}
-		cfg.TsnetTags = parts
+		cfg.TsnetOwnTags = parts
 	}
 
-	if strings.ToLower(os.Getenv("REQUIRE_EXPORTER_TAG")) == "true" {
-		cfg.RequireExporterTag = true
+	cfg.TsnetScrapeTag = "exporter"
+	if v := os.Getenv("SCRAPE_TAG"); v != "" {
+		cfg.TsnetScrapeTag = strings.TrimSpace(v)
 	}
 }
 
@@ -158,19 +159,6 @@ func (cfg Config) validateLogSettings() error {
 }
 
 func (cfg Config) validateTsnetSettings() error {
-	if cfg.UseTsnet && cfg.RequireExporterTag {
-		hasExporter := false
-		for _, tag := range cfg.TsnetTags {
-			if tag == "exporter" {
-				hasExporter = true
-				break
-			}
-		}
-		if !hasExporter {
-			return fmt.Errorf("REQUIRE_EXPORTER_TAG is true but 'exporter' tag not found in TSNET_TAGS")
-		}
-	}
-
 	if cfg.UseTsnet && cfg.TsnetHostname == "" {
 		return fmt.Errorf("TSNET_HOSTNAME required when USE_TSNET=true")
 	}

@@ -17,8 +17,8 @@ spec:
               value: "info"
             - name: ENV
               value: "production"
-            - name: REQUIRE_EXPORTER_TAG
-              value: "true"
+            - name: SCRAPE_TAG
+              value: "production"
           resources:
             requests:
               cpu: 200m

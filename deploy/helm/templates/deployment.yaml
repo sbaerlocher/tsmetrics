@@ -85,9 +85,9 @@ spec:
               value: {{ .Values.tailscale.tsnet.tags | quote }}
             - name: TSNET_STATE_DIR
               value: {{ .Values.tailscale.tsnet.stateDir | quote }}
-            {{- if .Values.tailscale.tsnet.requireExporterTag }}
-            - name: REQUIRE_EXPORTER_TAG
-              value: "true"
+            {{- if .Values.config.scrapeTag }}
+            - name: SCRAPE_TAG
+              value: {{ .Values.config.scrapeTag | quote }}
             {{- end }}
             {{- end }}
             - name: CLIENT_METRICS_TIMEOUT
