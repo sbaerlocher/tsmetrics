@@ -7,8 +7,8 @@ metadata:
 resources:
   - ../../base
 
-patchesStrategicMerge:
-  - deployment-patch.yaml
+patches:
+  - path: deployment-patch.yaml
 
 images:
   - name: ghcr.io/sbaerlocher/tsmetrics
@@ -18,7 +18,11 @@ replicas:
   - name: tsmetrics
     count: 1
 
-nameSuffix: -dev
+# Override namespace for development
+namespace: default
 
-commonLabels:
-  environment: development
+labels:
+  - pairs:
+      environment: development
+
+nameSuffix: -dev

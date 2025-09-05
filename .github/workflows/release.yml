@@ -91,6 +91,23 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ needs.setup.outputs.is-prerelease == 'false' }}
 
+      - name: Calculate build versions
+        id: build-versions
+        run: |
+          # Get Tailscale version from go.mod
+          TSNET_VERSION=$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")
+          VERSION_CLEAN=$(echo "${{ needs.setup.outputs.version }}" | sed 's/^v//')
+          VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
+          VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+          echo "tsnet_version=$TSNET_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_long=$VERSION_LONG" >> "$GITHUB_OUTPUT"
+          echo "version_short=$VERSION_SHORT" >> "$GITHUB_OUTPUT"
+
+          echo "TSNET Version: $TSNET_VERSION"
+          echo "Version Long: $VERSION_LONG"
+          echo "Version Short: $VERSION_SHORT"
+
       - name: Build and push multi-platform release image
         uses: docker/build-push-action@v6
         with:
@@ -102,6 +119,8 @@ jobs:
           build-args: |
             VERSION=${{ needs.setup.outputs.version }}
             BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION_LONG=${{ steps.build-versions.outputs.version_long }}
+            VERSION_SHORT=${{ steps.build-versions.outputs.version_short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

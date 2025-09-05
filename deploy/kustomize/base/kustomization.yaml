@@ -13,9 +13,10 @@ images:
   - name: ghcr.io/sbaerlocher/tsmetrics
     newTag: latest
 
-commonLabels:
-  app.kubernetes.io/name: tsmetrics
-  app.kubernetes.io/component: exporter
-  app.kubernetes.io/part-of: monitoring
+labels:
+  - pairs:
+      app.kubernetes.io/name: tsmetrics
+      app.kubernetes.io/component: exporter
+      app.kubernetes.io/part-of: monitoring
 
 namespace: monitoring

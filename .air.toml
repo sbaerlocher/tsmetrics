@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  cmd = "go build -ldflags \"-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}\" -o bin/tsmetrics ./cmd/tsmetrics"
+  cmd = "go build -ldflags \"-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X tailscale.com/version.longStamp=${VERSION_LONG} -X tailscale.com/version.shortStamp=${VERSION_SHORT}\" -o bin/tsmetrics ./cmd/tsmetrics"
   bin = "bin/tsmetrics"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "deploy"]

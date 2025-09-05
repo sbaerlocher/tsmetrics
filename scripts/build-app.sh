@@ -30,7 +30,7 @@ build_app() {
 	log_info "Building $APP_NAME"
 	cd "$PROJECT_ROOT"
 
-	local ldflags="-X main.version=$VERSION -X main.buildTime=$BUILD_TIME"
+	local ldflags="-X main.version=$VERSION -X main.buildTime=$BUILD_TIME -X tailscale.com/version.longStamp=$VERSION_LONG -X tailscale.com/version.shortStamp=$VERSION_SHORT"
 
 	if go build -ldflags "$ldflags" -o "bin/$APP_NAME" "./cmd/tsmetrics"; then
 		log_success "Build completed: bin/$APP_NAME"

@@ -10,11 +10,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 	"github.com/sbaerlocher/tsmetrics/internal/server"
+	tsversion "tailscale.com/version"
 )
 
 var (
@@ -57,6 +59,16 @@ func main() {
 
 	if showVersion {
 		fmt.Printf("tsmetrics %s (built: %s)\n", version, buildTime)
+
+		fmt.Printf("tailscale library: %s\n", tsversion.Long())
+
+		if info, ok := debug.ReadBuildInfo(); ok {
+			fmt.Printf("build info available: yes\n")
+			fmt.Printf("go version: %s\n", info.GoVersion)
+		} else {
+			fmt.Printf("build info available: no\n")
+		}
+
 		os.Exit(0)
 	}
 

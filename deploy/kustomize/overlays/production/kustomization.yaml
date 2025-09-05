@@ -9,8 +9,8 @@ resources:
   - pvc.yaml
   - servicemonitor.yaml
 
-patchesStrategicMerge:
-  - deployment-patch.yaml
+patches:
+  - path: deployment-patch.yaml
 
 images:
   - name: ghcr.io/sbaerlocher/tsmetrics
@@ -20,5 +20,6 @@ replicas:
   - name: tsmetrics
     count: 1
 
-commonLabels:
-  environment: production
+labels:
+  - pairs:
+      environment: production

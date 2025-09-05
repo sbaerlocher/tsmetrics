@@ -41,6 +41,12 @@ load_default_config() {
 set_build_metadata() {
 	export VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
 	export BUILD_TIME="${BUILD_TIME:-$(date -u '+%Y-%m-%d_%H:%M:%S')}"
+
+	# Tailscale version metadata
+	export TSNET_VERSION="${TSNET_VERSION:-$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")}"
+	export VERSION_CLEAN="${VERSION_CLEAN:-$(echo "$VERSION" | sed 's/^v//')}"
+	export VERSION_LONG="${VERSION_LONG:-${TSNET_VERSION}-${VERSION_CLEAN}}"
+	export VERSION_SHORT="${VERSION_SHORT:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
 }
 
 # Export functions for use in other scripts

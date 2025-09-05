@@ -3,6 +3,8 @@ FROM golang:1.25-alpine AS builder
 # Add build arguments for version info
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
+ARG VERSION_LONG=""
+ARG VERSION_SHORT=""
 
 RUN apk add --no-cache git
 
@@ -16,8 +18,9 @@ RUN go mod download && go mod verify
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
-  -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
+  -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X tailscale.com/version.longStamp=${VERSION_LONG} -X tailscale.com/version.shortStamp=${VERSION_SHORT}" \
   -buildvcs=true \
+  -buildmode=default \
   -o /tsmetrics ./cmd/tsmetrics
 
 FROM scratch

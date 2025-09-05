@@ -10,6 +10,10 @@
 APP_NAME := tsmetrics
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+TSNET_VERSION := $(shell go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//')
+VERSION_CLEAN := $(shell echo $(VERSION) | sed 's/^v//')
+VERSION_LONG := $(TSNET_VERSION)-$(VERSION_CLEAN)
+VERSION_SHORT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DOCKER_IMAGE := ghcr.io/sbaerlocher/$(APP_NAME)
 
 # ==============================================================================
@@ -58,7 +62,9 @@ run:
 docker-build:
 	docker build -t $(DOCKER_IMAGE):$(VERSION) \
 		--build-arg VERSION=$(VERSION) \
-		--build-arg BUILD_TIME=$(BUILD_TIME) .
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		--build-arg VERSION_LONG=$(VERSION_LONG) \
+		--build-arg VERSION_SHORT=$(VERSION_SHORT) .
 	docker tag $(DOCKER_IMAGE):$(VERSION) $(DOCKER_IMAGE):latest
 
 .PHONY: docker-run
