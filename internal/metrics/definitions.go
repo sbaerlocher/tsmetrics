@@ -91,9 +91,18 @@ var (
 	DeviceInfo = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "tailscale_device_info",
-			Help: "Static info about devices (value=1)",
+			Help: "Static info about devices (value=1 always present)",
 		},
-		[]string{"device_id", "device_name", "online", "os", "version"},
+		[]string{"device_id", "device_name", "os", "version"},
+	)
+
+	// DeviceOnline indicates if a device is currently online (1=online, 0=offline).
+	DeviceOnline = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tailscale_device_online",
+			Help: "Device online status (1=online, 0=offline)",
+		},
+		[]string{"device_id", "device_name"},
 	)
 
 	InboundBytes = promauto.NewGaugeVec(
@@ -211,6 +220,7 @@ func CleanupDeviceMetrics(deviceID string) {
 	ApprovedRoutes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 
 	DeviceInfo.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	DeviceOnline.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	DeviceAuthorized.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	DeviceLastSeen.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	DeviceUser.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})

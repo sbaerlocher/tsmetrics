@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
@@ -150,16 +151,47 @@ func (c *Collector) UpdateMetrics(target string) error {
 	}
 
 	DeviceCount.Set(float64(len(devices)))
+	
+	// Mark all current devices as active in tracker
+	for _, d := range devices {
+		c.tracker.MarkDeviceActive(d.ID.String())
+	}
+
+	// Clean up stale devices and their metrics BEFORE setting new ones
+	// Clean up stale devices first
+	staleDevices := c.tracker.CleanupStaleDevices(5 * time.Minute)
+	if len(staleDevices) > 0 {
+		slog.Info("cleaning up stale device metrics", "count", len(staleDevices), "devices", staleDevices)
+		
+		// Delete metrics for stale devices to prevent duplicate entries
+		for _, deviceID := range staleDevices {
+			DeviceInfo.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceOnline.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceAuthorized.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceLastSeen.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceUser.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceMachineKeyExpiry.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceExitNode.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceSubnetRouter.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+		}
+	}
+
 	seen := map[string]struct{}{}
 
 	onlineCount := 0
 	for _, d := range devices {
-		onlineStr := "false"
+		// Set static device info (always present, no online status in labels)
+		DeviceInfo.WithLabelValues(d.ID.String(), d.Name.String(), d.OS, d.ClientVersion).Set(1)
+
+		// Set online status as numeric value (1=online, 0=offline)
+		onlineValue := 0.0
 		if d.Online {
-			onlineStr = "true"
+			onlineValue = 1.0
 			onlineCount++
 		}
-		DeviceInfo.WithLabelValues(d.ID.String(), d.Name.String(), onlineStr, d.OS, d.ClientVersion).Set(1)
+		DeviceOnline.WithLabelValues(d.ID.String(), d.Name.String()).Set(onlineValue)
 
 		authValue := 0.0
 		if d.Authorized {
@@ -213,14 +245,6 @@ func (c *Collector) UpdateMetrics(target string) error {
 			slog.Error("scrapeClientMetrics error", "error", err)
 		}
 		ScrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
-	}
-
-	staleDevices := c.tracker.CleanupStaleDevices(5 * time.Minute)
-	if len(staleDevices) > 0 {
-		slog.Info("cleaned up stale devices", "count", len(staleDevices), "devices", staleDevices)
-		for _, deviceID := range staleDevices {
-			CleanupDeviceMetrics(deviceID)
-		}
 	}
 
 	c.tracker.CleanupRemovedDevices(seen)
