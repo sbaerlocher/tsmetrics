@@ -70,7 +70,7 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	addr := fmt.Sprintf("%s:%s", host, cfg.Port)
 
 	metrics.SetHTTPClientProvider(&metrics.StandardHTTPClientProvider{})
-	slog.Info("configured HTTP client for standard network access")
+	slog.Info("HTTP client configured", "network", "standard")
 
 	mux := SetupRoutes()
 	srv := &http.Server{
@@ -87,6 +87,7 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 
 	StartBackgroundScraper(cfg, ctx, collector)
 
+	slog.Info("Server ready", "bind", addr)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "error", err)
@@ -103,7 +104,7 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *metrics.Collector) {
 	go func() {
 		if cfg.UseTsnet {
-			slog.Info("waiting for tsnet to establish connection before first scrape")
+			slog.Info("Waiting for Tailscale connectivity")
 			select {
 			case <-ctx.Done():
 				return
@@ -116,7 +117,7 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 
 		if err := collector.UpdateMetrics("tailscale"); err != nil {
 			if cfg.UseTsnet && countTsnetStartupErrors(err) > 0 {
-				slog.Info("initial scrape pending tsnet connectivity", "waiting_for_connection", true)
+				slog.Info("Initial scrape waiting for connectivity")
 			} else {
 				slog.Error("initial update failed", "error", err)
 			}
@@ -129,7 +130,7 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 			case <-ticker.C:
 				if err := collector.UpdateMetrics("tailscale"); err != nil {
 					if cfg.UseTsnet && countTsnetStartupErrors(err) > 0 {
-						slog.Debug("scrape pending tsnet connectivity", "retrying", true)
+						slog.Debug("Scrape waiting for connectivity")
 					} else {
 						slog.Error("updateMetrics error", "error", err)
 					}

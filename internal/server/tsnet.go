@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"tailscale.com/tsnet"
@@ -12,6 +14,14 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
+
+func getLocalBindHost() string {
+	env := strings.ToLower(os.Getenv("ENV"))
+	if env == "production" || env == "prod" {
+		return "0.0.0.0"
+	}
+	return "127.0.0.1"
+}
 
 func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
 	stateDir := config.SetupTsnetStateDir(cfg.TsnetStateDir)
@@ -23,12 +33,12 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 
 	if cfg.TsnetAuthKey != "" {
 		server.AuthKey = cfg.TsnetAuthKey
-		slog.Info("tsnet configured with auth key for automatic registration")
+		slog.Info("Tailscale authentication configured", "mode", "auth_key")
 		if len(cfg.TsnetTags) > 0 {
-			slog.Info("expected tags from auth key", "tags", cfg.TsnetTags)
+			slog.Info("Tailscale tags expected", "tags", cfg.TsnetTags)
 		}
 	} else if len(cfg.TsnetTags) > 0 {
-		slog.Warn("TSNET_TAGS configured but no TS_AUTHKEY provided",
+		slog.Warn("Tailscale tags configured without auth key",
 			"tags", cfg.TsnetTags,
 			"hint", "Set TS_AUTHKEY with pre-tagged auth key for automatic tag assignment")
 	}
@@ -40,10 +50,10 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 		Timeout: cfg.ClientMetricsTimeout,
 	}
 	metrics.SetHTTPClientProvider(tsnetProvider)
-	slog.Info("configured HTTP client to use Tailscale network for device scraping")
+	slog.Info("HTTP client configured for Tailscale network", "timeout", cfg.ClientMetricsTimeout)
 
-	slog.Info("tsnet will establish connection in background (device scraping may initially fail until connected)")
-	slog.Debug("note: tsnet may log internal messages during startup (routerIP/FetchRIB errors are normal)")
+	slog.Info("Tailscale connection establishing", "note", "device scraping may initially fail until connected")
+	slog.Debug("Tailscale startup messages expected", "normal_errors", "routerIP/FetchRIB")
 
 	listener, err := server.Listen("tcp", ":"+cfg.Port)
 	if err != nil {
@@ -58,7 +68,10 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	localAddr := "0.0.0.0:" + cfg.Port  // Bind auf alle Interfaces für Kubernetes Probes
+
+	host := getLocalBindHost()
+	localAddr := fmt.Sprintf("%s:%s", host, cfg.Port)
+
 	localHTTPServer := &http.Server{
 		Addr:              localAddr,
 		Handler:           mux,
@@ -75,10 +88,10 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 
 	errCh := make(chan error, 2)
 
-	slog.Info("starting HTTP servers", "tsnet_port", cfg.Port, "local_port", cfg.Port)
+	slog.Info("HTTP servers starting", "port", cfg.Port, "local_bind", host)
 
 	go func() {
-		slog.Info("starting tsnet HTTP server", "address", ":"+cfg.Port)
+		slog.Info("Tailscale server ready", "bind", ":"+cfg.Port)
 		if err := tsHTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("tsnet http serve failed: %w", err)
 			return
@@ -87,7 +100,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	}()
 
 	go func() {
-		slog.Info("starting local HTTP server", "address", localAddr)
+		slog.Info("Local server ready", "bind", localAddr)
 		if err := localHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("local http serve failed: %w", err)
 			return

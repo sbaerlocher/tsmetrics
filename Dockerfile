@@ -4,13 +4,20 @@ FROM golang:1.25-alpine AS builder
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
 
+RUN apk add --no-cache git
+
 WORKDIR /src
+
+COPY .git .git/
+
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
 COPY . .
+
 RUN CGO_ENABLED=0 GOOS=linux go build \
   -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
+  -buildvcs=true \
   -o /tsmetrics ./cmd/tsmetrics
 
 FROM scratch

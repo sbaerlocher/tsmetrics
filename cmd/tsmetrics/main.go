@@ -128,17 +128,17 @@ func main() {
 				os.Exit(1)
 			}
 		}
-		slog.Info("starting with tsnet", "hostname", cfg.TsnetHostname, "port", cfg.Port)
-		slog.Info("note: initial device scraping errors are normal while tsnet establishes connection")
+		slog.Info("Tailscale mode", "hostname", cfg.TsnetHostname, "port", cfg.Port)
+		slog.Info("Initial scraping errors are normal during connection setup")
 		err = server.RunWithTsnet(cfg, ctx, collector)
 	} else {
-		slog.Info("starting standalone", "port", cfg.Port)
+		slog.Info("Standalone mode", "port", cfg.Port)
 		err = server.RunStandalone(cfg, ctx, collector)
 	}
 
 	if err != nil {
-		slog.Error("shutdown with error", "error", err)
+		slog.Error("Shutdown with error", "error", err)
 	} else {
-		slog.Info("shutdown complete")
+		slog.Info("Shutdown complete")
 	}
 }
