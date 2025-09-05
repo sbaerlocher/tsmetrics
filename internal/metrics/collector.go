@@ -151,7 +151,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 	}
 
 	DeviceCount.Set(float64(len(devices)))
-	
+
 	// Mark all current devices as active in tracker
 	for _, d := range devices {
 		c.tracker.MarkDeviceActive(d.ID.String())
@@ -162,7 +162,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 	staleDevices := c.tracker.CleanupStaleDevices(5 * time.Minute)
 	if len(staleDevices) > 0 {
 		slog.Info("cleaning up stale device metrics", "count", len(staleDevices), "devices", staleDevices)
-		
+
 		// Delete metrics for stale devices to prevent duplicate entries
 		for _, deviceID := range staleDevices {
 			DeviceInfo.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
