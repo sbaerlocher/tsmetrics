@@ -110,7 +110,21 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 		return nil, err
 	}
 
-	return c.convertAPIDevices(result.Devices), nil
+	// Fetch routes for each device to determine exit node status
+	devices := c.convertAPIDevices(result.Devices)
+	for i := range devices {
+		routes, err := c.fetchDeviceRoutes(devices[i].ID.String())
+		if err != nil {
+			slog.Warn("failed to fetch routes for device", "device", devices[i].Name, "error", err)
+			continue
+		}
+		devices[i].IsExitNode = c.hasExitNodeRoutes(routes.EnabledRoutes)
+		devices[i].ExitNodeOption = c.hasExitNodeRoutes(routes.AdvertisedRoutes)
+		devices[i].AdvertisedRoutes = routes.AdvertisedRoutes
+		devices[i].EnabledRoutes = routes.EnabledRoutes
+	}
+
+	return devices, nil
 }
 
 func (c *Client) makeDevicesRequest() (*http.Response, error) {
@@ -178,7 +192,7 @@ func (c *Client) convertSingleDevice(d apiDevice) (device.Device, bool) {
 
 	isOnline := time.Since(lastSeen) < 10*time.Minute
 
-	slog.Debug("converting device from API", "device", d.Name, "isExitNode", d.IsExitNode, "exitNodeOption", d.ExitNodeOption)
+	slog.Debug("converting device from API", "device", d.Name)
 
 	return device.Device{
 		ID:                        deviceID,
@@ -194,10 +208,10 @@ func (c *Client) convertSingleDevice(d apiDevice) (device.Device, bool) {
 		NodeKey:                   d.NodeKey,
 		KeyExpiryDisabled:         d.KeyExpiryDisabled,
 		Expires:                   expires,
-		AdvertisedRoutes:          d.AdvertisedRoutes,
-		EnabledRoutes:             d.EnabledRoutes,
-		IsExitNode:                d.IsExitNode,
-		ExitNodeOption:            d.ExitNodeOption,
+		AdvertisedRoutes:          []string{}, // Will be set later from routes API
+		EnabledRoutes:             []string{}, // Will be set later from routes API
+		IsExitNode:                false,      // Will be set later from routes API
+		ExitNodeOption:            false,      // Will be set later from routes API
 		OS:                        d.OS,
 		ClientVersion:             d.ClientVersion,
 		UpdateAvailable:           d.UpdateAvailable,
@@ -322,8 +336,6 @@ type apiDevice struct {
 	Expires                   string              `json:"expires"`
 	AdvertisedRoutes          []string            `json:"advertisedRoutes"`
 	EnabledRoutes             []string            `json:"enabledRoutes"`
-	IsExitNode                bool                `json:"isExitNode"`
-	ExitNodeOption            bool                `json:"exitNodeOption"`
 	OS                        string              `json:"os"`
 	ClientVersion             string              `json:"clientVersion"`
 	UpdateAvailable           bool                `json:"updateAvailable"`
@@ -388,4 +400,44 @@ func (c *Client) TestConnectivity(ctx context.Context) (bool, error) {
 	}
 
 	return false, fmt.Errorf("API returned status %d", resp.StatusCode)
+}
+
+// hasExitNodeRoutes checks if the routes contain exit node routes (0.0.0.0/0 or ::/0)
+func (c *Client) hasExitNodeRoutes(routes []string) bool {
+	for _, route := range routes {
+		if route == "0.0.0.0/0" || route == "::/0" {
+			return true
+		}
+	}
+	return false
+}
+
+type deviceRoutes struct {
+	AdvertisedRoutes []string `json:"advertisedRoutes"`
+	EnabledRoutes    []string `json:"enabledRoutes"`
+}
+
+func (c *Client) fetchDeviceRoutes(deviceID string) (*deviceRoutes, error) {
+	apiURL := fmt.Sprintf("https://api.tailscale.com/api/v2/device/%s/routes?fields=all", deviceID)
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create routes request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("routes request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("routes API returned status %d", resp.StatusCode)
+	}
+
+	var routes deviceRoutes
+	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+		return nil, fmt.Errorf("failed to decode routes response: %w", err)
+	}
+
+	return &routes, nil
 }
