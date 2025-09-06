@@ -250,7 +250,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 		DeviceExitNodeOption.WithLabelValues(d.ID.String(), d.Name.String()).Set(exitNodeOptionValue)
 
 		subnetRouterValue := 0.0
-		if len(d.AdvertisedRoutes) > 0 {
+		if c.hasNonExitNodeRoutes(d.AdvertisedRoutes) {
 			subnetRouterValue = 1.0
 		}
 		DeviceSubnetRouter.WithLabelValues(d.ID.String(), d.Name.String()).Set(subnetRouterValue)
@@ -390,4 +390,14 @@ func boolToFloat64(b bool) float64 {
 		return 1.0
 	}
 	return 0.0
+}
+
+// hasNonExitNodeRoutes checks if there are any routes that are not exit node routes (0.0.0.0/0 or ::/0)
+func (c *Collector) hasNonExitNodeRoutes(routes []string) bool {
+	for _, route := range routes {
+		if route != "0.0.0.0/0" && route != "::/0" {
+			return true
+		}
+	}
+	return false
 }
