@@ -305,6 +305,13 @@ tailscale_device_authorized{device_id, device_name}
 tailscale_device_last_seen_timestamp{device_id, device_name}
 tailscale_device_user{device_id, device_name, user_email}
 tailscale_device_machine_key_expiry{device_id, device_name}
+tailscale_device_update_available{device_id, device_name}
+tailscale_device_created_timestamp{device_id, device_name}
+tailscale_device_external{device_id, device_name}
+tailscale_device_blocks_incoming_connections{device_id, device_name}
+tailscale_device_ephemeral{device_id, device_name}
+tailscale_device_multiple_connections{device_id, device_name}
+tailscale_device_tailnet_lock_error{device_id, device_name}
 ```
 
 ### Network Configuration (from Tailscale API)
@@ -328,6 +335,15 @@ tailscaled_outbound_dropped_packets_total{device_id, device_name, reason}
 tailscaled_health_messages{device_id, device_name, type}
 tailscaled_advertised_routes{device_id, device_name}
 tailscaled_approved_routes{device_id, device_name}
+```
+
+### Connectivity & Performance (from Tailscale API)
+
+```prometheus
+tailscale_device_latency_ms{device_id, device_name, derp_region, preferred}
+tailscale_device_endpoints_total{device_id, device_name}
+tailscale_device_client_supports{device_id, device_name, feature}
+tailscale_device_posture_serial_numbers_total{device_id, device_name}
 ```
 
 ### Grafana Dashboards

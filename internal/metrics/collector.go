@@ -174,7 +174,21 @@ func (c *Collector) UpdateMetrics(target string) error {
 			DeviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 			DeviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 			DeviceExitNode.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceExitNodeOption.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 			DeviceSubnetRouter.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+
+			// Clean up new metrics for stale devices
+			DeviceUpdateAvailable.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceCreated.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceExternal.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceBlocksIncoming.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceEphemeral.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceMultipleConnections.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceLatency.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceEndpoints.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceClientSupports.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DeviceTailnetLockError.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+			DevicePostureSerialNumbers.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 		}
 	}
 
@@ -225,13 +239,95 @@ func (c *Collector) UpdateMetrics(target string) error {
 		if d.IsExitNode {
 			exitNodeValue = 1.0
 		}
+		slog.Debug("setting exit node metric", "device", d.Name.String(), "isExitNode", d.IsExitNode, "value", exitNodeValue)
 		DeviceExitNode.WithLabelValues(d.ID.String(), d.Name.String()).Set(exitNodeValue)
+
+		exitNodeOptionValue := 0.0
+		if d.ExitNodeOption {
+			exitNodeOptionValue = 1.0
+		}
+		slog.Debug("setting exit node option metric", "device", d.Name.String(), "exitNodeOption", d.ExitNodeOption, "value", exitNodeOptionValue)
+		DeviceExitNodeOption.WithLabelValues(d.ID.String(), d.Name.String()).Set(exitNodeOptionValue)
 
 		subnetRouterValue := 0.0
 		if len(d.AdvertisedRoutes) > 0 {
 			subnetRouterValue = 1.0
 		}
 		DeviceSubnetRouter.WithLabelValues(d.ID.String(), d.Name.String()).Set(subnetRouterValue)
+
+		// Set new metrics
+		updateAvailableValue := 0.0
+		if d.UpdateAvailable {
+			updateAvailableValue = 1.0
+		}
+		DeviceUpdateAvailable.WithLabelValues(d.ID.String(), d.Name.String()).Set(updateAvailableValue)
+
+		if !d.Created.IsZero() {
+			DeviceCreated.WithLabelValues(d.ID.String(), d.Name.String()).Set(float64(d.Created.Unix()))
+		}
+
+		externalValue := 0.0
+		if d.IsExternal {
+			externalValue = 1.0
+		}
+		DeviceExternal.WithLabelValues(d.ID.String(), d.Name.String()).Set(externalValue)
+
+		blocksIncomingValue := 0.0
+		if d.BlocksIncomingConnections {
+			blocksIncomingValue = 1.0
+		}
+		DeviceBlocksIncoming.WithLabelValues(d.ID.String(), d.Name.String()).Set(blocksIncomingValue)
+
+		ephemeralValue := 0.0
+		if d.IsEphemeral {
+			ephemeralValue = 1.0
+		}
+		DeviceEphemeral.WithLabelValues(d.ID.String(), d.Name.String()).Set(ephemeralValue)
+
+		multipleConnectionsValue := 0.0
+		if d.MultipleConnections {
+			multipleConnectionsValue = 1.0
+		}
+		DeviceMultipleConnections.WithLabelValues(d.ID.String(), d.Name.String()).Set(multipleConnectionsValue)
+
+		tailnetLockErrorValue := 0.0
+		if d.TailnetLockError != "" {
+			tailnetLockErrorValue = 1.0
+		}
+		DeviceTailnetLockError.WithLabelValues(d.ID.String(), d.Name.String()).Set(tailnetLockErrorValue)
+
+		// Set connectivity metrics
+		if d.ClientConnectivity != nil {
+			// Set endpoint count
+			DeviceEndpoints.WithLabelValues(d.ID.String(), d.Name.String()).Set(float64(len(d.ClientConnectivity.Endpoints)))
+
+			// Set latency metrics
+			for region, latencyInfo := range d.ClientConnectivity.Latency {
+				preferredStr := "false"
+				if latencyInfo.Preferred {
+					preferredStr = "true"
+				}
+				DeviceLatency.WithLabelValues(d.ID.String(), d.Name.String(), region, preferredStr).Set(latencyInfo.LatencyMs)
+			}
+
+			// Set client support metrics
+			supports := d.ClientConnectivity.ClientSupports
+			DeviceClientSupports.WithLabelValues(d.ID.String(), d.Name.String(), "hairpinning").Set(boolToFloat64(supports.HairPinning))
+			DeviceClientSupports.WithLabelValues(d.ID.String(), d.Name.String(), "ipv6").Set(boolToFloat64(supports.IPv6))
+			DeviceClientSupports.WithLabelValues(d.ID.String(), d.Name.String(), "pcp").Set(boolToFloat64(supports.PCP))
+			DeviceClientSupports.WithLabelValues(d.ID.String(), d.Name.String(), "pmp").Set(boolToFloat64(supports.PMP))
+			DeviceClientSupports.WithLabelValues(d.ID.String(), d.Name.String(), "udp").Set(boolToFloat64(supports.UDP))
+			DeviceClientSupports.WithLabelValues(d.ID.String(), d.Name.String(), "upnp").Set(boolToFloat64(supports.UPnP))
+		} else {
+			DeviceEndpoints.WithLabelValues(d.ID.String(), d.Name.String()).Set(0)
+		}
+
+		// Set posture identity metrics
+		if d.PostureIdentity != nil {
+			DevicePostureSerialNumbers.WithLabelValues(d.ID.String(), d.Name.String()).Set(float64(len(d.PostureIdentity.SerialNumbers)))
+		} else {
+			DevicePostureSerialNumbers.WithLabelValues(d.ID.String(), d.Name.String()).Set(0)
+		}
 
 		seen[d.ID.String()] = struct{}{}
 	}
@@ -286,4 +382,12 @@ func (c *Collector) CollectDeviceMetrics(ctx context.Context, device device.Devi
 	// In a real implementation, this would call the appropriate scraping functions
 	// and handle the metric collection logic for a single device
 	return nil
+}
+
+// boolToFloat64 converts a boolean to float64 for Prometheus metrics.
+func boolToFloat64(b bool) float64 {
+	if b {
+		return 1.0
+	}
+	return 0.0
 }

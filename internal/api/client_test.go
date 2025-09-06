@@ -99,7 +99,7 @@ func TestClientFetchDevices(t *testing.T) {
 		requests:  make([]*http.Request, 0),
 	}
 
-	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices"] =
+	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] =
 		createMockResponse(200, responseBody)
 
 	client := &Client{
@@ -143,8 +143,8 @@ func TestClientFetchDevicesError(t *testing.T) {
 		requests:  make([]*http.Request, 0),
 	}
 
-	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices"] =
-		createMockResponse(500, nil)
+	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] =
+		createMockResponse(500, "Internal Server Error")
 
 	client := &Client{
 		httpClient: &http.Client{

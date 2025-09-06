@@ -114,7 +114,7 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 }
 
 func (c *Client) makeDevicesRequest() (*http.Response, error) {
-	apiURL := fmt.Sprintf("%s/devices", c.baseURL)
+	apiURL := fmt.Sprintf("%s/devices?fields=all", c.baseURL)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -173,34 +173,48 @@ func (c *Client) convertSingleDevice(d apiDevice) (device.Device, bool) {
 		host = d.Addresses[0]
 	}
 
-	lastSeen, expires := c.parseTimes(d.LastSeen, d.Expires, d.KeyExpiryDisabled)
+	lastSeen, expires, created := c.parseTimes(d.LastSeen, d.Expires, d.Created, d.KeyExpiryDisabled)
 	tags := c.parseTags(d.Tags, d.Name)
 
 	isOnline := time.Since(lastSeen) < 10*time.Minute
 
+	slog.Debug("converting device from API", "device", d.Name, "isExitNode", d.IsExitNode, "exitNodeOption", d.ExitNodeOption)
+
 	return device.Device{
-		ID:                deviceID,
-		Name:              deviceName,
-		Host:              host,
-		Tags:              tags,
-		Online:            isOnline,
-		Authorized:        d.Authorized,
-		LastSeen:          lastSeen,
-		User:              d.User,
-		MachineKey:        d.MachineKey,
-		KeyExpiryDisabled: d.KeyExpiryDisabled,
-		Expires:           expires,
-		AdvertisedRoutes:  d.AdvertisedRoutes,
-		EnabledRoutes:     d.EnabledRoutes,
-		IsExitNode:        d.IsExitNode,
-		ExitNodeOption:    d.ExitNodeOption,
-		OS:                d.OS,
-		ClientVersion:     d.ClientVersion,
+		ID:                        deviceID,
+		NodeID:                    d.NodeID,
+		Name:                      deviceName,
+		Host:                      host,
+		Tags:                      tags,
+		Online:                    isOnline,
+		Authorized:                d.Authorized,
+		LastSeen:                  lastSeen,
+		User:                      d.User,
+		MachineKey:                d.MachineKey,
+		NodeKey:                   d.NodeKey,
+		KeyExpiryDisabled:         d.KeyExpiryDisabled,
+		Expires:                   expires,
+		AdvertisedRoutes:          d.AdvertisedRoutes,
+		EnabledRoutes:             d.EnabledRoutes,
+		IsExitNode:                d.IsExitNode,
+		ExitNodeOption:            d.ExitNodeOption,
+		OS:                        d.OS,
+		ClientVersion:             d.ClientVersion,
+		UpdateAvailable:           d.UpdateAvailable,
+		Created:                   created,
+		IsExternal:                d.IsExternal,
+		BlocksIncomingConnections: d.BlocksIncomingConnections,
+		TailnetLockKey:            d.TailnetLockKey,
+		TailnetLockError:          d.TailnetLockError,
+		IsEphemeral:               d.IsEphemeral,
+		MultipleConnections:       d.MultipleConnections,
+		ClientConnectivity:        c.convertClientConnectivity(d.ClientConnectivity),
+		PostureIdentity:           c.convertPostureIdentity(d.PostureIdentity),
 	}, true
 }
 
-func (c *Client) parseTimes(lastSeenStr, expiresStr string, keyExpiryDisabled bool) (time.Time, time.Time) {
-	var lastSeen, expires time.Time
+func (c *Client) parseTimes(lastSeenStr, expiresStr, createdStr string, keyExpiryDisabled bool) (time.Time, time.Time, time.Time) {
+	var lastSeen, expires, created time.Time
 
 	if lastSeenStr != "" {
 		if t, err := time.Parse(time.RFC3339, lastSeenStr); err == nil {
@@ -214,7 +228,13 @@ func (c *Client) parseTimes(lastSeenStr, expiresStr string, keyExpiryDisabled bo
 		}
 	}
 
-	return lastSeen, expires
+	if createdStr != "" {
+		if t, err := time.Parse(time.RFC3339, createdStr); err == nil {
+			created = t
+		}
+	}
+
+	return lastSeen, expires, created
 }
 
 func (c *Client) parseTags(tagsStr []string, deviceName string) []types.TagName {
@@ -241,6 +261,44 @@ func (c *Client) parseTags(tagsStr []string, deviceName string) []types.TagName 
 	return tags
 }
 
+func (c *Client) convertClientConnectivity(cc *clientConnectivity) *device.ClientConnectivity {
+	if cc == nil {
+		return nil
+	}
+
+	latency := make(map[string]device.LatencyInfo)
+	for region, info := range cc.Latency {
+		latency[region] = device.LatencyInfo{
+			LatencyMs: info.LatencyMs,
+			Preferred: info.Preferred,
+		}
+	}
+
+	return &device.ClientConnectivity{
+		Endpoints:             cc.Endpoints,
+		Latency:               latency,
+		MappingVariesByDestIP: cc.MappingVariesByDestIP,
+		ClientSupports: device.ClientSupports{
+			HairPinning: cc.ClientSupports.HairPinning,
+			IPv6:        cc.ClientSupports.IPv6,
+			PCP:         cc.ClientSupports.PCP,
+			PMP:         cc.ClientSupports.PMP,
+			UDP:         cc.ClientSupports.UDP,
+			UPnP:        cc.ClientSupports.UPnP,
+		},
+	}
+}
+
+func (c *Client) convertPostureIdentity(pi *postureIdentity) *device.PostureIdentity {
+	if pi == nil {
+		return nil
+	}
+
+	return &device.PostureIdentity{
+		SerialNumbers: pi.SerialNumbers,
+	}
+}
+
 // devicesAPIResponse represents the API response for device listing.
 type devicesAPIResponse struct {
 	Devices []apiDevice `json:"devices"`
@@ -248,24 +306,61 @@ type devicesAPIResponse struct {
 
 // apiDevice represents a device as returned by the Tailscale API.
 type apiDevice struct {
-	ID                string   `json:"id"`
-	Name              string   `json:"name"`
-	Hostname          string   `json:"hostname"`
-	Addresses         []string `json:"addresses"`
-	Online            bool     `json:"online"`
-	Tags              []string `json:"tags"`
-	Authorized        bool     `json:"authorized"`
-	LastSeen          string   `json:"lastSeen"`
-	User              string   `json:"user"`
-	MachineKey        string   `json:"machineKey"`
-	KeyExpiryDisabled bool     `json:"keyExpiryDisabled"`
-	Expires           string   `json:"expires"`
-	AdvertisedRoutes  []string `json:"advertisedRoutes"`
-	EnabledRoutes     []string `json:"enabledRoutes"`
-	IsExitNode        bool     `json:"isExitNode"`
-	ExitNodeOption    bool     `json:"exitNodeOption"`
-	OS                string   `json:"os"`
-	ClientVersion     string   `json:"clientVersion"`
+	ID                        string              `json:"id"`
+	NodeID                    string              `json:"nodeId"`
+	Name                      string              `json:"name"`
+	Hostname                  string              `json:"hostname"`
+	Addresses                 []string            `json:"addresses"`
+	Online                    bool                `json:"online"`
+	Tags                      []string            `json:"tags"`
+	Authorized                bool                `json:"authorized"`
+	LastSeen                  string              `json:"lastSeen"`
+	User                      string              `json:"user"`
+	MachineKey                string              `json:"machineKey"`
+	NodeKey                   string              `json:"nodeKey"`
+	KeyExpiryDisabled         bool                `json:"keyExpiryDisabled"`
+	Expires                   string              `json:"expires"`
+	AdvertisedRoutes          []string            `json:"advertisedRoutes"`
+	EnabledRoutes             []string            `json:"enabledRoutes"`
+	IsExitNode                bool                `json:"isExitNode"`
+	ExitNodeOption            bool                `json:"exitNodeOption"`
+	OS                        string              `json:"os"`
+	ClientVersion             string              `json:"clientVersion"`
+	UpdateAvailable           bool                `json:"updateAvailable"`
+	Created                   string              `json:"created"`
+	IsExternal                bool                `json:"isExternal"`
+	BlocksIncomingConnections bool                `json:"blocksIncomingConnections"`
+	TailnetLockKey            string              `json:"tailnetLockKey"`
+	TailnetLockError          string              `json:"tailnetLockError"`
+	IsEphemeral               bool                `json:"isEphemeral"`
+	MultipleConnections       bool                `json:"multipleConnections"`
+	ClientConnectivity        *clientConnectivity `json:"clientConnectivity"`
+	PostureIdentity           *postureIdentity    `json:"postureIdentity"`
+}
+
+type clientConnectivity struct {
+	Endpoints             []string               `json:"endpoints"`
+	Latency               map[string]latencyInfo `json:"latency"`
+	MappingVariesByDestIP bool                   `json:"mappingVariesByDestIP"`
+	ClientSupports        clientSupports         `json:"clientSupports"`
+}
+
+type latencyInfo struct {
+	LatencyMs float64 `json:"latencyMs"`
+	Preferred bool    `json:"preferred"`
+}
+
+type clientSupports struct {
+	HairPinning bool `json:"hairPinning"`
+	IPv6        bool `json:"ipv6"`
+	PCP         bool `json:"pcp"`
+	PMP         bool `json:"pmp"`
+	UDP         bool `json:"udp"`
+	UPnP        bool `json:"upnp"`
+}
+
+type postureIdentity struct {
+	SerialNumbers []string `json:"serialNumbers"`
 }
 
 func (c *Client) TestConnectivity(ctx context.Context) (bool, error) {
