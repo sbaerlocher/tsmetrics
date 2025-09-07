@@ -1,0 +1,102 @@
+# MegaLinter Configuration
+# See https://megalinter.io/configuration/
+
+# Global configuration
+APPLY_FIXES: all # Apply auto-fixes when available
+DEFAULT_BRANCH: main # Default branch name
+DEFAULT_WORKSPACE: /tmp/lint # Workspace directory
+
+# Output configuration
+REPORT_OUTPUT_FOLDER: /tmp/lint/megalinter-reports
+LOG_LEVEL: INFO
+SHOW_ELAPSED_TIME: true
+FILEIO_REPORTER: true
+SARIF_REPORTER: true
+JSON_REPORTER: true
+
+# Performance
+PARALLEL: true
+VALIDATE_ALL_CODEBASE: true # Only validate changed files by default
+DISABLE_ERRORS: false
+
+# Language and format configuration
+ENABLE_LINTERS:
+  # YAML
+  - YAML_YAMLLINT
+  # Go
+  - GO_GOLANGCI_LINT
+  # Docker
+  - DOCKERFILE_HADOLINT
+  # Kubernetes/Helm
+  - KUBERNETES_KUBEVAL
+  - KUBERNETES_HELM
+  # Repository security
+  - REPOSITORY_CHECKOV
+  - REPOSITORY_DEVSKIM
+  - REPOSITORY_TRIVY
+  - REPOSITORY_SECRETLINT
+  # Markdown
+  - MARKDOWN_MARKDOWNLINT
+  - MARKDOWN_MARKDOWN_LINK_CHECK
+  # JSON
+  - JSON_JSONLINT
+  # Makefile
+  - MAKEFILE_CHECKMAKE
+  # Shell
+  - BASH_SHELLCHECK
+  - BASH_SHFMT
+
+# Disable problematic or redundant linters
+DISABLE_LINTERS:
+  - SPELL_CSPELL # Often too strict
+  - COPYPASTE_JSCPD # Not needed for this project
+  - REPOSITORY_GITLEAKS # Covered by secretlint
+  - REPOSITORY_SYFT # Not needed
+  - REPOSITORY_KICS # Too many false positives for templates
+  - GO_REVIVE # Covered by golangci-lint with less noise
+  - ACTION_ACTIONLINT # Only if using GitHub Actions
+
+# YAML specific configuration
+YAML_YAMLLINT_CONFIG_FILE: .yamllint
+YAML_YAMLLINT_ARGUMENTS: --strict
+
+# Go specific configuration
+GO_GOLANGCI_LINT_CONFIG_FILE: .golangci.yml
+
+# Dockerfile specific configuration
+DOCKERFILE_HADOLINT_ARGUMENTS: --ignore DL3008 --ignore DL3009
+
+# Kubernetes specific configuration
+KUBERNETES_DIRECTORY: deploy
+KUBERNETES_KUBEVAL_ARGUMENTS: --strict --ignore-missing-schemas
+
+# Markdown specific configuration
+MARKDOWN_MARKDOWNLINT_CONFIG_FILE: .markdownlint.json
+MARKDOWN_MARKDOWNLINT_RULES_PATH: .
+
+# Security configuration
+# REPOSITORY_CHECKOV_ARGUMENTS: --framework kubernetes,dockerfile --quiet --skip-check CKV_K8S_21,CKV_K8S_43,CKV_K8S_35
+# REPOSITORY_DEVSKIM_ARGUMENTS: --ignore-globs "**/node_modules/**,**/vendor/**" --ignore-rule-ids DS137138,DS173237
+# REPOSITORY_TRIVY_ARGUMENTS: --severity HIGH,CRITICAL
+# REPOSITORY_SECRETLINT_ARGUMENTS: --format json
+
+# File filtering
+FILTER_REGEX_INCLUDE: ".*"
+FILTER_REGEX_EXCLUDE: |
+  (megalinter-reports/.*|
+   \.git/.*|
+   bin/.*|
+   tmp/.*|
+   \.vscode/.*|
+   node_modules/.*|
+   vendor/.*)
+
+# Pre-commands (run before linting)
+PRE_COMMANDS:
+  - command: echo "Starting MegaLinter analysis..."
+    cwd: "workspace"
+
+# Post-commands (run after linting)
+POST_COMMANDS:
+  - command: echo "MegaLinter analysis completed"
+    cwd: "workspace"

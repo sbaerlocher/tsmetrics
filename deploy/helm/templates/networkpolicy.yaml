@@ -1,0 +1,74 @@
+{{- if .Values.networkPolicy.enabled -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tsmetrics.fullname" . }}-network-policy
+  labels:
+    {{- include "tsmetrics.labels" . | nindent 4 }}
+  {{- with .Values.networkPolicy.labels }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.networkPolicy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tsmetrics.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- range .Values.networkPolicy.policyTypes }}
+    - {{ . }}
+    {{- end }}
+  {{- if has "Ingress" .Values.networkPolicy.policyTypes }}
+  ingress:
+    {{- range .Values.networkPolicy.ingress }}
+    - {{- if .from }}
+      from:
+        {{- range .from }}
+        - {{- if .namespaceSelector }}
+          namespaceSelector:
+            {{- toYaml .namespaceSelector | nindent 12 }}
+          {{- end }}
+          {{- if .podSelector }}
+          podSelector:
+            {{- toYaml .podSelector | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol | default "TCP" }}
+          port: {{ .port }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if has "Egress" .Values.networkPolicy.policyTypes }}
+  egress:
+    {{- range .Values.networkPolicy.egress }}
+    - {{- if .to }}
+      to:
+        {{- range .to }}
+        - {{- if .namespaceSelector }}
+          namespaceSelector:
+            {{- toYaml .namespaceSelector | nindent 12 }}
+          {{- end }}
+          {{- if .podSelector }}
+          podSelector:
+            {{- toYaml .podSelector | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol | default "TCP" }}
+          port: {{ .port }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

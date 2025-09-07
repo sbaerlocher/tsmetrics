@@ -1,0 +1,54 @@
+---
+apiVersion: v2
+name: tsmetrics
+description: A Helm chart for tsmetrics - Tailscale Prometheus Exporter
+type: application
+version: 0.2.0
+appVersion: "0.1.7"
+keywords:
+  - tailscale
+  - prometheus
+  - monitoring
+  - metrics
+  - exporter
+  - networking
+  - observability
+home: https://github.com/sbaerlocher/tsmetrics
+sources:
+  - https://github.com/sbaerlocher/tsmetrics
+maintainers:
+  - name: sbaerlocher
+    email: info@sbaerlocher.ch
+    url: https://github.com/sbaerlocher
+annotations:
+  category: Monitoring
+  licenses: MIT
+  artifacthub.io/license: MIT
+  artifacthub.io/readme: |
+    # TSMetrics Helm Chart
+
+    A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics.
+
+    ## Features
+    - Dual data sources (API + live metrics)
+    - tsnet integration for secure access
+    - Production-ready with health checks
+    - Configurable scraping strategies
+
+    ## Quick Start
+    ```bash
+    helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics \
+      --set tailscale.oauthClientId=your-id \
+      --set tailscale.oauthClientSecret=your-secret \
+      --set tailscale.tailnetName=your-company
+    ```
+  artifacthub.io/changes: |
+    - Initial release with OCI support
+    - Health checks and probes
+    - ServiceMonitor for Prometheus Operator
+    - Persistence for tsnet state
+  artifacthub.io/links: |
+    - name: Chart Source
+      url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm/tsmetrics
+    - name: Application Source
+      url: https://github.com/sbaerlocher/tsmetrics

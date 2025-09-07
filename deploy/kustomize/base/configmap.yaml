@@ -1,0 +1,32 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tsmetrics-config
+  annotations:
+    # trivy:ignore:AVD-KSV-01010 - PORT values are not sensitive configuration
+    # kics-scan ignore-line: Pod or Container Without LimitRange - LimitRange is namespace level
+    # kics-scan ignore-line: Pod or Container Without ResourceQuota - ResourceQuota is namespace level
+    app.kubernetes.io/managed-by: kustomize
+data:
+  # Application settings
+  PORT: "9100"
+  ENV: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # tsnet configuration
+  USE_TSNET: "true"
+  TSNET_HOSTNAME: "tsmetrics"
+  TSNET_TAGS: "exporter"
+  TSNET_STATE_DIR: "/var/lib/tsmetrics/state"
+  SCRAPE_TAG: "exporter"
+
+  # Performance settings
+  CLIENT_METRICS_TIMEOUT: "10s"
+  MAX_CONCURRENT_SCRAPES: "10"
+  SCRAPE_INTERVAL: "30s"
+  CLIENT_METRICS_PORT: "5252"
+
+  # Target devices (empty = all devices)
+  TARGET_DEVICES: ""

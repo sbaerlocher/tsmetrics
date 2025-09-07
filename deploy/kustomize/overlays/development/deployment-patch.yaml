@@ -1,0 +1,66 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsmetrics
+  annotations:
+    # trivy:ignore:KSV013 - Development overlay intentionally uses flexible tags
+    # trivy:ignore:KSV0125 - ghcr.io is a trusted registry (GitHub Container Registry)
+    # kics-scan ignore-line: Using Unrecommended Namespace - Templates are namespace agnostic
+    # kics-scan ignore-line: Image Without Digest - Using tags for better readability
+    # checkov:skip=CKV_K8S_21:Default namespace is acceptable for templates
+    # checkov:skip=CKV_K8S_43:Image digest not required for development
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tsmetrics
+          image: ghcr.io/sbaerlocher/tsmetrics:main
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: LOG_LEVEL
+              # devskim: ignore DS173237 - Debug level appropriate for development environment
+              value: "debug"
+            - name: ENV
+              value: "development"
+            - name: TSNET_HOSTNAME
+              value: "tsmetrics-dev"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

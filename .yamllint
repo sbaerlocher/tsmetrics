@@ -1,0 +1,83 @@
+# YAML Lint Configuration for TSMetrics
+# See https://yamllint.readthedocs.io/en/stable/configuration.html
+
+extends: default
+
+ignore: |
+  # Helm templates (complex templating)
+  deploy/helm/templates/
+  # Generated files
+  megalinter-reports/
+  .git/
+  bin/
+  tmp/
+  # Node modules if any
+  node_modules/
+  # Vendor directories
+  vendor/
+
+rules:
+  # Line length - allow longer lines for Kubernetes manifests and Helm templates
+  line-length:
+    max: 180
+    level: warning
+
+  # Indentation - enforce 2 spaces
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Comments - allow comments without space after #
+  comments:
+    min-spaces-from-content: 1
+    require-starting-space: true
+
+  # Truthy values - allow yes/no for Kubernetes
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no', 'on', 'off']
+    check-keys: false
+
+  # Brackets - allow empty brackets and flexible spacing for Helm
+  brackets:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    min-spaces-inside-empty: 0
+    max-spaces-inside-empty: 0
+
+  # Braces - allow empty braces and flexible spacing for Helm templates
+  braces:
+    forbid: false
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    min-spaces-inside-empty: 0
+    max-spaces-inside-empty: 0
+
+  # Document start/end - be flexible for Helm templates
+  document-start: disable
+  document-end: disable
+
+  # Empty lines
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+
+  # Empty values - allow for conditional templates
+  empty-values: disable
+
+  # Hyphens
+  hyphens:
+    max-spaces-after: 1
+
+  # Key duplicates - disable for Helm conditionals
+  key-duplicates: disable
+
+  # Trailing spaces - disable for templates
+  trailing-spaces: disable
+
+  # Octal values
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

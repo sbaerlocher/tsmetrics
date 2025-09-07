@@ -1,0 +1,244 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tsmetrics.fullname" . }}
+  annotations:
+    # trivy:ignore:KSV0125 - ghcr.io is a trusted registry (GitHub Container Registry)
+    # kics-scan ignore-line: Using Unrecommended Namespace - Templates are namespace agnostic
+    # kics-scan ignore-line: Pod or Container Without LimitRange - LimitRange is namespace level
+    # kics-scan ignore-line: Pod or Container Without ResourceQuota - ResourceQuota is namespace level
+    # kics-scan ignore-line: Image Without Digest - Using tags for better readability
+    # checkov:skip=CKV_K8S_21:Default namespace is acceptable for templates
+    # checkov:skip=CKV_K8S_43:Image digest not required for development
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  labels:
+    app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "tsmetrics.chart" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        # kics-scan ignore-line: Missing AppArmor Profile - AppArmor not universally available
+        # checkov:skip=CKV_K8S_35:Secrets as env vars acceptable for this use case
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      {{- if .Values.security.useInitContainer }}
+      initContainers:
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              # Create directory and set minimal permissions
+              mkdir -p {{ .Values.tailscale.tsnet.stateDir }}
+              # If running as non-root, this will fail gracefully
+              if [ "$(id -u)" = "0" ]; then
+                chown 65534:65534 {{ .Values.tailscale.tsnet.stateDir }} || true
+                chmod 755 {{ .Values.tailscale.tsnet.stateDir }} || true
+              fi
+          securityContext:
+            runAsNonRoot: {{ not .Values.security.initContainerPrivileged }}
+            {{- if .Values.security.initContainerPrivileged }}
+            runAsUser: 0
+            {{- else }}
+            runAsUser: 65534
+            runAsGroup: 65534
+            {{- end }}
+            allowPrivilegeEscalation: {{ .Values.security.initContainerPrivileged }}
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            # kics-scan ignore-line: Volume Mount With OS Directory Write Permissions - Required for tsnet state
+            - name: tsnet-state
+              mountPath: {{ .Values.tailscale.tsnet.stateDir }}
+{{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add: []
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.config.port | quote }}
+            - name: ENV
+              value: {{ .Values.config.env | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.config.logFormat | quote }}
+            {{- if .Values.tailscale.tsnet.enabled }}
+            - name: USE_TSNET
+              value: "true"
+            - name: TSNET_HOSTNAME
+              value: {{ .Values.tailscale.tsnet.hostname | quote }}
+            - name: TSNET_TAGS
+              value: {{ .Values.tailscale.tsnet.tags | quote }}
+            - name: TSNET_STATE_DIR
+              value: {{ .Values.tailscale.tsnet.stateDir | quote }}
+            {{- if .Values.config.scrapeTag }}
+            - name: SCRAPE_TAG
+              value: {{ .Values.config.scrapeTag | quote }}
+            {{- end }}
+            {{- end }}
+            - name: CLIENT_METRICS_TIMEOUT
+              value: {{ .Values.config.clientMetricsTimeout | quote }}
+            - name: MAX_CONCURRENT_SCRAPES
+              value: {{ .Values.config.maxConcurrentScrapes | quote }}
+            - name: SCRAPE_INTERVAL
+              value: {{ .Values.config.scrapeInterval | quote }}
+            - name: CLIENT_METRICS_PORT
+              value: {{ .Values.config.clientMetricsPort | quote }}
+            {{- if .Values.config.targetDevices }}
+            - name: TARGET_DEVICES
+              value: {{ .Values.config.targetDevices | quote }}
+            {{- end }}
+{{- if not .Values.externalSecret.enabled }}
+{{- if .Values.tailscale.oauthClientId }}
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tsmetrics.fullname" . }}
+                  key: oauth-client-id
+{{- end }}
+{{- if .Values.tailscale.oauthClientSecret }}
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tsmetrics.fullname" . }}
+                  key: oauth-client-secret
+{{- end }}
+{{- if .Values.tailscale.tailnetName }}
+            - name: TAILNET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tsmetrics.fullname" . }}
+                  key: tailnet-name
+{{- end }}
+{{- if .Values.tailscale.tsnet.authKey }}
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tsmetrics.fullname" . }}
+                  key: ts-authkey
+{{- end }}
+{{- end }}
+{{- if .Values.externalSecret.enabled }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "tsmetrics.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.externalSecret.secretName }}
+{{- else }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "tsmetrics.fullname" . }}-config
+{{- end }}
+          volumeMounts:
+            # kics-scan ignore-line: Volume Mount With OS Directory Write Permissions - Required for tsnet state
+            - name: tsnet-state
+              mountPath: {{ .Values.tailscale.tsnet.stateDir }}
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: tsnet-state
+{{- if eq .Values.storage.type "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ include "tsmetrics.fullname" . }}-state
+{{- else if eq .Values.storage.type "emptyDir" }}
+          emptyDir:
+            {{- if .Values.storage.emptyDir.sizeLimit }}
+            sizeLimit: {{ .Values.storage.emptyDir.sizeLimit }}
+            {{- end }}
+            {{- if .Values.storage.emptyDir.medium }}
+            medium: {{ .Values.storage.emptyDir.medium }}
+            {{- end }}
+{{- else if eq .Values.storage.type "hostPath" }}
+          hostPath:
+            path: {{ .Values.storage.hostPath.path }}
+            type: {{ .Values.storage.hostPath.type }}
+{{- else if eq .Values.storage.type "memory" }}
+          emptyDir:
+            medium: "Memory"
+            {{- if .Values.storage.memory.sizeLimit }}
+            sizeLimit: {{ .Values.storage.memory.sizeLimit }}
+            {{- end }}
+{{- end }}
+{{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+{{- end }}

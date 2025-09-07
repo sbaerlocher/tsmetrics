@@ -1,0 +1,120 @@
+---
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - main: ./cmd/tsmetrics
+    binary: tsmetrics
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.Date}}
+      - -extldflags "-static"
+    flags:
+      - -trimpath
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    formats:
+      - tar.gz
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+  - id: windows
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    formats:
+      - zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^build:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Performance Improvements"
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "Other Changes"
+      order: 999
+
+release:
+  github:
+    owner: sbaerlocher
+    name: tsmetrics
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## 🚀 TSMetrics {{.Tag}}
+
+    ### 📦 Installation
+
+    **Binary Downloads:**
+    Choose the appropriate binary for your platform from the assets below.
+
+    **Docker:**
+    ```bash
+    docker pull ghcr.io/sbaerlocher/tsmetrics:{{.Tag}}
+    ```
+
+    **Helm Chart:**
+    ```bash
+    helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics --version {{.Tag}}
+    ```
+
+  footer: |
+    **Full Changelog**: https://github.com/sbaerlocher/tsmetrics/compare/{{.PreviousTag}}...{{.Tag}}
+
+    ### 🔐 Verification
+    ```bash
+    sha256sum -c checksums.txt
+    ```

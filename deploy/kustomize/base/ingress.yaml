@@ -1,0 +1,22 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tsmetrics
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+    prometheus.io/path: "/metrics"
+spec:
+  rules:
+    - host: tsmetrics.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tsmetrics
+                port:
+                  number: 9100

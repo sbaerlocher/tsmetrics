@@ -2,7 +2,37 @@
 
 ## Purpose
 
-Comprehensive Tailscale Prometheus Exporter that combines API metadata with live device metrics for complete network observability.
+Tailscale Prometheus Exporter that combines API metadata with live device metrics for complete network observability.
+
+### Device Management (from Tailscale API)
+
+- tailscale_device_count
+- tailscale_device_info{device_id, device_name, os, version}
+- tailscale_device_authorized{device_id, device_name}
+- tailscale_device_last_seen_timestamp{device_id, device_name}
+- tailscale_device_user{device_id, device_name, user_email}
+- tailscale_device_machine_key_expiry{device_id, device_name}
+- tailscale_device_update_available{device_id, device_name}
+- tailscale_device_created_timestamp{device_id, device_name}
+- tailscale_device_external{device_id, device_name}
+- tailscale_device_blocks_incoming_connections{device_id, device_name}
+- tailscale_device_ephemeral{device_id, device_name}
+- tailscale_device_multiple_connections{device_id, device_name}
+- tailscale_device_tailnet_lock_error{device_id, device_name}
+
+### Network Configuration (from Tailscale API)
+
+- tailscale_device_routes_advertised{device_id, device_name, route}
+- tailscale_device_routes_enabled{device_id, device_name, route}
+- tailscale_device_exit_node{device_id, device_name}
+- tailscale_device_subnet_router{device_id, device_name}
+
+### Connectivity & Performance (from Tailscale API)
+
+- tailscale_device_latency_ms{device_id, device_name, derp_region, preferred}
+- tailscale_device_endpoints_total{device_id, device_name}
+- tailscale_device_client_supports{device_id, device_name, feature}
+- tailscale_device_posture_serial_numbers_total{device_id, device_name}
 
 ## Context
 
@@ -17,8 +47,10 @@ Comprehensive Tailscale Prometheus Exporter that combines API metadata with live
 ### What tsmetrics does
 
 1. **Device Discovery:** Fetch all Tailscale devices via REST API (`/api/v2/tailnet/{tailnet}/devices`)
-2. **API Metrics Collection:** Extract device metadata, authorization status, routing configuration, user assignments from API
-3. **Client Metrics Scraping:** Collect live performance data from each device's metrics endpoint (`http://device:5252/metrics`)
+2. **API Metrics Collection:** Extract device metadata, authorization status, routing configuration,
+   user assignments from API
+3. **Client Metrics Scraping:** Collect live performance data from each device's metrics endpoint
+   (`http://device:5252/metrics`)
 4. **Metrics Aggregation:** Combine API and client data into unified Prometheus metrics
 5. **Single Endpoint:** Expose all metrics at `/metrics` for Prometheus scraping
 6. **Optional tsnet Integration:** Join Tailnet as device for secure internal access
@@ -482,4 +514,6 @@ make k8s-deploy   # Deploy to Kubernetes
 - **Device Scraping:** Check that target devices have metrics enabled on port 5252
 - **Network Connectivity:** Verify firewall rules allow HTTP access to device metrics
 
-This specification balances comprehensive functionality with practical implementation constraints. The focus is on delivering reliable observability for Tailscale networks through a combination of API metadata and live device metrics.
+This specification balances comprehensive functionality with practical implementation constraints.
+The focus is on delivering reliable observability for Tailscale networks through a combination of
+API metadata and live device metrics.

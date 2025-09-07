@@ -1,0 +1,36 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tsmetrics.fullname" . }}-config
+  labels:
+    app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # checkov:skip=CKV_K8S_21:Default namespace is acceptable for templates
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  # Application settings
+  PORT: {{ .Values.config.port | quote }}
+  ENV: {{ .Values.config.env | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  LOG_FORMAT: {{ .Values.config.logFormat | quote }}
+
+  # tsnet configuration
+  {{- if .Values.tailscale.tsnet.enabled }}
+  TSNET_HOSTNAME: {{ .Values.tailscale.tsnet.hostname | quote }}
+  TSNET_STATE_DIR: {{ .Values.tailscale.tsnet.stateDir | quote }}
+  {{- end }}
+
+  # Client metrics configuration
+  CLIENT_METRICS_PORT: {{ .Values.config.clientMetricsPort | quote }}
+  CLIENT_METRICS_TIMEOUT: {{ .Values.config.clientMetricsTimeout | quote }}
+  MAX_CONCURRENT_SCRAPES: {{ .Values.config.maxConcurrentScrapes | quote }}
+  SCRAPE_INTERVAL: {{ .Values.config.scrapeInterval | quote }}
+
+  # Tailscale API configuration
+  TAILNET_NAME: {{ .Values.tailscale.tailnetName | quote }}
+  SCRAPE_TAG: {{ .Values.config.scrapeTag | quote }}
+  TARGET_DEVICES: {{ .Values.config.targetDevices | quote }}

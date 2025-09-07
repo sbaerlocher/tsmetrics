@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  cmd = "go build -ldflags \"-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}\" -o bin/tsmetrics ."
+  cmd = "go build -ldflags \"-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X tailscale.com/version.longStamp=${VERSION_LONG} -X tailscale.com/version.shortStamp=${VERSION_SHORT}\" -o bin/tsmetrics ./cmd/tsmetrics"
   bin = "bin/tsmetrics"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "deploy"]
@@ -12,7 +12,7 @@ tmp_dir = "tmp"
   exclude_regex = ["_test.go"]
   exclude_unchanged = false
   follow_symlink = false
-  full_bin = "USE_TSNET=true TSNET_HOSTNAME=tsmetrics-dev TSNET_TAGS=exporter REQUIRE_EXPORTER_TAG=true TARGET_DEVICES=gateway-140207,gateway-130104 ENV=development PORT=9100 bin/tsmetrics"
+  full_bin = "bin/tsmetrics"
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html"]
   include_file = []

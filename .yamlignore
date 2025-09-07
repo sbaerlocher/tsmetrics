@@ -1,0 +1,11 @@
+# YAML Schema Ignore Patterns
+# Ignore ServiceMonitor files as they are CRDs, not standard Kubernetes resources
+**/servicemonitor*.yaml
+**/*servicemonitor*.yaml
+
+# Ignore patch files that might have incomplete structures
+**/patches/*.yaml
+**/*patch*.yaml
+
+# Ignore template files that might contain variables
+**/templates/*.yaml

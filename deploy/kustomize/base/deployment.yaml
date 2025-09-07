@@ -1,0 +1,136 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tsmetrics
+  annotations:
+    # trivy:ignore:KSV0125 - ghcr.io is a trusted registry (GitHub Container Registry)
+    # kics-scan ignore-line: Using Unrecommended Namespace - Templates are namespace agnostic
+    # kics-scan ignore-line: Missing AppArmor Profile - AppArmor not universally available
+    # kics-scan ignore-line: Pod or Container Without LimitRange - LimitRange is namespace level
+    # kics-scan ignore-line: Pod or Container Without ResourceQuota - ResourceQuota is namespace level
+    # kics-scan ignore-line: Image Without Digest - Using tags for better readability
+    # checkov:skip=CKV_K8S_21:Default namespace is acceptable for templates
+    # checkov:skip=CKV_K8S_43:Image digest not required for development
+    app.kubernetes.io/managed-by: kustomize
+  labels:
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tsmetrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tsmetrics
+      annotations:
+        # kics-scan ignore-line: Missing AppArmor Profile - AppArmor not universally available
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tsmetrics
+          image: ghcr.io/sbaerlocher/tsmetrics:v1.0.0
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add: []
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 9100
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "9100"
+            - name: ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: LOG_FORMAT
+              value: "json"
+            - name: USE_TSNET
+              value: "true"
+            - name: TSNET_HOSTNAME
+              value: "tsmetrics"
+            - name: TSNET_TAGS
+              value: "exporter"
+            - name: TSNET_STATE_DIR
+              value: "/var/lib/tsmetrics/state"
+            - name: SCRAPE_TAG
+              value: "exporter"
+            - name: CLIENT_METRICS_TIMEOUT
+              value: "10s"
+            - name: MAX_CONCURRENT_SCRAPES
+              value: "10"
+            - name: SCRAPE_INTERVAL
+              value: "30s"
+            - name: CLIENT_METRICS_PORT
+              value: "5252"
+            - name: TARGET_DEVICES
+              value: ""
+          envFrom:
+            - secretRef:
+                name: tsmetrics-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          volumeMounts:
+            # kics-scan ignore-line: Volume Mount With OS Directory Write Permissions - Required for tsnet state
+            - name: tsnet-state
+              mountPath: /var/lib/tsmetrics/state
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tsnet-state
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

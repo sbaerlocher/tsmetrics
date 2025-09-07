@@ -1,102 +1,73 @@
+---
 name: Release
 
-on:
+"on":
   push:
-    tags:
-      - 'v*'
+    tags: ["v*"]
 
 env:
+  GO_VERSION: "1.25"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CHART_NAME: tsmetrics
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  # ==============================================================================
+  # SETUP FOR RELEASE
+  # ==============================================================================
+  setup:
+    name: Setup Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/checkout@v5
         with:
-          go-version: '1.24'
+          fetch-depth: 0
 
-      - name: Get version from tag
+      - name: Get version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Build binaries
         run: |
-          mkdir -p release
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
 
-          # Build for multiple platforms
-          platforms=("linux/amd64" "linux/arm64" "windows/amd64" "darwin/amd64" "darwin/arm64")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
 
-          for platform in "${platforms[@]}"; do
-            platform_split=(${platform//\// })
-            GOOS=${platform_split[0]}
-            GOARCH=${platform_split[1]}
+          # Check if this is a prerelease (contains alpha, beta, rc)
+          if [[ "$VERSION" =~ (alpha|beta|rc) ]]; then
+            echo "is-prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "This is a prerelease"
+          else
+            echo "is-prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "This is a stable release"
+          fi
 
-            output_name="tsmetrics-${GOOS}-${GOARCH}"
-            if [ $GOOS = "windows" ]; then
-              output_name+='.exe'
-            fi
-
-            echo "Building for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH go build \
-              -ldflags="-s -w -X main.version=${{ steps.version.outputs.VERSION }} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              -o release/$output_name .
-          done
-
-      - name: Create checksums
-        run: |
-          cd release
-          sha256sum * > checksums.txt
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            release/*
-          body: |
-            ## Changes
-
-            * See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details
-
-            ## Installation
-
-            Download the appropriate binary for your platform from the assets below.
-
-            ### Docker
-            ```bash
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-            ```
-
-            ### Verification
-            Verify the integrity of your download:
-            ```bash
-            sha256sum -c checksums.txt
-            ```
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  docker:
-    name: Build and Push Docker Image
+  # ==============================================================================
+  # DOCKER RELEASE
+  # ==============================================================================
+  docker-release:
+    name: Docker Release
     runs-on: ubuntu-latest
+    needs: setup
     permissions:
       contents: read
       packages: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -108,7 +79,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract metadata for release
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -118,9 +89,29 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ needs.setup.outputs.is-prerelease == 'false' }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Calculate build versions
+        id: build-versions
+        run: |
+          # Get Tailscale version from go.mod
+          TSNET_VERSION=$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")
+          VERSION_CLEAN=$(echo "${{ needs.setup.outputs.version }}" | sed 's/^v//')
+          VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
+          VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+          {
+            echo "tsnet_version=$TSNET_VERSION"
+            echo "version_long=$VERSION_LONG"
+            echo "version_short=$VERSION_SHORT"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "TSNET Version: $TSNET_VERSION"
+          echo "Version Long: $VERSION_LONG"
+          echo "Version Short: $VERSION_SHORT"
+
+      - name: Build and push multi-platform release image
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -128,7 +119,129 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ needs.setup.outputs.version }}
             BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION_LONG=${{ steps.build-versions.outputs.version_long }}
+            VERSION_SHORT=${{ steps.build-versions.outputs.version_short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # ==============================================================================
+  # HELM RELEASE
+  # ==============================================================================
+  helm-release:
+    name: Helm Release
+    runs-on: ubuntu-latest
+    needs: setup
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.14.0"
+
+      - name: Update Chart version and appVersion
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+
+          sed -i "s/^version:.*/version: $VERSION/" deploy/helm/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" deploy/helm/Chart.yaml
+
+          echo "Updated Chart.yaml:"
+          grep -E "(version|appVersion):" deploy/helm/Chart.yaml
+
+      - name: Package and publish Helm chart
+        run: |
+          # Package chart
+          helm package deploy/helm --destination .
+
+          # Login to registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${{ env.REGISTRY }}" --username "${{ github.actor }}" --password-stdin
+
+          # Push chart
+          VERSION="${{ needs.setup.outputs.version }}"
+          VERSION="${VERSION#v}"
+          helm push "${{ env.CHART_NAME }}-$VERSION.tgz" "oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts"
+
+          echo "✅ Helm chart published successfully"
+
+  # ==============================================================================
+  # GITHUB RELEASE
+  # ==============================================================================
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [setup, docker-release, helm-release]
+    if: always() && needs.setup.result == 'success'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Create release with GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+  # ==============================================================================
+  # RELEASE SUMMARY
+  # ==============================================================================
+  release-summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs: [setup, docker-release, helm-release, github-release]
+    if: always()
+
+    steps:
+      - name: Release Summary
+        run: |
+          {
+            echo "## 🚀 Release Pipeline Summary"
+            echo ""
+            echo "- **Version:** ${{ needs.setup.outputs.version }}"
+            echo "- **Prerelease:** ${{ needs.setup.outputs.is-prerelease }}"
+            echo ""
+            echo "### 📦 Release Components"
+            echo "- **Docker Release:** ${{ needs.docker-release.result }}"
+            echo "- **Helm Release:** ${{ needs.helm-release.result }}"
+            echo "- **GitHub Release:** ${{ needs.github-release.result }}"
+            echo ""
+            if [[ "${{ needs.docker-release.result }}" == "success" ]]; then
+              echo "### 🐳 Container Images"
+              echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.version }}"
+              echo "- **Latest:** Available for stable releases only"
+            fi
+            echo ""
+            if [[ "${{ needs.helm-release.result }}" == "success" ]]; then
+              echo "### ⎈ Helm Chart"
+              echo "- **Registry:** oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts/${{ env.CHART_NAME }}"
+              echo "- **Version:** ${{ needs.setup.outputs.version }}"
+            fi
+            echo ""
+            if [[ "${{ needs.github-release.result }}" == "success" ]]; then
+              echo "### 📋 Release Notes"
+              echo "- **GitHub Release:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.version }}"
+              echo "- **Binaries:** Available for Linux, macOS, Windows (AMD64 & ARM64)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

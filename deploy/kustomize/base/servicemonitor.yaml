@@ -1,0 +1,16 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tsmetrics
+  labels:
+    app.kubernetes.io/name: tsmetrics
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tsmetrics
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 30s

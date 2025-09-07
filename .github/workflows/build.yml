@@ -1,0 +1,334 @@
+---
+name: Build & Test
+
+"on":
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types: [completed]
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CHART_NAME: tsmetrics
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ==============================================================================
+  # SETUP (Reused from CI or standalone)
+  # ==============================================================================
+  setup:
+    name: Setup & Change Detection
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      helm-changed: ${{ steps.changes.outputs.helm }}
+      go-changed: ${{ steps.changes.outputs.go }}
+      docker-changed: ${{ steps.changes.outputs.docker }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            helm:
+              - 'deploy/helm/**'
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'cmd/**'
+              - 'internal/**'
+              - 'pkg/**'
+            docker:
+              - 'Dockerfile'
+              - '.dockerignore'
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v.* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.sha }}"
+            VERSION="${VERSION:0:8}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+  # ==============================================================================
+  # DOCKER BUILD & TEST
+  # ==============================================================================
+  docker-build:
+    name: Docker Build & Test
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.go-changed == 'true' || needs.setup.outputs.docker-changed == 'true' || github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate build metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-,suffix=-{{date 'YYYYMMDD-HHmmss'}}
+          labels: |
+            org.opencontainers.image.title=tsmetrics
+            org.opencontainers.image.description=A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics for complete network observability.
+            org.opencontainers.image.source=https://github.com/sbaerlocher/tsmetrics
+            org.opencontainers.image.licenses=MIT
+
+      - name: Calculate build versions
+        id: build-versions
+        run: |
+          # Get Tailscale version from go.mod
+          TSNET_VERSION=$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")
+          VERSION_CLEAN=$(echo "${{ needs.setup.outputs.version }}" | sed 's/^v//')
+          VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
+          VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+          {
+            echo "tsnet_version=$TSNET_VERSION"
+            echo "version_long=$VERSION_LONG"
+            echo "version_short=$VERSION_SHORT"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "TSNET Version: $TSNET_VERSION"
+          echo "Version Long: $VERSION_LONG"
+          echo "Version Short: $VERSION_SHORT"
+
+      - name: Build Docker image for testing
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.setup.outputs.version }}
+            BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION_LONG=${{ steps.build-versions.outputs.version_long }}
+            VERSION_SHORT=${{ steps.build-versions.outputs.version_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container structure tests
+        run: |
+          # Use the first tag from the JSON output for consistency with Trivy
+          TEST_IMAGE="${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
+          echo "Using test image: $TEST_IMAGE"
+          docker run --rm \
+            -v "$PWD/tests/structure/container-test.yml:/test-config.yaml:ro" \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            gcr.io/gcp-runtimes/container-structure-test:latest \
+            test --image="$TEST_IMAGE" --config=/test-config.yaml
+
+      - name: Test Docker image functionality
+        run: |
+          TEST_IMAGE="${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
+          echo "Testing image: $TEST_IMAGE"
+          docker run --rm "$TEST_IMAGE" --help
+          docker run --rm "$TEST_IMAGE" --version
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-image.sarif"
+          severity: "HIGH,CRITICAL"
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "trivy-image.sarif"
+          category: "trivy-image"
+        continue-on-error: true
+
+      - name: Cleanup test images
+        if: always()
+        run: |
+          # Delete the temporary test images from registry
+          # This prevents cluttering the registry with test builds
+          if [ -n "${{ fromJSON(steps.meta.outputs.json).tags[0] }}" ]; then
+            IMAGE_TAG="${{ fromJSON(steps.meta.outputs.json).tags[0] }}"
+            echo "Cleaning up test image: $IMAGE_TAG"
+
+            # Extract package version from tag
+            PACKAGE_VERSION=$(echo "$IMAGE_TAG" | cut -d':' -f2)
+            echo "Attempting to delete package version: $PACKAGE_VERSION"
+
+            curl -X DELETE \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/$(echo '${{ env.IMAGE_NAME }}' | cut -d'/' -f2)/versions" \
+              -d "{\"names\":[\"$PACKAGE_VERSION\"]}" || echo "Could not delete package version (may not exist or insufficient permissions)"
+          fi
+        continue-on-error: true
+
+  # HELM CHART TESTS
+  # ==============================================================================
+  helm-test:
+    name: Helm Chart Test
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.helm-changed == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.14.0"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.29.0"
+
+      - name: Create Kind config
+        run: |
+          cat > kind-config.yaml << EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+          - role: control-plane
+          EOF
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: helm-test
+          kubectl_version: v1.29.0
+          config: kind-config.yaml
+
+      - name: Lint Helm Chart
+        run: |
+          helm lint deploy/helm
+          helm lint deploy/helm --strict
+
+      - name: Test chart templates
+        run: |
+          # Test minimal configuration
+          helm template test-minimal deploy/helm \
+            --set tailscale.oauthClientId=test-id \
+            --set tailscale.oauthClientSecret=test-secret \
+            --set tailscale.tailnetName=test.ts.net \
+            --set image.tag=latest \
+            --set persistence.enabled=false \
+            --validate > /tmp/minimal-manifest.yaml
+
+          # Validate Kubernetes manifests
+          kubectl --dry-run=server apply -f /tmp/minimal-manifest.yaml
+
+          echo "✅ Minimal template test passed"
+
+          # Test production configuration (without ServiceMonitor for CI)
+          helm template test-production deploy/helm \
+            --set replicaCount=2 \
+            --set tailscale.oauthClientId=prod-id \
+            --set tailscale.oauthClientSecret=prod-secret \
+            --set tailscale.tailnetName=company.ts.net \
+            --set tailscale.tsnet.enabled=true \
+            --set persistence.enabled=true \
+            --set serviceMonitor.enabled=false \
+            --set autoscaling.enabled=true \
+            --validate > /tmp/production-manifest.yaml
+
+          kubectl --dry-run=server apply -f /tmp/production-manifest.yaml
+
+          echo "✅ Production template test passed"
+
+      - name: Test Kustomize templates
+        run: |
+          # Test development configuration (without ServiceMonitor)
+          kubectl kustomize deploy/kustomize/overlays/development > /tmp/kustomize-dev-manifest.yaml
+          kubectl --dry-run=server apply -f /tmp/kustomize-dev-manifest.yaml
+
+          echo "✅ Kustomize development template test passed"
+
+      - name: Test Helm chart templating
+        run: |
+          # Test Helm chart templating (no cluster needed)
+          helm template test-release deploy/helm \
+            --set tailscale.oauthClientId=test-client-id \
+            --set tailscale.oauthClientSecret=test-client-secret \
+            --set tailscale.tailnetName=test.ts.net \
+            --set image.tag=latest \
+            --dry-run --debug > /tmp/helm-output.yaml
+
+          # Verify the generated manifests contain expected resources
+          echo "✅ Checking generated manifests..."
+          grep -q "kind: Deployment" /tmp/helm-output.yaml || exit 1
+          grep -q "kind: Service" /tmp/helm-output.yaml || exit 1
+          grep -q "kind: Secret" /tmp/helm-output.yaml || exit 1
+          grep -q "test-client-id" /tmp/helm-output.yaml || exit 1
+          echo "✅ Helm chart templating test passed"
+
+  # ==============================================================================
+  # BUILD SUMMARY
+  # ==============================================================================
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [setup, docker-build, helm-test]
+    if: always()
+
+    steps:
+      - name: Build Summary
+        run: |
+          {
+            echo "## 🏗️ Build Pipeline Summary"
+            echo ""
+            echo "- **Version:** ${{ needs.setup.outputs.version }}"
+            echo "- **Docker Build:** ${{ needs.docker-build.result }}"
+            echo "- **Helm Test:** ${{ needs.helm-test.result }}"
+            echo ""
+            if [[ "${{ needs.docker-build.result }}" == "success" ]]; then
+              echo "### 🐳 Container Images"
+              echo "- **Images built and tested locally** ✅"
+              echo "- **No test images pushed to registry** 🚀"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

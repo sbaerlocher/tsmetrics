@@ -1,0 +1,58 @@
+---
+schemaVersion: "2.0.0"
+
+commandTests:
+  # TSMetrics Binary Tests
+  - name: "Check tsmetrics help command"
+    command: "/tsmetrics"
+    args: ["--help"]
+    expectedOutput:
+      - "TSMetrics - Tailscale device metrics collector"
+      - "Usage: tsmetrics"
+
+  - name: "Check tsmetrics version command"
+    command: "/tsmetrics"
+    args: ["--version"]
+    expectedOutput:
+      - "tsmetrics"
+
+fileExistenceTests:
+  - name: "Check TSMetrics Binary"
+    path: "/tsmetrics"
+    shouldExist: true
+    permissions: "-rwxr-xr-x"
+
+  - name: "Check CA Certificates"
+    path: "/etc/ssl/certs/ca-certificates.crt"
+    shouldExist: true
+
+  - name: "Check Root Directory is Minimal"
+    path: "/root"
+    shouldExist: false
+
+  - name: "Check No Shell Available"
+    path: "/bin/sh"
+    shouldExist: false
+
+  - name: "Check No Package Manager"
+    path: "/usr/bin/apk"
+    shouldExist: false
+
+  - name: "Check No Package Manager (apt)"
+    path: "/usr/bin/apt"
+    shouldExist: false
+
+  - name: "Check No Package Manager (yum)"
+    path: "/usr/bin/yum"
+    shouldExist: false
+
+metadataTest:
+  labels:
+    - key: "org.opencontainers.image.title"
+      value: "tsmetrics"
+    - key: "org.opencontainers.image.description"
+      value: "A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics for complete network observability."
+  exposedPorts: ["9100"]
+  user: "65534:65534"
+  entrypoint: ["/tsmetrics"]
+  cmd: []

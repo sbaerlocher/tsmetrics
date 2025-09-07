@@ -1,49 +1,44 @@
+---
 version: 2
 updates:
   # Go modules
-  - package-ecosystem: 'gomod'
-    directory: '/'
+  - package-ecosystem: "gomod"
+    directory: "/"
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '06:00'
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - 'sbaerlocher'
     assignees:
-      - 'sbaerlocher'
+      - "sbaerlocher"
     commit-message:
-      prefix: 'deps'
-      include: 'scope'
+      prefix: "deps"
+      include: "scope"
 
   # GitHub Actions
-  - package-ecosystem: 'github-actions'
-    directory: '/'
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '06:00'
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - 'sbaerlocher'
     assignees:
-      - 'sbaerlocher'
+      - "sbaerlocher"
     commit-message:
-      prefix: 'ci'
-      include: 'scope'
+      prefix: "ci"
+      include: "scope"
 
   # Docker
-  - package-ecosystem: 'docker'
-    directory: '/'
+  - package-ecosystem: "docker"
+    directory: "/"
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '06:00'
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - 'sbaerlocher'
     assignees:
-      - 'sbaerlocher'
+      - "sbaerlocher"
     commit-message:
-      prefix: 'docker'
-      include: 'scope'
+      prefix: "docker"
+      include: "scope"

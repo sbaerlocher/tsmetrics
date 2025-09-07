@@ -1,6 +1,0 @@
-version: '3.8'
-services:
-  tsmetrics:
-    build: ..
-    ports:
-      - '9100:9100'
