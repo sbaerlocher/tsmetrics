@@ -1,12 +1,12 @@
 module github.com/sbaerlocher/tsmetrics
 
-go 1.25
+go 1.25.1
 
 require (
 	github.com/prometheus/client_golang v1.23.2
 	golang.org/x/oauth2 v0.31.0
 	golang.org/x/time v0.13.0
-	tailscale.com v1.86.5
+	tailscale.com v1.88.1
 )
 
 require (
