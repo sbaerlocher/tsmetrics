@@ -7,7 +7,7 @@ ARG VERSION_LONG=""
 ARG VERSION_SHORT=""
 
 RUN apk update && \
-  apk add --no-cache git=~2.49
+  apk add --no-cache git~2.52
 
 WORKDIR /src
 
