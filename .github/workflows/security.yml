@@ -35,4 +35,3 @@ jobs:
     uses: sbaerlocher/.github/.github/workflows/security-containers.yml@2026-03-07
     with:
       image-ref: "ghcr.io/${{ github.repository }}:latest"
-      scan-type: "registry"
