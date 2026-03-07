@@ -40,7 +40,7 @@ Tailscale Prometheus Exporter that combines API metadata with live device metric
 - **Language:** Go with Prometheus Client Library and Tailscale tsnet
 - **Architecture:** Single binary aggregates Tailscale API data + device client metrics
 - **Deployment:** Docker/Kubernetes ready with optional tsnet integration
-- **Entry Point:** `main.go`
+- **Entry Point:** `cmd/tsmetrics/main.go`
 
 ## Core Functionality
 
@@ -118,12 +118,12 @@ tsmetrics_api_requests_total{endpoint}
 
 ### Key Files
 
-- `main.go` — Main application with exporter logic and tsnet integration
+- `cmd/tsmetrics/main.go` — Main application with exporter logic and tsnet integration
 - `Makefile` — Build/dev/docker targets
 - `.air.toml` — Live-reload configuration
 - `.env.example` — All environment variables
-- `deploy/kubernetes.yaml` — K8s deployment manifest
-- `deploy/docker-compose.yaml` — Docker Compose setup
+- `deploy/helm/` — Helm chart for Kubernetes deployment
+- `deploy/kustomize/` — Kustomize overlays for dev/prod
 
 ## Environment Variables
 
@@ -171,7 +171,7 @@ go mod tidy
 go test -v ./...
 
 # Build with metadata
-go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o bin/tsmetrics .
+go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o bin/tsmetrics ./cmd/tsmetrics
 ```
 
 ### 2. Development Runtime Checks
@@ -205,8 +205,8 @@ export TSNET_HOSTNAME=tsmetrics-dev
 export TSNET_TAGS=exporter
 export REQUIRE_EXPORTER_TAG=true
 
-# Start with tsnet
-make dev-tsnet
+# Start with tsnet (set USE_TSNET=true before running make dev)
+make dev
 
 # Verification
 # 1. Check tsnet startup logs
@@ -329,38 +329,38 @@ spec:
         app: tsmetrics
     spec:
       containers:
-      - name: tsmetrics
-        image: ghcr.io/sbaerlocher/tsmetrics:latest
-        ports:
-        - containerPort: 9100
-        env:
-        - name: USE_TSNET
-          value: "true"
-        - name: TSNET_HOSTNAME
-          value: "tsmetrics"
-        - name: TSNET_TAGS
-          value: "exporter"
-        - name: OAUTH_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: tailscale-oauth
-              key: client-id
-        - name: OAUTH_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: tailscale-oauth
-              key: client-secret
-        - name: TAILNET_NAME
-          valueFrom:
-            secretKeyRef:
-              name: tailscale-oauth
-              key: tailnet-name
-        volumeMounts:
-        - name: tsnet-state
-          mountPath: /tmp/tsnet-state
+        - name: tsmetrics
+          image: ghcr.io/sbaerlocher/tsmetrics:latest
+          ports:
+            - containerPort: 9100
+          env:
+            - name: USE_TSNET
+              value: "true"
+            - name: TSNET_HOSTNAME
+              value: "tsmetrics"
+            - name: TSNET_TAGS
+              value: "exporter"
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: client-id
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: client-secret
+            - name: TAILNET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: tailnet-name
+          volumeMounts:
+            - name: tsnet-state
+              mountPath: /tmp/tsnet-state
       volumes:
-      - name: tsnet-state
-        emptyDir: {}
+        - name: tsnet-state
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -370,9 +370,9 @@ metadata:
     app: tsmetrics
 spec:
   ports:
-  - port: 9100
-    targetPort: 9100
-    name: metrics
+    - port: 9100
+      targetPort: 9100
+      name: metrics
   selector:
     app: tsmetrics
 ```
@@ -381,9 +381,9 @@ spec:
 
 ```yaml
 scrape_configs:
-  - job_name: 'tailscale-metrics'
+  - job_name: "tailscale-metrics"
     static_configs:
-      - targets: ['tsmetrics.tailnet.ts.net:9100']  # tsnet mode
+      - targets: ["tsmetrics.tailnet.ts.net:9100"] # tsnet mode
       # - targets: ['tsmetrics:9100']                # k8s mode
     scrape_interval: 60s
     metrics_path: /metrics
@@ -492,7 +492,6 @@ cp .env.example .env
 
 # Development cycle
 make dev          # Standalone development with live reload
-make dev-tsnet    # tsnet development mode
 make test         # Run test suite
 make build        # Production build
 
@@ -500,8 +499,9 @@ make build        # Production build
 make docker-build
 make docker-run
 
-# Deployment
-make k8s-deploy   # Deploy to Kubernetes
+# Kubernetes deployment
+make helm-install       # Deploy with Helm
+make kustomize-prod     # Deploy with Kustomize
 ```
 
 ## Troubleshooting

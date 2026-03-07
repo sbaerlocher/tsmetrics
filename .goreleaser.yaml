@@ -22,6 +22,8 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.buildTime={{.Date}}
+      - -X tailscale.com/version.longStamp={{.Env.VERSION_LONG}}
+      - -X tailscale.com/version.shortStamp={{.Env.VERSION_SHORT}}
       - -extldflags "-static"
     flags:
       - -trimpath
