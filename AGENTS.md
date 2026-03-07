@@ -40,7 +40,7 @@ Tailscale Prometheus Exporter that combines API metadata with live device metric
 - **Language:** Go with Prometheus Client Library and Tailscale tsnet
 - **Architecture:** Single binary aggregates Tailscale API data + device client metrics
 - **Deployment:** Docker/Kubernetes ready with optional tsnet integration
-- **Entry Point:** `main.go`
+- **Entry Point:** `cmd/tsmetrics/main.go`
 
 ## Core Functionality
 
@@ -118,12 +118,12 @@ tsmetrics_api_requests_total{endpoint}
 
 ### Key Files
 
-- `main.go` — Main application with exporter logic and tsnet integration
+- `cmd/tsmetrics/main.go` — Main application with exporter logic and tsnet integration
 - `Makefile` — Build/dev/docker targets
 - `.air.toml` — Live-reload configuration
 - `.env.example` — All environment variables
-- `deploy/kubernetes.yaml` — K8s deployment manifest
-- `deploy/docker-compose.yaml` — Docker Compose setup
+- `deploy/helm/` — Helm chart for Kubernetes deployment
+- `deploy/kustomize/` — Kustomize overlays for dev/prod
 
 ## Environment Variables
 
@@ -171,7 +171,7 @@ go mod tidy
 go test -v ./...
 
 # Build with metadata
-go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o bin/tsmetrics .
+go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o bin/tsmetrics ./cmd/tsmetrics
 ```
 
 ### 2. Development Runtime Checks
@@ -205,8 +205,8 @@ export TSNET_HOSTNAME=tsmetrics-dev
 export TSNET_TAGS=exporter
 export REQUIRE_EXPORTER_TAG=true
 
-# Start with tsnet
-make dev-tsnet
+# Start with tsnet (set USE_TSNET=true before running make dev)
+make dev
 
 # Verification
 # 1. Check tsnet startup logs
@@ -492,7 +492,6 @@ cp .env.example .env
 
 # Development cycle
 make dev          # Standalone development with live reload
-make dev-tsnet    # tsnet development mode
 make test         # Run test suite
 make build        # Production build
 
@@ -500,8 +499,9 @@ make build        # Production build
 make docker-build
 make docker-run
 
-# Deployment
-make k8s-deploy   # Deploy to Kubernetes
+# Kubernetes deployment
+make helm-install       # Deploy with Helm
+make kustomize-prod     # Deploy with Kustomize
 ```
 
 ## Troubleshooting

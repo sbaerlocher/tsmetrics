@@ -2,7 +2,7 @@
 
 A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics for complete network observability.
 
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://ghcr.io/sbaerlocher/tsmetrics)
 [![CI/CD](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sbaerlocher/tsmetrics)](https://goreportcard.com/report/github.com/sbaerlocher/tsmetrics)
@@ -153,9 +153,9 @@ tsmetrics/
 ├── pkg/device/            # Public device package
 ├── scripts/               # Build and development scripts
 ├── deploy/                # Deployment configurations
-│   ├── docker-compose.yaml
-│   ├── kubernetes.yaml
-│   └── systemd.service
+│   ├── grafana/           # Grafana dashboards
+│   ├── helm/              # Helm chart
+│   └── kustomize/         # Kustomize overlays (dev/prod)
 ├── .env.example           # Environment configuration template
 ├── Makefile              # Build and development targets
 ├── Dockerfile            # Container build configuration
@@ -874,22 +874,16 @@ All environment variables are centrally managed in `setup-env.sh` with:
 # Setup development environment
 cp .env.example .env
 # Edit .env with your Tailscale credentials
-make dev-deps
 
 # Start development server with live reload
-# Environment variables are automatically loaded from .env and set via dev.sh
 make dev
-
-# Alternative development commands:
-make dev-tsnet     # Same as dev (alias)
-make dev-direct    # Direct go run (no live reload)
 
 # Run tests
 make test
 
 # Build and run locally
 make build
-make run-tsnet
+make run
 ```
 
 ### Scripts Overview
@@ -950,9 +944,9 @@ tsmetrics/
 ├── pkg/device/            # Public device package
 ├── scripts/               # Build and development scripts
 ├── deploy/                # Deployment configurations
-│   ├── docker-compose.yaml
-│   ├── kubernetes.yaml
-│   └── systemd.service
+│   ├── grafana/           # Grafana dashboards
+│   ├── helm/              # Helm chart
+│   └── kustomize/         # Kustomize overlays (dev/prod)
 └── bin/                   # Compiled binaries
 ```
 
