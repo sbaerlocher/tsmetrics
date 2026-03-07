@@ -3,5 +3,13 @@
   "extends": [
     "github>sbaerlocher/.github:renovate-go#2026-03-07",
     "github>sbaerlocher/.github:renovate-docker#2026-03-07"
+  ],
+  "packageRules": [
+    {
+      "description": "Disable digest pinning for tsmetrics image (version managed via Chart.appVersion)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/sbaerlocher/tsmetrics"],
+      "pinDigests": false
+    }
   ]
 }
