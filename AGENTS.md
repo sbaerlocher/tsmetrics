@@ -329,38 +329,38 @@ spec:
         app: tsmetrics
     spec:
       containers:
-      - name: tsmetrics
-        image: ghcr.io/sbaerlocher/tsmetrics:latest
-        ports:
-        - containerPort: 9100
-        env:
-        - name: USE_TSNET
-          value: "true"
-        - name: TSNET_HOSTNAME
-          value: "tsmetrics"
-        - name: TSNET_TAGS
-          value: "exporter"
-        - name: OAUTH_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: tailscale-oauth
-              key: client-id
-        - name: OAUTH_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: tailscale-oauth
-              key: client-secret
-        - name: TAILNET_NAME
-          valueFrom:
-            secretKeyRef:
-              name: tailscale-oauth
-              key: tailnet-name
-        volumeMounts:
-        - name: tsnet-state
-          mountPath: /tmp/tsnet-state
+        - name: tsmetrics
+          image: ghcr.io/sbaerlocher/tsmetrics:latest
+          ports:
+            - containerPort: 9100
+          env:
+            - name: USE_TSNET
+              value: "true"
+            - name: TSNET_HOSTNAME
+              value: "tsmetrics"
+            - name: TSNET_TAGS
+              value: "exporter"
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: client-id
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: client-secret
+            - name: TAILNET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-oauth
+                  key: tailnet-name
+          volumeMounts:
+            - name: tsnet-state
+              mountPath: /tmp/tsnet-state
       volumes:
-      - name: tsnet-state
-        emptyDir: {}
+        - name: tsnet-state
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -370,9 +370,9 @@ metadata:
     app: tsmetrics
 spec:
   ports:
-  - port: 9100
-    targetPort: 9100
-    name: metrics
+    - port: 9100
+      targetPort: 9100
+      name: metrics
   selector:
     app: tsmetrics
 ```
@@ -381,9 +381,9 @@ spec:
 
 ```yaml
 scrape_configs:
-  - job_name: 'tailscale-metrics'
+  - job_name: "tailscale-metrics"
     static_configs:
-      - targets: ['tsmetrics.tailnet.ts.net:9100']  # tsnet mode
+      - targets: ["tsmetrics.tailnet.ts.net:9100"] # tsnet mode
       # - targets: ['tsmetrics:9100']                # k8s mode
     scrape_interval: 60s
     metrics_path: /metrics

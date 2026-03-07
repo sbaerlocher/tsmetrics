@@ -1,0 +1,31 @@
+---
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  e2e-tests:
+    name: Playwright E2E Tests
+    uses: sbaerlocher/.github/.github/workflows/e2e-docker.yml@2026-03-07
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      compose-file: "docker-compose.yml"
+      compose-profile: "e2e"
+      node-version: "20"
+      package-manager: "npm"
+      playwright-directory: "./client"
+      test-command: "test:e2e:chromium"
+      playwright-browsers: "chromium"
+      upload-artifacts: true
+      artifact-retention-days: 30

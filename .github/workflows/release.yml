@@ -1,31 +1,24 @@
 ---
-name: Release
+name: Software Release
 
 "on":
   push:
     tags: ["v*"]
 
-env:
-  GO_VERSION: "1.25"
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-  CHART_NAME: tsmetrics
-
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
 
 jobs:
-  # ==============================================================================
-  # SETUP FOR RELEASE
-  # ==============================================================================
   setup:
     name: Setup Release
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
+      tsnet-version: ${{ steps.build-versions.outputs.tsnet_version }}
+      version-long: ${{ steps.build-versions.outputs.version_long }}
+      version-short: ${{ steps.build-versions.outputs.version_short }}
 
     steps:
       - name: Checkout code
@@ -36,67 +29,16 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.tag }}"
-          else
-            VERSION="${{ github.ref_name }}"
-          fi
-
+          VERSION="${{ github.ref_name }}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
-
-          # Check if this is a prerelease (contains alpha, beta, rc)
-          if [[ "$VERSION" =~ (alpha|beta|rc) ]]; then
-            echo "is-prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "This is a prerelease"
-          else
-            echo "is-prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "This is a stable release"
-          fi
-
-  # ==============================================================================
-  # DOCKER RELEASE
-  # ==============================================================================
-  docker-release:
-    name: Docker Release
-    runs-on: ubuntu-latest
-    needs: setup
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for release
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ needs.setup.outputs.is-prerelease == 'false' }}
 
       - name: Calculate build versions
         id: build-versions
         run: |
           # Get Tailscale version from go.mod
           TSNET_VERSION=$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")
-          VERSION_CLEAN=$(echo "${{ needs.setup.outputs.version }}" | sed 's/^v//')
+          VERSION_CLEAN=$(echo "${{ steps.version.outputs.version }}" | sed 's/^v//')
           VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
           VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -106,142 +48,53 @@ jobs:
             echo "version_short=$VERSION_SHORT"
           } >> "$GITHUB_OUTPUT"
 
-          echo "TSNET Version: $TSNET_VERSION"
+          echo "Tailscale Version: $TSNET_VERSION"
           echo "Version Long: $VERSION_LONG"
           echo "Version Short: $VERSION_SHORT"
 
-      - name: Build and push multi-platform release image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ needs.setup.outputs.version }}
-            BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            VERSION_LONG=${{ steps.build-versions.outputs.version_long }}
-            VERSION_SHORT=${{ steps.build-versions.outputs.version_short }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ==============================================================================
-  # HELM RELEASE
-  # ==============================================================================
-  helm-release:
-    name: Helm Release
-    runs-on: ubuntu-latest
+  go-release:
+    name: Go Binaries
     needs: setup
-    permissions:
-      contents: read
-      packages: write
+    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-03-07
+    with:
+      # renovate: datasource=golang-version depName=golang
+      go-version: "1.26"
+      goreleaser-args: "release --clean"
+      extra-env: |
+        VERSION_LONG=${{ needs.setup.outputs.version-long }}
+        VERSION_SHORT=${{ needs.setup.outputs.version-short }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+  docker-release:
+    name: Docker Multi-Platform
+    needs: [setup, go-release]
+    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-03-07
+    with:
+      image-name: "sbaerlocher/tsmetrics"
+      dockerfile: "Dockerfile"
+      platforms: "linux/amd64,linux/arm64"
+      registry: "ghcr.io"
+      push: true
+      build-args: |
+        VERSION=${{ needs.setup.outputs.version }}
+        BUILD_TIME=${{ github.event.head_commit.timestamp }}
+        VERSION_LONG=${{ needs.setup.outputs.version-long }}
+        VERSION_SHORT=${{ needs.setup.outputs.version-short }}
+      docker-metadata-tags: |
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
+        type=semver,pattern={{major}}
+        type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: "v3.14.0"
-
-      - name: Update Chart version and appVersion
-        run: |
-          VERSION="${{ needs.setup.outputs.version }}"
-          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
-
-          sed -i "s/^version:.*/version: $VERSION/" deploy/helm/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" deploy/helm/Chart.yaml
-
-          echo "Updated Chart.yaml:"
-          grep -E "(version|appVersion):" deploy/helm/Chart.yaml
-
-      - name: Package and publish Helm chart
-        run: |
-          # Package chart
-          helm package deploy/helm --destination .
-
-          # Login to registry
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "${{ env.REGISTRY }}" --username "${{ github.actor }}" --password-stdin
-
-          # Push chart
-          VERSION="${{ needs.setup.outputs.version }}"
-          VERSION="${VERSION#v}"
-          helm push "${{ env.CHART_NAME }}-$VERSION.tgz" "oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts"
-
-          echo "✅ Helm chart published successfully"
-
-  # ==============================================================================
-  # GITHUB RELEASE
-  # ==============================================================================
-  github-release:
-    name: GitHub Release
-    runs-on: ubuntu-latest
-    needs: [setup, docker-release, helm-release]
-    if: always() && needs.setup.result == 'success'
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Create release with GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: false
-
-  # ==============================================================================
-  # RELEASE SUMMARY
-  # ==============================================================================
-  release-summary:
-    name: Release Summary
-    runs-on: ubuntu-latest
-    needs: [setup, docker-release, helm-release, github-release]
-    if: always()
-
-    steps:
-      - name: Release Summary
-        run: |
-          {
-            echo "## 🚀 Release Pipeline Summary"
-            echo ""
-            echo "- **Version:** ${{ needs.setup.outputs.version }}"
-            echo "- **Prerelease:** ${{ needs.setup.outputs.is-prerelease }}"
-            echo ""
-            echo "### 📦 Release Components"
-            echo "- **Docker Release:** ${{ needs.docker-release.result }}"
-            echo "- **Helm Release:** ${{ needs.helm-release.result }}"
-            echo "- **GitHub Release:** ${{ needs.github-release.result }}"
-            echo ""
-            if [[ "${{ needs.docker-release.result }}" == "success" ]]; then
-              echo "### 🐳 Container Images"
-              echo "- **Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.version }}"
-              echo "- **Latest:** Available for stable releases only"
-            fi
-            echo ""
-            if [[ "${{ needs.helm-release.result }}" == "success" ]]; then
-              echo "### ⎈ Helm Chart"
-              echo "- **Registry:** oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/charts/${{ env.CHART_NAME }}"
-              echo "- **Version:** ${{ needs.setup.outputs.version }}"
-            fi
-            echo ""
-            if [[ "${{ needs.github-release.result }}" == "success" ]]; then
-              echo "### 📋 Release Notes"
-              echo "- **GitHub Release:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.version }}"
-              echo "- **Binaries:** Available for Linux, macOS, Windows (AMD64 & ARM64)"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+  helm-release:
+    name: Helm Chart
+    needs: [setup, docker-release]
+    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-03-07
+    with:
+      chart-path: "deploy/helm"
+      chart-name: "tsmetrics"
+      registry: "ghcr.io"
+      registry-path: "${{ github.repository_owner }}/chart"
+      version: "${{ needs.setup.outputs.version }}"
+      image-digest: "${{ needs.docker-release.outputs.image-digest }}"
+    secrets:
+      registry-token: "${{ secrets.GITHUB_TOKEN }}"

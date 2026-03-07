@@ -1,0 +1,38 @@
+---
+name: Security Scan
+
+"on":
+  schedule:
+    - cron: "0 2 * * 1" # Weekly Monday 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  code-analysis:
+    name: SAST (CodeQL)
+    uses: sbaerlocher/.github/.github/workflows/security-code.yml@2026-03-07
+    with:
+      languages: '["go"]'
+
+  dependency-scan:
+    name: Dependencies & Licenses
+    uses: sbaerlocher/.github/.github/workflows/security-deps.yml@2026-03-07
+    with:
+      language: "go"
+      enable-license-check: true
+
+  secret-detection:
+    name: Secret Detection
+    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-03-07
+
+  container-scan:
+    name: Container Security
+    uses: sbaerlocher/.github/.github/workflows/security-containers.yml@2026-03-07
+    with:
+      image-ref: "ghcr.io/${{ github.repository }}:latest"
+      scan-type: "registry"

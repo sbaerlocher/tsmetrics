@@ -165,7 +165,7 @@ tsmetrics/
 ### Package Overview
 
 | Package            | Description                                     |
-|--------------------|-------------------------------------------------|
+| ------------------ | ----------------------------------------------- |
 | `cmd/tsmetrics`    | Application entry point and main function       |
 | `internal/api`     | Tailscale API client with OAuth2 authentication |
 | `internal/config`  | Configuration loading and validation            |
@@ -208,7 +208,7 @@ docker run -d \
 ### Core Settings
 
 | Environment Variable  | Description                                            | Default       |
-|-----------------------|--------------------------------------------------------|---------------|
+| --------------------- | ------------------------------------------------------ | ------------- |
 | `OAUTH_CLIENT_ID`     | Tailscale OAuth2 Client ID                             | Required      |
 | `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret                         | Required      |
 | `TAILNET_NAME`        | Tailnet name or "-" for default                        | Required      |
@@ -218,7 +218,7 @@ docker run -d \
 ### tsnet Configuration
 
 | Environment Variable   | Description                                          | Default                |
-|------------------------|------------------------------------------------------|------------------------|
+| ---------------------- | ---------------------------------------------------- | ---------------------- |
 | `USE_TSNET`            | Enable Tailscale tsnet integration                   | `false`                |
 | `TSNET_HOSTNAME`       | Hostname in Tailnet                                  | `tsmetrics`            |
 | `TSNET_STATE_DIR`      | Persistent state directory                           | `/tmp/tsnet-tsmetrics` |
@@ -233,7 +233,7 @@ The `TSNET_TAGS` variable is used for validation only.
 ### Performance Tuning
 
 | Environment Variable     | Description               | Default |
-|--------------------------|---------------------------|---------|
+| ------------------------ | ------------------------- | ------- |
 | `CLIENT_METRICS_TIMEOUT` | Device metrics timeout    | `10s`   |
 | `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes   | `10`    |
 | `SCRAPE_INTERVAL`        | Device discovery interval | `30s`   |
@@ -275,7 +275,7 @@ TARGET_DEVICES=production-gateway,backup-server
 #### Required Variables
 
 | Variable              | Description                           | Example            |
-|-----------------------|---------------------------------------|--------------------|
+| --------------------- | ------------------------------------- | ------------------ |
 | `OAUTH_CLIENT_ID`     | Tailscale OAuth2 Client ID            | `k123abc...`       |
 | `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret        | `tskey-client-...` |
 | `TAILNET_NAME`        | Your tailnet name or "-" for personal | `company.ts.net`   |
@@ -283,7 +283,7 @@ TARGET_DEVICES=production-gateway,backup-server
 #### Optional Variables
 
 | Variable               | Default                | Description                                     |
-|------------------------|------------------------|-------------------------------------------------|
+| ---------------------- | ---------------------- | ----------------------------------------------- |
 | `PORT`                 | `9100`                 | HTTP server port                                |
 | `ENV`                  | `development`          | Environment (`production`/`prod` binds 0.0.0.0) |
 | `USE_TSNET`            | `false`                | Enable tsnet integration                        |
@@ -622,18 +622,18 @@ kubectl create secret generic tsmetrics-secrets \
 ### Deployment Comparison
 
 | Method        | Best For                     | Pros                                           | Cons           |
-|---------------|------------------------------|------------------------------------------------|----------------|
+| ------------- | ---------------------------- | ---------------------------------------------- | -------------- |
 | **Helm**      | Production, Multi-env        | OCI registry, lifecycle management, templating | Learning curve |
 | **Kustomize** | GitOps, Environment overlays | Native k8s, patches, no templating             | Limited logic  |
 
 ### Deployment Features Comparison
 
 | Feature          | Helm         | Kustomize Base | Kustomize Dev | Kustomize Prod |
-|------------------|--------------|----------------|---------------|----------------|
-| ServiceMonitor   | Optional     | ❌              | ❌             | ✅              |
-| External Secrets | ✅            | ✅              | ✅             | ✅              |
-| HPA              | Optional     | ❌              | ❌             | ✅              |
-| Persistence      | Optional     | ❌              | ❌             | ✅              |
+| ---------------- | ------------ | -------------- | ------------- | -------------- |
+| ServiceMonitor   | Optional     | ❌             | ❌            | ✅             |
+| External Secrets | ✅           | ✅             | ✅            | ✅             |
+| HPA              | Optional     | ❌             | ❌            | ✅             |
+| Persistence      | Optional     | ❌             | ❌            | ✅             |
 | Resource Limits  | Configurable | Basic          | Reduced       | Production     |
 
 ### Available Commands
@@ -662,9 +662,9 @@ goreleaser check                      # Validate .goreleaser.yaml
 
 ```yaml
 scrape_configs:
-  - job_name: 'tailscale-metrics'
+  - job_name: "tailscale-metrics"
     static_configs:
-      - targets: ['tsmetrics.tailnet.ts.net:9100']  # tsnet mode
+      - targets: ["tsmetrics.tailnet.ts.net:9100"] # tsnet mode
     scrape_interval: 60s
     metrics_path: /metrics
     timeout: 30s
@@ -691,13 +691,13 @@ The project uses a single, consolidated workflow (`.github/workflows/main.yml`) 
 # Automatic triggers
 on:
   push:
-    branches: [main]          # CI on main branch commits
-    tags: ['v*']              # Releases on version tags
+    branches: [main] # CI on main branch commits
+    tags: ["v*"] # Releases on version tags
   pull_request:
-    branches: [main]          # CI on pull requests
+    branches: [main] # CI on pull requests
   schedule:
-    - cron: '0 6 * * 1'       # Weekly security scans (Mondays 6 AM UTC)
-  workflow_dispatch:          # Manual trigger support
+    - cron: "0 6 * * 1" # Weekly security scans (Mondays 6 AM UTC)
+  workflow_dispatch: # Manual trigger support
 ```
 
 ### Pipeline Stages
@@ -1213,7 +1213,7 @@ The new structure provides:
 ### Endpoints
 
 | Endpoint   | Method | Description        |
-|------------|--------|--------------------|
+| ---------- | ------ | ------------------ |
 | `/metrics` | GET    | Prometheus metrics |
 | `/health`  | GET    | Health check       |
 | `/debug`   | GET    | Debug information  |
@@ -1281,14 +1281,15 @@ export EXCLUDE_DEVICES="test-device,staging-*"
 
 ```yaml
 scrape_configs:
-  - job_name: 'tailscale-metrics'
+  - job_name: "tailscale-metrics"
     kubernetes_sd_configs:
       - role: service
         namespaces:
           names:
             - monitoring
     relabel_configs:
-      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+      - source_labels:
+          [__meta_kubernetes_service_annotation_prometheus_io_scrape]
         action: keep
         regex: true
       - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]

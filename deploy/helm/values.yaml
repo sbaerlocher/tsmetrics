@@ -80,12 +80,10 @@ externalSecret:
 
 # Pod configuration
 podAnnotations: {}
-podSecurityContext:
-  {}
+podSecurityContext: {}
   # fsGroup: 2000
 
-securityContext:
-  {}
+securityContext: {}
   # capabilities:
   #   drop:
   #   - ALL
@@ -94,8 +92,7 @@ securityContext:
   # runAsUser: 1000
 
 # Resource limits
-resources:
-  {}
+resources: {}
   # limits:
   #   cpu: 500m
   #   memory: 512Mi
