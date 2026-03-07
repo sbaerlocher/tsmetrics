@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-03-07
+
+### Security
+
+- Prevent XSS in health probe error responses by using JSON encoding instead of string concatenation
+- Add context propagation to all HTTP requests (`http.NewRequestWithContext`)
+- Fix potential log injection by sanitizing structured log values
+- Fix unchecked error returns on `resp.Body.Close()` and `server.Close()`
+
+### Changed
+
+- Refactor duplicated health probe handlers into shared `healthProbeHandler`
+- Remove unused parameters from `initializeHealthChecker`
+- Remove always-nil error return from `processDeviceGroup`
+- Migrate CI from Dependabot to Renovate with shared workflows
+
+### Dependencies
+
+- Bump Go from 1.25 to 1.26
+- Bump tailscale.com from 1.92.4 to 1.96.0
+- Bump golang.org/x/oauth2 from 0.34.0 to 0.35.0
+- Bump filippo.io/edwards25519 from 1.1.0 to 1.2.0
+- Bump golang Docker image from 1.25-alpine to 1.26-alpine
+
 ## [1.0.1] - 2025-12-21
 
 ### Fixed
@@ -84,5 +108,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
+[1.0.2]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.2
 [1.0.1]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.1
 [1.0.0]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.0
