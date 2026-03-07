@@ -97,87 +97,57 @@ func DebugHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+// healthProbeHandler handles a health probe check with JSON response encoding to prevent XSS.
+func healthProbeHandler(w http.ResponseWriter, r *http.Request, timeout time.Duration, nullStatus, okStatus, errStatus string, checkFn func(ctx context.Context) error) {
+	if healthChecker == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": nullStatus}); err != nil {
+			slog.Error("failed to write health response", "error", err)
+		}
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
+	defer cancel()
+
+	if err := checkFn(ctx); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"status": errStatus, "error": err.Error()}); encErr != nil {
+			slog.Error("failed to write health error response", "error", encErr)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": okStatus}); err != nil {
+		slog.Error("failed to write health ok response", "error", err)
+	}
+}
+
 // Kubernetes Health Endpoints
+
 // LivenessHandler provides liveness probe endpoint for Kubernetes.
 func LivenessHandler(w http.ResponseWriter, r *http.Request) {
-	if healthChecker == nil {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
-			slog.Error("failed to write liveness response", "error", err)
-		}
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	err := healthChecker.LivenessCheck(ctx)
-	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, writeErr := w.Write([]byte(`{"status":"unhealthy","error":"` + err.Error() + `"}`)); writeErr != nil {
-			slog.Error("failed to write liveness error response", "error", writeErr)
-		}
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
-		slog.Error("failed to write liveness ok response", "error", err)
-	}
+	healthProbeHandler(w, r, 5*time.Second, "ok", "ok", "unhealthy", func(ctx context.Context) error {
+		return healthChecker.LivenessCheck(ctx)
+	})
 }
 
+// ReadinessHandler provides readiness probe endpoint for Kubernetes.
 func ReadinessHandler(w http.ResponseWriter, r *http.Request) {
-	if healthChecker == nil {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"status":"not configured"}`)); err != nil {
-			slog.Error("failed to write readiness not configured response", "error", err)
-		}
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	err := healthChecker.ReadinessCheck(ctx)
-	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, writeErr := w.Write([]byte(`{"status":"not ready","error":"` + err.Error() + `"}`)); writeErr != nil {
-			slog.Error("failed to write readiness error response", "error", writeErr)
-		}
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"status":"ready"}`)); err != nil {
-		slog.Error("failed to write readiness ok response", "error", err)
-	}
+	healthProbeHandler(w, r, 10*time.Second, "not configured", "ready", "not ready", func(ctx context.Context) error {
+		return healthChecker.ReadinessCheck(ctx)
+	})
 }
 
+// StartupHandler provides startup probe endpoint for Kubernetes.
 func StartupHandler(w http.ResponseWriter, r *http.Request) {
-	if healthChecker == nil {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
-			slog.Error("failed to write startup response", "error", err)
-		}
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	err := healthChecker.StartupCheck(ctx)
-	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, writeErr := w.Write([]byte(`{"status":"not started","error":"` + err.Error() + `"}`)); writeErr != nil {
-			slog.Error("failed to write startup error response", "error", writeErr)
-		}
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"status":"started"}`)); err != nil {
-		slog.Error("failed to write startup ok response", "error", err)
-	}
+	healthProbeHandler(w, r, 30*time.Second, "ok", "started", "not started", func(ctx context.Context) error {
+		return healthChecker.StartupCheck(ctx)
+	})
 }
 
 func DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {

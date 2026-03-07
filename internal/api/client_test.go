@@ -99,8 +99,9 @@ func TestClientFetchDevices(t *testing.T) {
 		requests:  make([]*http.Request, 0),
 	}
 
-	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] =
-		createMockResponse(200, responseBody)
+	devicesResp := createMockResponse(200, responseBody)
+	t.Cleanup(func() { _ = devicesResp.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] = devicesResp
 
 	// Add mock responses for route API calls
 	routesResponse1 := map[string][]string{
@@ -111,10 +112,12 @@ func TestClientFetchDevices(t *testing.T) {
 		"advertisedRoutes": {"192.168.1.0/24"},
 		"enabledRoutes":    {"192.168.1.0/24"},
 	}
-	mockTransport.responses["https://api.tailscale.com/api/v2/device/device1/routes?fields=all"] =
-		createMockResponse(200, routesResponse1)
-	mockTransport.responses["https://api.tailscale.com/api/v2/device/device2/routes?fields=all"] =
-		createMockResponse(200, routesResponse2)
+	routesResp1 := createMockResponse(200, routesResponse1)
+	t.Cleanup(func() { _ = routesResp1.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/device/device1/routes?fields=all"] = routesResp1
+	routesResp2 := createMockResponse(200, routesResponse2)
+	t.Cleanup(func() { _ = routesResp2.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/device/device2/routes?fields=all"] = routesResp2
 
 	client := &Client{
 		httpClient: &http.Client{
@@ -158,8 +161,9 @@ func TestClientFetchDevicesError(t *testing.T) {
 		requests:  make([]*http.Request, 0),
 	}
 
-	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] =
-		createMockResponse(500, "Internal Server Error")
+	errResp := createMockResponse(500, "Internal Server Error")
+	t.Cleanup(func() { _ = errResp.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] = errResp
 
 	client := &Client{
 		httpClient: &http.Client{
@@ -192,7 +196,7 @@ func TestClientWithRealServer(t *testing.T) {
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 			return
 		}
 		http.NotFound(w, r)
@@ -333,8 +337,9 @@ func TestClientExitNodeDetection(t *testing.T) {
 		"devices": devices,
 	}
 
-	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] =
-		createMockResponse(200, responseBody)
+	devResp := createMockResponse(200, responseBody)
+	t.Cleanup(func() { _ = devResp.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/tailnet/test-tailnet/devices?fields=all"] = devResp
 
 	// Mock route responses for different device types
 	exitNodeRoutes := map[string][]string{
@@ -350,12 +355,15 @@ func TestClientExitNodeDetection(t *testing.T) {
 		"enabledRoutes":    {},
 	}
 
-	mockTransport.responses["https://api.tailscale.com/api/v2/device/exit-node-device/routes?fields=all"] =
-		createMockResponse(200, exitNodeRoutes)
-	mockTransport.responses["https://api.tailscale.com/api/v2/device/subnet-router-device/routes?fields=all"] =
-		createMockResponse(200, subnetRouterRoutes)
-	mockTransport.responses["https://api.tailscale.com/api/v2/device/regular-device/routes?fields=all"] =
-		createMockResponse(200, regularDeviceRoutes)
+	exitResp := createMockResponse(200, exitNodeRoutes)
+	t.Cleanup(func() { _ = exitResp.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/device/exit-node-device/routes?fields=all"] = exitResp
+	subnetResp := createMockResponse(200, subnetRouterRoutes)
+	t.Cleanup(func() { _ = subnetResp.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/device/subnet-router-device/routes?fields=all"] = subnetResp
+	regularResp := createMockResponse(200, regularDeviceRoutes)
+	t.Cleanup(func() { _ = regularResp.Body.Close() })
+	mockTransport.responses["https://api.tailscale.com/api/v2/device/regular-device/routes?fields=all"] = regularResp
 
 	client := &Client{
 		httpClient: &http.Client{
@@ -365,17 +373,17 @@ func TestClientExitNodeDetection(t *testing.T) {
 		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
 	}
 
-	devices_result, err := client.FetchDevices()
+	devicesResult, err := client.FetchDevices()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if len(devices_result) != 3 {
-		t.Errorf("Expected 3 devices, got %d", len(devices_result))
+	if len(devicesResult) != 3 {
+		t.Errorf("Expected 3 devices, got %d", len(devicesResult))
 	}
 
 	// Test exit node device
-	exitNode := devices_result[0]
+	exitNode := devicesResult[0]
 	if !exitNode.IsExitNode {
 		t.Error("Expected exit-node-device to be an exit node")
 	}
@@ -384,7 +392,7 @@ func TestClientExitNodeDetection(t *testing.T) {
 	}
 
 	// Test subnet router + exit node device
-	subnetRouter := devices_result[1]
+	subnetRouter := devicesResult[1]
 	if !subnetRouter.IsExitNode {
 		t.Error("Expected subnet-router-device to be an exit node")
 	}
@@ -393,7 +401,7 @@ func TestClientExitNodeDetection(t *testing.T) {
 	}
 
 	// Test regular device
-	regular := devices_result[2]
+	regular := devicesResult[2]
 	if regular.IsExitNode {
 		t.Error("Expected regular-device NOT to be an exit node")
 	}

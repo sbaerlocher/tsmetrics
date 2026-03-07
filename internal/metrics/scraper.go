@@ -175,7 +175,7 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return handleHTTPError(dev, resp, buildMetricsURL(dev, cfg))
@@ -205,7 +205,11 @@ func fetchDeviceMetrics(dev device.Device, client *http.Client, cfg config.Confi
 	}
 
 	urlStr := buildMetricsURL(dev, cfg)
-	resp, err := client.Get(urlStr)
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, urlStr, nil)
+	if reqErr != nil {
+		return nil, fmt.Errorf("failed to create request for %s: %w", urlStr, reqErr)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		deviceErr := errors.DeviceError{
 			DeviceID:   dev.ID.String(),

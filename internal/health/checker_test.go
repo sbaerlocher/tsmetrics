@@ -186,7 +186,7 @@ func TestAPIHealthChecker(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/api/v2/device") {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"devices": []}`))
+			_, _ = w.Write([]byte(`{"devices": []}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}

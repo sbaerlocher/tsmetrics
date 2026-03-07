@@ -139,7 +139,7 @@ func TestInputValidator_ValidateToken(t *testing.T) {
 		},
 		{
 			name:        "invalid characters",
-			token:       "token-with-@-symbol",
+			token:       "token-with-@-symbol", //nolint:gosec // G101: test data, not a real credential
 			expectError: true,
 		},
 		{

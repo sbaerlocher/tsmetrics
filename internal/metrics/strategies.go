@@ -146,6 +146,7 @@ func (s *SequentialStrategy) Execute(ctx context.Context, devices []device.Devic
 	return nil
 }
 
+// NewParallelStrategy creates a strategy that scrapes devices concurrently with a concurrency limit.
 func NewParallelStrategy(collector MetricCollector, interval, timeout time.Duration, concurrency int) *ParallelStrategy {
 	return &ParallelStrategy{
 		collector:   collector,
@@ -155,10 +156,12 @@ func NewParallelStrategy(collector MetricCollector, interval, timeout time.Durat
 	}
 }
 
+// Name returns the strategy name.
 func (s *ParallelStrategy) Name() string {
 	return "parallel"
 }
 
+// Validate checks that the strategy configuration is valid.
 func (s *ParallelStrategy) Validate() error {
 	if s.collector == nil {
 		return errors.ErrInvalidCollector
@@ -175,6 +178,7 @@ func (s *ParallelStrategy) Validate() error {
 	return nil
 }
 
+// Execute scrapes all devices concurrently up to the configured concurrency limit.
 func (s *ParallelStrategy) Execute(ctx context.Context, devices []device.Device) error {
 	start := time.Now()
 	defer func() {
@@ -223,6 +227,7 @@ func (s *ParallelStrategy) Execute(ctx context.Context, devices []device.Device)
 	return lastErr
 }
 
+// NewPriorityStrategy creates a strategy that scrapes devices in priority group order.
 func NewPriorityStrategy(collector MetricCollector, interval, timeout time.Duration) *PriorityStrategy {
 	return &PriorityStrategy{
 		collector:      collector,
@@ -233,10 +238,12 @@ func NewPriorityStrategy(collector MetricCollector, interval, timeout time.Durat
 	}
 }
 
+// Name returns the strategy name.
 func (s *PriorityStrategy) Name() string {
 	return "priority"
 }
 
+// Validate checks that the strategy configuration is valid.
 func (s *PriorityStrategy) Validate() error {
 	if s.collector == nil {
 		return errors.ErrInvalidCollector
@@ -250,11 +257,13 @@ func (s *PriorityStrategy) Validate() error {
 	return nil
 }
 
+// AddPriorityGroup registers a named group of devices with a custom scrape interval.
 func (s *PriorityStrategy) AddPriorityGroup(groupName string, deviceIDs []types.DeviceID, interval time.Duration) {
 	s.priorityGroups[groupName] = deviceIDs
 	s.groupIntervals[groupName] = interval
 }
 
+// Execute scrapes devices sequentially within each priority group.
 func (s *PriorityStrategy) Execute(ctx context.Context, devices []device.Device) error {
 	start := time.Now()
 	defer func() {
@@ -296,6 +305,7 @@ func (s *PriorityStrategy) Execute(ctx context.Context, devices []device.Device)
 	return nil
 }
 
+// NewAdaptiveStrategy creates a strategy that adjusts concurrency based on device performance history.
 func NewAdaptiveStrategy(collector MetricCollector, baseInterval, timeout time.Duration, maxConcurrency int, loadThreshold float64) *AdaptiveStrategy {
 	return &AdaptiveStrategy{
 		collector:       collector,
@@ -307,10 +317,12 @@ func NewAdaptiveStrategy(collector MetricCollector, baseInterval, timeout time.D
 	}
 }
 
+// Name returns the strategy name.
 func (s *AdaptiveStrategy) Name() string {
 	return "adaptive"
 }
 
+// Validate checks that the strategy configuration is valid.
 func (s *AdaptiveStrategy) Validate() error {
 	if s.collector == nil {
 		return errors.ErrInvalidCollector
@@ -330,6 +342,7 @@ func (s *AdaptiveStrategy) Validate() error {
 	return nil
 }
 
+// Execute categorizes devices by performance and scrapes them with adaptive concurrency.
 func (s *AdaptiveStrategy) Execute(ctx context.Context, devices []device.Device) error {
 	start := time.Now()
 	defer func() {
@@ -340,10 +353,7 @@ func (s *AdaptiveStrategy) Execute(ctx context.Context, devices []device.Device)
 
 	for priority, devs := range deviceGroups {
 		concurrency := s.calculateConcurrency(priority)
-		err := s.processDeviceGroup(ctx, devs, concurrency)
-		if err != nil {
-			return err
-		}
+		s.processDeviceGroup(ctx, devs, concurrency)
 	}
 
 	return nil
@@ -391,9 +401,9 @@ func (s *AdaptiveStrategy) calculateConcurrency(priority string) int {
 	}
 }
 
-func (s *AdaptiveStrategy) processDeviceGroup(ctx context.Context, devices []device.Device, concurrency int) error {
+func (s *AdaptiveStrategy) processDeviceGroup(ctx context.Context, devices []device.Device, concurrency int) {
 	if len(devices) == 0 {
-		return nil
+		return
 	}
 
 	semaphore := make(chan struct{}, concurrency)
@@ -416,7 +426,6 @@ func (s *AdaptiveStrategy) processDeviceGroup(ctx context.Context, devices []dev
 	}
 
 	wg.Wait()
-	return nil
 }
 
 func (s *AdaptiveStrategy) collectWithPerformanceTracking(ctx context.Context, dev device.Device) {
@@ -459,18 +468,21 @@ func (s *AdaptiveStrategy) updatePerformanceHistory(deviceID types.DeviceID, lat
 	}
 }
 
+// StrategyManager manages registered scraping strategies and tracks the active one.
 type StrategyManager struct {
 	strategies map[string]ScrapingStrategy
 	current    ScrapingStrategy
 	mutex      sync.RWMutex
 }
 
+// NewStrategyManager creates a new StrategyManager.
 func NewStrategyManager() *StrategyManager {
 	return &StrategyManager{
 		strategies: make(map[string]ScrapingStrategy),
 	}
 }
 
+// RegisterStrategy validates and registers a strategy by name.
 func (sm *StrategyManager) RegisterStrategy(strategy ScrapingStrategy) error {
 	if err := strategy.Validate(); err != nil {
 		return fmt.Errorf("invalid strategy %s: %w", strategy.Name(), err)

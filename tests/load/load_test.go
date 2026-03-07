@@ -124,7 +124,7 @@ func TestLoad_CacheOperationsUnderStress(t *testing.T) {
 	// Memory monitoring
 	var initialMem, peakMem runtime.MemStats
 	runtime.ReadMemStats(&initialMem)
-	initialMemMB := int64(initialMem.Alloc) / 1024 / 1024
+	initialMemMB := int64(initialMem.Alloc / 1024 / 1024) //nolint:gosec // G115: memory in bytes fits int64
 
 	var operations int64
 	var errors int64
@@ -181,7 +181,7 @@ func TestLoad_CacheOperationsUnderStress(t *testing.T) {
 
 					// Memory check
 					runtime.ReadMemStats(&peakMem)
-					currentMemMB := int64(peakMem.Alloc) / 1024 / 1024
+					currentMemMB := int64(peakMem.Alloc / 1024 / 1024) //nolint:gosec // G115: memory fits int64
 					if currentMemMB > config.MaxMemoryMB {
 						t.Errorf("Memory usage exceeded limit: %d MB > %d MB", currentMemMB, config.MaxMemoryMB)
 						cancel()
@@ -200,8 +200,8 @@ func TestLoad_CacheOperationsUnderStress(t *testing.T) {
 	runtime.GC()
 	var finalMem runtime.MemStats
 	runtime.ReadMemStats(&finalMem)
-	finalMemMB := int64(finalMem.Alloc) / 1024 / 1024
-	peakMemMB := int64(peakMem.Alloc) / 1024 / 1024
+	finalMemMB := int64(finalMem.Alloc / 1024 / 1024) //nolint:gosec // G115: memory in bytes fits int64
+	peakMemMB := int64(peakMem.Alloc / 1024 / 1024)   //nolint:gosec // G115: memory in bytes fits int64
 
 	result := LoadTestResult{
 		TotalOperations:   operations,
@@ -375,7 +375,7 @@ func TestLoad_MemoryLeakDetection(t *testing.T) {
 				case <-ctx.Done():
 					return
 				default:
-					cache.GetDevices(false)
+					_, _ = cache.GetDevices(false)
 					cache.InvalidateDevice(types.DeviceID("device-1"))
 					cache.GetCacheStats()
 					atomic.AddInt64(&operations, 1)
@@ -396,7 +396,7 @@ func TestLoad_MemoryLeakDetection(t *testing.T) {
 				return
 			case <-ticker.C:
 				runtime.ReadMemStats(&peakMem)
-				currentMB := int64(peakMem.Alloc) / 1024 / 1024
+				currentMB := int64(peakMem.Alloc / 1024 / 1024) //nolint:gosec // G115: memory fits int64
 				t.Logf("Current memory usage: %d MB", currentMB)
 			}
 		}
@@ -410,9 +410,9 @@ func TestLoad_MemoryLeakDetection(t *testing.T) {
 	runtime.GC()
 	runtime.ReadMemStats(&finalMem)
 
-	initialMemMB := int64(initialMem.Alloc) / 1024 / 1024
-	peakMemMB := int64(peakMem.Alloc) / 1024 / 1024
-	finalMemMB := int64(finalMem.Alloc) / 1024 / 1024
+	initialMemMB := int64(initialMem.Alloc / 1024 / 1024) //nolint:gosec // G115: memory fits int64
+	peakMemMB := int64(peakMem.Alloc / 1024 / 1024)       //nolint:gosec // G115: memory fits int64
+	finalMemMB := int64(finalMem.Alloc / 1024 / 1024)     //nolint:gosec // G115: memory fits int64
 	leakMB := finalMemMB - initialMemMB
 
 	t.Logf("Memory Leak Detection Results:")

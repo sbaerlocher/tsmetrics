@@ -45,7 +45,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 			"note", "auth_key required for tagged devices")
 	}
 
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	tsnetProvider := &metrics.TsnetHTTPClientProvider{
 		Server:  server,

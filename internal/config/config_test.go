@@ -9,21 +9,21 @@ import (
 func TestConfigLoad(t *testing.T) {
 	os.Clearenv()
 
-	os.Setenv("USE_TSNET", "true")
-	os.Setenv("TSNET_HOSTNAME", "test-hostname")
-	os.Setenv("TSNET_STATE_DIR", "/tmp/test")
-	os.Setenv("TS_AUTHKEY", "tskey-test")
-	os.Setenv("PORT", "8080")
-	os.Setenv("OAUTH_CLIENT_ID", "test-client")
-	os.Setenv("OAUTH_CLIENT_SECRET", "test-secret")
-	os.Setenv("TAILNET_NAME", "test-tailnet")
-	os.Setenv("CLIENT_METRICS_TIMEOUT", "15s")
-	os.Setenv("MAX_CONCURRENT_SCRAPES", "20")
-	os.Setenv("LOG_LEVEL", "debug")
-	os.Setenv("LOG_FORMAT", "json")
-	os.Setenv("CLIENT_METRICS_PORT", "5353")
-	os.Setenv("TSNET_TAGS", "exporter,monitoring")
-	os.Setenv("SCRAPE_TAG", "production")
+	t.Setenv("USE_TSNET", "true")
+	t.Setenv("TSNET_HOSTNAME", "test-hostname")
+	t.Setenv("TSNET_STATE_DIR", "/tmp/test")
+	t.Setenv("TS_AUTHKEY", "tskey-test")
+	t.Setenv("PORT", "8080")
+	t.Setenv("OAUTH_CLIENT_ID", "test-client")
+	t.Setenv("OAUTH_CLIENT_SECRET", "test-secret")
+	t.Setenv("TAILNET_NAME", "test-tailnet")
+	t.Setenv("CLIENT_METRICS_TIMEOUT", "15s")
+	t.Setenv("MAX_CONCURRENT_SCRAPES", "20")
+	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("LOG_FORMAT", "json")
+	t.Setenv("CLIENT_METRICS_PORT", "5353")
+	t.Setenv("TSNET_TAGS", "exporter,monitoring")
+	t.Setenv("SCRAPE_TAG", "production")
 
 	cfg := Load()
 
@@ -206,7 +206,7 @@ func TestConfigValidate(t *testing.T) {
 			os.Clearenv()
 
 			for key, value := range tt.envVars {
-				os.Setenv(key, value)
+				t.Setenv(key, value)
 			}
 
 			err := tt.config.Validate()
@@ -229,7 +229,7 @@ func TestSetupTsnetStateDir(t *testing.T) {
 		t.Errorf("Expected custom dir '%s', got %s", customDir, dir)
 	}
 
-	defer os.RemoveAll(customDir)
+	defer func() { _ = os.RemoveAll(customDir) }()
 	if _, err := os.Stat(customDir); os.IsNotExist(err) {
 		t.Errorf("Expected directory %s to be created", customDir)
 	}
