@@ -1,13 +1,14 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 func TestEnhancedHealthHandler(t *testing.T) {
-	req, err := http.NewRequest("GET", "/health", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

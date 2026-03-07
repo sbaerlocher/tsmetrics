@@ -31,11 +31,10 @@ func createHTTPServer(addr string, handler http.Handler) *http.Server {
 
 // initializeServerComponents sets up health checker and background scraping
 func initializeServerComponents(cfg config.Config, ctx context.Context, collector *metrics.Collector) {
-	initializeHealthChecker(cfg, collector)
+	initializeHealthChecker()
 	StartBackgroundScraper(cfg, ctx, collector)
 }
 
-// SetupRoutes configures and returns the HTTP routes for the TSMetrics server.
 // SetupRoutes configures and returns the main HTTP router with health and metrics endpoints.
 func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -53,7 +52,7 @@ func SetupRoutes() *http.ServeMux {
 }
 
 // initializeHealthChecker sets up the health checker with appropriate components based on configuration
-func initializeHealthChecker(cfg config.Config, collector *metrics.Collector) {
+func initializeHealthChecker() {
 	hc := health.NewHealthChecker()
 
 	// Only register API health checker if API client is available and not using TARGET_DEVICES

@@ -29,7 +29,7 @@ func NewClient(clientID, clientSecret, tailnet string) *Client {
 	var httpClient *http.Client
 
 	if clientID != "" && clientSecret != "" {
-		config := &clientcredentials.Config{
+		config := &clientcredentials.Config{ //nolint:gosec // G101: not hardcoded credentials, passed as parameters
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			TokenURL:     "https://api.tailscale.com/api/v2/oauth/token",
@@ -99,7 +99,7 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, c.handleAPIError(resp)
@@ -129,12 +129,12 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 
 func (c *Client) makeDevicesRequest() (*http.Response, error) {
 	apiURL := fmt.Sprintf("%s/devices?fields=all", c.baseURL)
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from configured baseURL, not user input
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -386,11 +386,11 @@ func (c *Client) TestConnectivity(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // URL from configured baseURL
 	if err != nil {
 		return false, fmt.Errorf("connectivity test failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return true, nil
@@ -419,16 +419,16 @@ type deviceRoutes struct {
 
 func (c *Client) fetchDeviceRoutes(deviceID string) (*deviceRoutes, error) {
 	apiURL := fmt.Sprintf("https://api.tailscale.com/api/v2/device/%s/routes?fields=all", deviceID)
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create routes request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from known API base + validated device ID
 	if err != nil {
 		return nil, fmt.Errorf("routes request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("routes API returned status %d", resp.StatusCode)

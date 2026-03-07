@@ -65,12 +65,16 @@ func performHealthCheck() error {
 	if host == "" {
 		host = "127.0.0.1" // DevSkim: ignore DS162092 - Localhost is appropriate for health checks
 	}
-	url := fmt.Sprintf("http://%s:%s/livez", host, cfg.Port)
-	resp, err := client.Get(url)
+	healthURL := fmt.Sprintf("http://%s:%s/livez", host, cfg.Port)
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, healthURL, nil)
+	if reqErr != nil {
+		return fmt.Errorf("health check request failed: %w", reqErr)
+	}
+	resp, err := client.Do(req) //nolint:gosec // URL constructed from local config, not user input
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check failed: status %d", resp.StatusCode)

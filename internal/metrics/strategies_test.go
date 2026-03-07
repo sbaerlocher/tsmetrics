@@ -12,6 +12,8 @@ import (
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
+const strategySequential = "sequential"
+
 type mockMetricCollector struct {
 	collectFunc func(ctx context.Context, device device.Device) error
 	callCount   int64
@@ -31,7 +33,7 @@ func (m *mockMetricCollector) getCallCount() int {
 
 func createTestDevices(count int) []device.Device {
 	devices := make([]device.Device, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		devices[i] = device.Device{
 			ID:     types.DeviceID(fmt.Sprintf("device%d", i+1)),
 			Name:   types.DeviceName(fmt.Sprintf("Device %d", i+1)),
@@ -61,7 +63,7 @@ func TestSequentialStrategy_Execute(t *testing.T) {
 
 func TestSequentialStrategy_Timeout(t *testing.T) {
 	collector := &mockMetricCollector{
-		collectFunc: func(ctx context.Context, device device.Device) error {
+		collectFunc: func(ctx context.Context, _ device.Device) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -136,7 +138,7 @@ func TestParallelStrategy_Execute(t *testing.T) {
 
 func TestParallelStrategy_ConcurrencyLimit(t *testing.T) {
 	collector := &mockMetricCollector{
-		collectFunc: func(ctx context.Context, device device.Device) error {
+		collectFunc: func(_ context.Context, device device.Device) error {
 			time.Sleep(50 * time.Millisecond)
 			return nil
 		},
@@ -206,7 +208,7 @@ func TestAdaptiveStrategy_Execute(t *testing.T) {
 
 func TestAdaptiveStrategy_PerformanceTracking(t *testing.T) {
 	collector := &mockMetricCollector{
-		collectFunc: func(ctx context.Context, device device.Device) error {
+		collectFunc: func(_ context.Context, device device.Device) error {
 			if device.ID == types.DeviceID("device2") {
 				return errors.New("simulated error")
 			}
@@ -218,7 +220,7 @@ func TestAdaptiveStrategy_PerformanceTracking(t *testing.T) {
 	devices := createTestDevices(3)
 	ctx := context.Background()
 
-	strategy.Execute(ctx, devices)
+	_ = strategy.Execute(ctx, devices)
 
 	perf, exists := strategy.performanceHist[types.DeviceID("device2")]
 	if !exists {
@@ -250,7 +252,7 @@ func TestStrategyManager_RegisterStrategy(t *testing.T) {
 		t.Errorf("Expected 1 strategy, got %d", len(strategies))
 	}
 
-	if strategies[0] != "sequential" {
+	if strategies[0] != strategySequential {
 		t.Errorf("Expected 'sequential', got %s", strategies[0])
 	}
 }
@@ -260,9 +262,9 @@ func TestStrategyManager_SetActiveStrategy(t *testing.T) {
 	collector := &mockMetricCollector{}
 
 	strategy := NewSequentialStrategy(collector, 10*time.Millisecond, 100*time.Millisecond)
-	manager.RegisterStrategy(strategy)
+	_ = manager.RegisterStrategy(strategy)
 
-	err := manager.SetActiveStrategy("sequential")
+	err := manager.SetActiveStrategy(strategySequential)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -272,7 +274,7 @@ func TestStrategyManager_SetActiveStrategy(t *testing.T) {
 		t.Error("Expected active strategy to be set")
 	}
 
-	if active.Name() != "sequential" {
+	if active.Name() != strategySequential {
 		t.Errorf("Expected 'sequential', got %s", active.Name())
 	}
 }

@@ -18,7 +18,7 @@ type Config struct {
 	TsnetAuthKey         string
 	Port                 string
 	OAuthClientID        string
-	OAuthSecret          string
+	OAuthSecret          string //nolint:gosec // G117: not a hardcoded credential, loaded from env
 	TailnetName          string
 	ClientMetricsTimeout time.Duration
 	MaxConcurrentScrapes int

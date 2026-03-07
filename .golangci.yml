@@ -22,6 +22,30 @@ linters:
     - dupl
     - bodyclose
     - noctx
+  settings:
+    revive:
+      rules:
+        - name: var-naming
+          disabled: false
+          arguments:
+            - []
+            - []
+            - - skipPackageNameChecks: true
+
+  exclusions:
+    rules:
+      # G706: False positive — we log len(targetDevices), not raw user input
+      - path: internal/metrics/collector\.go
+        linters: [gosec]
+        text: "G706"
+      # G704: False positive — URL built from validated hostname, not arbitrary user input
+      - path: internal/metrics/scraper\.go
+        linters: [gosec]
+        text: "G704"
+      # G101: False positive — test data, not real credentials
+      - path: _test\.go
+        linters: [gosec]
+        text: "G101"
 
 issues:
   max-issues-per-linter: 50

@@ -64,7 +64,7 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 				targetDevices = append(targetDevices, p)
 			}
 		}
-		slog.Debug("TARGET_DEVICES specified", "devices", targetDevices)
+		slog.Debug("TARGET_DEVICES specified", "count", len(targetDevices))
 	}
 
 	if len(targetDevices) == 0 {
@@ -77,7 +77,7 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 			}
 			testDevicesWarningMutex.Lock()
 			if !testDevicesWarningShown {
-				slog.Warn("TEST_DEVICES is deprecated, use TARGET_DEVICES instead", "devices", targetDevices)
+				slog.Warn("TEST_DEVICES is deprecated, use TARGET_DEVICES instead", "count", len(targetDevices))
 				testDevicesWarningShown = true
 			}
 			testDevicesWarningMutex.Unlock()
@@ -129,7 +129,7 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 				Online: true,
 			})
 		}
-		slog.Info("using TARGET_DEVICES as static device list", "devices", targetDevices)
+		slog.Info("using TARGET_DEVICES as static device list", "count", len(targetDevices))
 		return out, nil
 	}
 

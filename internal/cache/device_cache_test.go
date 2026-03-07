@@ -292,7 +292,7 @@ func TestDeviceCache_GetCacheStats(t *testing.T) {
 		t.Errorf("Expected 1 device, got %d", len(devices))
 	}
 
-	cache.GetDevices(false)
+	_, _ = cache.GetDevices(false)
 
 	stats := cache.GetCacheStats()
 	if stats.HitCount != 1 {

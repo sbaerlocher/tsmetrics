@@ -85,10 +85,10 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		switch r.URL.Path {
 		case "/metrics":
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "# HELP test_metric Test metric\n# TYPE test_metric counter\ntest_metric 1\n")
+			_, _ = fmt.Fprintf(w, "# HELP test_metric Test metric\n# TYPE test_metric counter\ntest_metric 1\n")
 		case "/health":
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, "OK")
+			_, _ = fmt.Fprintf(w, "OK")
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -537,6 +537,6 @@ func TestPerformanceUnderLoad(t *testing.T) {
 
 func init() {
 	if os.Getenv("INTEGRATION_TESTS") == "" {
-		os.Setenv("INTEGRATION_TESTS", "1")
+		_ = os.Setenv("INTEGRATION_TESTS", "1")
 	}
 }
