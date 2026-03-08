@@ -13,7 +13,6 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
       - darwin
     goarch:
       - amd64
@@ -43,19 +42,6 @@ archives:
       - README.md
       - LICENSE
       - CHANGELOG.md
-  - id: windows
-    name_template: >-
-      {{ .ProjectName }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
-    formats:
-      - zip
-    files:
-      - README.md
-      - LICENSE
-      - CHANGELOG.md
 
 checksum:
   name_template: "checksums.txt"
@@ -64,29 +50,7 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^build:"
-      - "merge conflict"
-      - Merge pull request
-      - Merge remote-tracking branch
-      - Merge branch
-  groups:
-    - title: "New Features"
-      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
-      order: 0
-    - title: "Bug Fixes"
-      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
-      order: 1
-    - title: "Performance Improvements"
-      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
-      order: 2
-    - title: "Other Changes"
-      order: 999
+  disable: true
 
 release:
   github:
@@ -96,9 +60,15 @@ release:
   prerelease: auto
   mode: replace
   header: |
-    ## 🚀 TSMetrics {{.Tag}}
+    ## TSMetrics {{.Tag}}
 
-    ### 📦 Installation
+    Tailscale Prometheus Exporter that combines API metadata with live device metrics for complete network observability.
+
+    **Full details**: See [CHANGELOG.md](https://github.com/sbaerlocher/tsmetrics/blob/{{.Tag}}/CHANGELOG.md)
+
+    ---
+
+    ### Installation
 
     **Binary Downloads:**
     Choose the appropriate binary for your platform from the assets below.
@@ -114,9 +84,7 @@ release:
     ```
 
   footer: |
-    **Full Changelog**: https://github.com/sbaerlocher/tsmetrics/compare/{{.PreviousTag}}...{{.Tag}}
-
-    ### 🔐 Verification
+    ### Verification
     ```bash
     sha256sum -c checksums.txt
     ```
