@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-03-08
+
+### Changed
+
+- Replace multi-stage Go build Dockerfile with GitHub Release binary download (distroless base image)
+- Switch from `scratch` to `gcr.io/distroless/static-debian12:nonroot` for better security scanning
+  and built-in nonroot user
+- Remove Windows build targets from GoReleaser (linux and darwin only)
+- Use CHANGELOG.md for release notes instead of auto-generated commit changelog
+- Remove emojis from GoReleaser release template
+
 ## [1.0.2] - 2026-03-07
 
 ### Security
@@ -102,12 +113,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deployment
 
-- Multi-platform support (Linux, macOS, Windows on AMD64/ARM64)
+- Multi-platform support (Linux, macOS on AMD64/ARM64)
 - Container images available at ghcr.io/sbaerlocher/tsmetrics
 - Helm charts for Kubernetes deployment
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
+[1.0.3]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.3
 [1.0.2]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.2
 [1.0.1]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.1
 [1.0.0]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.0
