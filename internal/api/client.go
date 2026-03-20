@@ -54,6 +54,20 @@ func NewClient(clientID, clientSecret, tailnet string) *Client {
 	}
 }
 
+// NewClientWithBaseURL creates a client with a fully custom base URL.
+// Intended for use in tests where requests must be directed to an httptest.Server.
+func NewClientWithBaseURL(token, baseURL string) *Client {
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	httpClient.Transport = &tokenTransport{
+		token:     token,
+		transport: http.DefaultTransport,
+	}
+	return &Client{
+		httpClient: httpClient,
+		baseURL:    baseURL,
+	}
+}
+
 // NewClientWithToken creates a new Tailscale API client using a direct OAuth token.
 func NewClientWithToken(token, tailnet string) *Client {
 	httpClient := &http.Client{

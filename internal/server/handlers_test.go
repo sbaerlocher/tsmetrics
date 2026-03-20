@@ -66,10 +66,10 @@ func TestUtilityFunctions(t *testing.T) {
 		t.Error("Expected non-negative uptime")
 	}
 
-	// Test getLastScrapeTime
+	// Test getLastScrapeTime — returns 0 before the first scrape completes
 	lastScrape := getLastScrapeTime()
-	if lastScrape <= 0 {
-		t.Error("Expected positive last scrape time")
+	if lastScrape < 0 {
+		t.Error("Expected non-negative last scrape time")
 	}
 
 	// Test getOnlineDeviceCount

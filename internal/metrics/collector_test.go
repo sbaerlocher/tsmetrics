@@ -3,6 +3,7 @@ package metrics
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,7 +90,7 @@ func TestValidateHostname(t *testing.T) {
 		{"empty hostname", "", true},
 		{"newline character", "example\n.com", true},
 		{"carriage return", "example\r.com", true},
-		{"valid long hostname", string(make([]byte, 200)), false},
+		{"valid long hostname", strings.Repeat("a", 200), false},
 	}
 
 	for _, tt := range tests {
