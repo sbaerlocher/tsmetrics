@@ -450,16 +450,18 @@ func TestGetClientID(t *testing.T) {
 			expectedIP: "192.168.1.1",
 		},
 		{
-			name:          "x-forwarded-for header",
+			// X-Forwarded-For is ignored — RemoteAddr is the only trusted source
+			name:          "x-forwarded-for header ignored",
 			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "192.168.1.1, 10.0.0.2",
-			expectedIP:    "192.168.1.1",
+			expectedIP:    "10.0.0.1",
 		},
 		{
-			name:       "x-real-ip header",
+			// X-Real-IP is ignored — RemoteAddr is the only trusted source
+			name:       "x-real-ip header ignored",
 			remoteAddr: "10.0.0.1:12345",
 			xRealIP:    "192.168.1.1",
-			expectedIP: "192.168.1.1",
+			expectedIP: "10.0.0.1",
 		},
 	}
 
