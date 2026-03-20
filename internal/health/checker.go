@@ -3,6 +3,7 @@ package health
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -216,8 +217,8 @@ func (ac *APIHealthChecker) CheckHealth(ctx context.Context) error {
 		return fmt.Errorf("API client not initialized")
 	}
 
-	// Try to fetch a minimal amount of data to verify connectivity
-	_, err := ac.client.FetchDevices()
+	// Use a lightweight HEAD request instead of a full device fetch
+	_, err := ac.client.TestConnectivity(ctx)
 	if err != nil {
 		return fmt.Errorf("API connectivity check failed: %w", err)
 	}
@@ -289,41 +290,19 @@ func (pc *PerformanceHealthChecker) CheckHealth(ctx context.Context) error {
 
 // HTTP Response Helpers
 func WriteHealthResponse(w http.ResponseWriter, status HealthStatus, httpStatus int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(httpStatus)
-
-	// Simple JSON encoding without external dependencies
-	jsonResponse := fmt.Sprintf(`{
-		"status": "%s",
-		"timestamp": "%s",
-		"checks": {`, status.Overall, time.Now().UTC().Format(time.RFC3339))
-
-	first := true
-	for name, check := range status.Checks {
-		if !first {
-			jsonResponse += ","
-		}
-		first = false
-
-		lastSuccessStr := "null"
-		if check.LastSuccess != nil {
-			lastSuccessStr = fmt.Sprintf(`"%s"`, check.LastSuccess.Format(time.RFC3339))
-		}
-
-		jsonResponse += fmt.Sprintf(`
-			"%s": {
-				"component": "%s",
-				"status": "%s",
-				"message": "%s",
-				"duration": %d,
-				"timestamp": "%s",
-				"last_success": %s
-			}`, name, check.Component, check.Status, check.Message,
-			check.Duration.Nanoseconds(), check.Timestamp.Format(time.RFC3339), lastSuccessStr)
+	response := struct {
+		Status    Status                 `json:"status"`
+		Timestamp string                 `json:"timestamp"`
+		Checks    map[string]CheckResult `json:"checks"`
+	}{
+		Status:    status.Overall,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Checks:    status.Checks,
 	}
 
-	jsonResponse += "}}"
-	if _, err := w.Write([]byte(jsonResponse)); err != nil {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatus)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("failed to write health response", "error", err)
 	}
 }

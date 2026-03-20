@@ -443,6 +443,10 @@ func (e *Exporter) scrapeClientMetrics(devices []Device) error {
 - **OAuth Token Security:** Use OAuth2 client credentials flow, handle token refresh
 - **tsnet State:** Secure state directory permissions in production
 - **Network Access:** Restrict scraping to devices with appropriate tags
+- **SSRF:** `ValidateURL` blocks all private/loopback/link-local ranges (not just localhost) — do not weaken this
+- **Rate Limiting:** `getClientID` uses `RemoteAddr` only — never trust X-Forwarded-For/X-Real-IP (forgeable)
+- **Timing Attacks:** `SecureValidateToken` must never `break` early — always iterate all tokens
+- **DevSkim:** Add `// DevSkim: ignore DS162092` on lines that intentionally reference private IPs in security validators
 
 ## Performance Requirements
 

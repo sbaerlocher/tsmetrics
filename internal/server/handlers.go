@@ -12,6 +12,7 @@ import (
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/health"
+	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
 var (
@@ -37,16 +38,18 @@ func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	lastScrape := getLastScrapeTime()
 	status := map[string]interface{}{
-		"status":         "ok",
-		"version":        version,
-		"build_time":     buildTime,
-		"timestamp":      time.Now().Unix(),
-		"memory_mb":      bToMb(m.Alloc),
-		"goroutines":     runtime.NumGoroutine(),
-		"last_scrape":    getLastScrapeTime(),
-		"devices_online": getOnlineDeviceCount(),
-		"uptime_seconds": getUptimeSeconds(),
+		"status":                "ok",
+		"version":               version,
+		"build_time":            buildTime,
+		"timestamp":             time.Now().Unix(),
+		"memory_mb":             bToMb(m.Alloc),
+		"goroutines":            runtime.NumGoroutine(),
+		"last_scrape":           lastScrape,
+		"first_scrape_complete": lastScrape != 0,
+		"devices_online":        getOnlineDeviceCount(),
+		"uptime_seconds":        getUptimeSeconds(),
 	}
 
 	if tailnet := os.Getenv("TAILNET_NAME"); tailnet != "" {
@@ -66,8 +69,8 @@ func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 
 			_, err := apiClient.TestConnectivity(ctx)
 			if err != nil {
+				slog.Warn("API connectivity check failed", "error", err)
 				status["api_status"] = "degraded"
-				status["api_error"] = err.Error()
 			} else {
 				status["api_status"] = "healthy"
 			}
@@ -177,9 +180,9 @@ func getUptimeSeconds() int64 {
 }
 
 func getLastScrapeTime() int64 {
-	return time.Now().Unix() - 30
+	return metrics.GetLastScrapeTime()
 }
 
 func getOnlineDeviceCount() int {
-	return 5
+	return metrics.GetOnlineDevicesCount()
 }
