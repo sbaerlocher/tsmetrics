@@ -136,6 +136,14 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Apply ENV overrides for version metadata before any logging or server setup
+	if v := os.Getenv("VERSION"); v != "" {
+		version = v
+	}
+	if bt := os.Getenv("BUILD_TIME"); bt != "" {
+		buildTime = bt
+	}
+
 	cfg := config.Load()
 
 	setupLogger(cfg)
@@ -153,13 +161,6 @@ func main() {
 		"use_tsnet", cfg.UseTsnet,
 		"log_level", cfg.LogLevel,
 		"log_format", cfg.LogFormat)
-
-	if v := os.Getenv("VERSION"); v != "" {
-		version = v
-	}
-	if bt := os.Getenv("BUILD_TIME"); bt != "" {
-		buildTime = bt
-	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

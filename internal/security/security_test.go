@@ -310,23 +310,18 @@ func TestAuthValidator(t *testing.T) {
 	validator.AddValidToken(token)
 
 	// Valid token should be accepted
-	if !validator.ValidateToken(token) {
+	if !validator.SecureValidateToken(token) {
 		t.Error("Valid token should be accepted")
 	}
 
 	// Invalid token should be rejected
-	if validator.ValidateToken("invalid-token") {
+	if validator.SecureValidateToken("invalid-token") {
 		t.Error("Invalid token should be rejected")
-	}
-
-	// Test secure validation
-	if !validator.SecureValidateToken(token) {
-		t.Error("Valid token should be accepted by secure validation")
 	}
 
 	// Remove token
 	validator.RemoveToken(token)
-	if validator.ValidateToken(token) {
+	if validator.SecureValidateToken(token) {
 		t.Error("Removed token should be rejected")
 	}
 }

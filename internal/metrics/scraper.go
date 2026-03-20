@@ -374,8 +374,16 @@ func validateHostname(hostname string) error {
 	if hostname == "" {
 		return fmt.Errorf("hostname cannot be empty")
 	}
-	if strings.Contains(hostname, "\n") || strings.Contains(hostname, "\r") {
-		return fmt.Errorf("hostname contains invalid characters")
+	if len(hostname) > 253 {
+		return fmt.Errorf("hostname exceeds maximum length of 253 characters")
+	}
+	// Reject any character that could enable header injection, shell injection, or URL manipulation
+	for _, c := range hostname {
+		if c < 32 || c == ' ' || c == '"' || c == '\'' || c == '`' ||
+			c == '\\' || c == '<' || c == '>' || c == '|' ||
+			c == ';' || c == '&' || c == '$' || c == '#' || c == '?' {
+			return fmt.Errorf("hostname contains invalid character %q", c)
+		}
 	}
 	return nil
 }
