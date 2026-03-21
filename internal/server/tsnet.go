@@ -63,12 +63,14 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	}
 
 	mux := SetupRoutes()
-	tsHTTPServer := createHTTPServer("", mux) // No Addr for tsnet server
-	tsHTTPServer.Addr = ""                    // Clear Addr for tsnet
+	handler := applySecurityMiddleware(ctx, mux)
+
+	tsHTTPServer := createHTTPServer("", handler) // No Addr for tsnet server
+	tsHTTPServer.Addr = ""                        // Clear Addr for tsnet
 
 	host := getLocalBindHost()
 	localAddr := fmt.Sprintf("%s:%s", host, cfg.Port)
-	localHTTPServer := createHTTPServer(localAddr, mux)
+	localHTTPServer := createHTTPServer(localAddr, handler)
 
 	// Initialize health checker and background scraper
 	initializeServerComponents(cfg, ctx, collector)
