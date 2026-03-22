@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- Activate `SecurityHeadersMiddleware → RateLimitMiddleware → AuthenticationMiddleware` on all
+  endpoints in both standalone and tsnet server modes; previously no middleware was applied
+- Add opt-in Bearer token authentication via `METRICS_TOKEN` env var; `/metrics` and `/debug`
+  now require authorization when the variable is set
+- Fix auth whitelist to cover `/startupz` and `/healthz` in addition to `/health`, `/livez`, and
+  `/readyz`; Kubernetes startup probes returned 401 with token auth enabled
+- Replace timing-unsafe `ValidateToken` map lookup with `SecureValidateToken` constant-time
+  comparison; the loop no longer breaks early to prevent timing oracle attacks
+- Harden `getClientID` to use `net.SplitHostPort(r.RemoteAddr)` exclusively; `X-Forwarded-For`
+  and `X-Real-IP` headers can be forged and were removed from rate-limit identity resolution
+- Extend SSRF blocklist to all RFC 1918 ranges, CGNAT `100.64.0.0/10` (Tailscale device IPs),
+  `0.0.0.0/8`, loopback, and link-local addresses
+- Switch `validateHostname` from a blocklist to an allowlist regexp `[a-zA-Z0-9.\-\[\]:]+`;
+  the previous blocklist was missing `/` and `:` allowing potential port manipulation
+- Replace `strings.HasPrefix` auth whitelist with exact-match plus sub-path checks to prevent
+  future routes like `/health-admin` from silently inheriting the bypass
+- Remove internal error details (`err.Error()`) from all health probe JSON responses; errors
+  are now logged server-side only
+- Fix rate limiter `Cleanup()` float equality from `==` to `>=` so stale per-IP entries are
+  reliably removed despite floating-point accumulation
+
+### Fixed
+
+- `getLastScrapeTime()` was returning a hardcoded `time.Now() - 30s` instead of the actual
+  last scrape timestamp from the Prometheus gauge
+- `getOnlineDeviceCount()` was returning a hardcoded `5` instead of the real device count
+- `WriteHealthResponse` was constructing JSON via `fmt.Sprintf` with unsanitised message
+  interpolation; replaced with `json.NewEncoder`
+- Add `first_scrape_complete` boolean to `/health` response so consumers can distinguish zero
+  online devices from not-yet-scraped state
+
+### CI
+
+- Add Claude Code Review via shared reusable workflow (`sbaerlocher/.github`)
+- Update all shared workflow refs from `2026-03-20` to `2026-03-22`
+- Switch Helm CI job from `helm-test.yml` to `ci-gitops.yml`
+- Add `status` gate job to allow single required check for branch protection
+- Add `CODEOWNERS` assigning all files to `@sbaerlocher`
+- Add `.prettierrc` for consistent formatting config
+
+### Dependencies
+
+- Pin `gcr.io/distroless/static-debian12` Docker tag to `a932952`
+- Bump alpine Docker image to v3.23
+- Update all non-major Go and action dependencies
+
 ## [1.0.3] - 2026-03-08
 
 ### Changed
@@ -119,6 +169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
+[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.0.3...HEAD
 [1.0.3]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.3
 [1.0.2]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.2
 [1.0.1]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.1
