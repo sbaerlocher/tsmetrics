@@ -47,12 +47,15 @@ jobs:
     if: always()
     steps:
       - name: Check results
+        env:
+          GO_CI_RESULT: ${{ needs.go-ci.result }}
+          HELM_TEST_RESULT: ${{ needs.helm-test.result }}
         run: |
-          if [[ "${{ needs.go-ci.result }}" != "success" ]]; then
+          if [[ "$GO_CI_RESULT" != "success" ]]; then
             echo "Go CI failed"
             exit 1
           fi
-          if [[ "${{ needs.helm-test.result }}" != "success" ]]; then
+          if [[ "$HELM_TEST_RESULT" != "success" ]]; then
             echo "Helm test failed"
             exit 1
           fi
