@@ -80,6 +80,12 @@ func isPrivateHost(hostname string) bool {
 	}
 	ip := net.ParseIP(hostname)
 	if ip == nil {
+		// hostname is a DNS name, not an IP literal — we cannot check it here.
+		// DNS-rebinding (a name resolving to a private IP at request time) is
+		// documented as out-of-scope; callers that need full protection must use
+		// a custom dialer with post-DNS IP validation.
+		// In this project, device hostnames originate exclusively from the
+		// authenticated Tailscale API, so they are treated as trusted input.
 		return false
 	}
 	// Normalize IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) to plain IPv4
@@ -312,12 +318,15 @@ func (av *AuthValidator) SecureValidateToken(token string) bool {
 func AuthenticationMiddleware(validator *AuthValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip authentication for health/probe endpoints
-			if strings.HasPrefix(r.URL.Path, "/health") ||
-				strings.HasPrefix(r.URL.Path, "/livez") ||
-				strings.HasPrefix(r.URL.Path, "/readyz") ||
-				strings.HasPrefix(r.URL.Path, "/startupz") ||
-				strings.HasPrefix(r.URL.Path, "/healthz") {
+			// Skip authentication for health/probe endpoints.
+			// Exact-match or explicit sub-path prefix to avoid accidentally
+			// whitelisting future routes like /health-admin.
+			p := r.URL.Path
+			if p == "/health" || strings.HasPrefix(p, "/health/") ||
+				p == "/healthz" || strings.HasPrefix(p, "/healthz/") ||
+				p == "/livez" || strings.HasPrefix(p, "/livez/") ||
+				p == "/readyz" || strings.HasPrefix(p, "/readyz/") ||
+				p == "/startupz" || strings.HasPrefix(p, "/startupz/") {
 				next.ServeHTTP(w, r)
 				return
 			}

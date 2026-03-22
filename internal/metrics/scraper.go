@@ -370,6 +370,11 @@ func bytesCount(b []byte, c byte) int {
 	return cnt
 }
 
+// validHostnameRe allows only characters that are valid in DNS hostnames and
+// IPv6 literals (brackets and colons). Using an allowlist avoids the risk of
+// missing dangerous characters in a blocklist.
+var validHostnameRe = regexp.MustCompile(`^[a-zA-Z0-9.\-\[\]:]+$`)
+
 func validateHostname(hostname string) error {
 	if hostname == "" {
 		return fmt.Errorf("hostname cannot be empty")
@@ -377,13 +382,8 @@ func validateHostname(hostname string) error {
 	if len(hostname) > 253 {
 		return fmt.Errorf("hostname exceeds maximum length of 253 characters")
 	}
-	// Reject any character that could enable header injection, shell injection, or URL manipulation
-	for _, c := range hostname {
-		if c < 32 || c == ' ' || c == '"' || c == '\'' || c == '`' ||
-			c == '\\' || c == '<' || c == '>' || c == '|' ||
-			c == ';' || c == '&' || c == '$' || c == '#' || c == '?' {
-			return fmt.Errorf("hostname contains invalid character %q", c)
-		}
+	if !validHostnameRe.MatchString(hostname) {
+		return fmt.Errorf("hostname contains invalid characters (only letters, digits, dot, hyphen, and brackets allowed)")
 	}
 	return nil
 }
