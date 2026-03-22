@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `getOnlineDeviceCount()` was returning a hardcoded `5` instead of the real device count
 - `WriteHealthResponse` was constructing JSON via `fmt.Sprintf` with unsanitised message
   interpolation; replaced with `json.NewEncoder`
+- API health check now uses a lightweight `TestConnectivity` call instead of a full device
+  fetch, reducing unnecessary API load during health probes
 - Add `first_scrape_complete` boolean to `/health` response so consumers can distinguish zero
   online devices from not-yet-scraped state
 
