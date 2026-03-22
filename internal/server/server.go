@@ -88,8 +88,8 @@ func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Han
 	h := security.RateLimitMiddleware(rateLimiter)(handler)
 
 	// Token auth is opt-in: set METRICS_TOKEN to require a Bearer token on all
-	// non-health endpoints. AuthenticationMiddleware already whitelists /livez,
-	// /readyz, /startupz, and /health so probes always pass.
+	// non-probe endpoints. AuthenticationMiddleware whitelists /health, /healthz,
+	// /livez, /readyz, and /startupz so Kubernetes probes always pass.
 	if token := os.Getenv("METRICS_TOKEN"); token != "" {
 		validator := security.NewAuthValidator()
 		validator.AddValidToken(token)

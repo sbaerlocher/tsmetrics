@@ -115,9 +115,10 @@ func healthProbeHandler(w http.ResponseWriter, r *http.Request, timeout time.Dur
 	defer cancel()
 
 	if err := checkFn(ctx); err != nil {
+		slog.Warn("health probe check failed", "probe", errStatus, "error", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"status": errStatus, "error": err.Error()}); encErr != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"status": errStatus}); encErr != nil {
 			slog.Error("failed to write health error response", "error", encErr)
 		}
 		return

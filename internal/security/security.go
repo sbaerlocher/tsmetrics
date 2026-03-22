@@ -58,11 +58,13 @@ var privateIPNets []*net.IPNet
 
 func init() {
 	for _, cidr := range []string{
+		"0.0.0.0/8",      // current network (RFC 1122)
 		"127.0.0.0/8",    // IPv4 loopback
 		"::1/128",        // IPv6 loopback
 		"10.0.0.0/8",     // RFC1918
 		"172.16.0.0/12",  // RFC1918
 		"192.168.0.0/16", // RFC1918
+		"100.64.0.0/10",  // CGNAT / Tailscale device IPs (RFC 6598)
 		"169.254.0.0/16", // link-local (AWS metadata, etc.)
 		"fc00::/7",       // IPv6 unique local
 		"fe80::/10",      // IPv6 link-local
@@ -202,7 +204,7 @@ func (rl *RateLimiter) Cleanup() {
 
 	for clientID, limiter := range rl.limiters {
 		// Remove limiters that haven't been used recently
-		if limiter.Tokens() == float64(rl.burst) {
+		if limiter.Tokens() >= float64(rl.burst) {
 			delete(rl.limiters, clientID)
 		}
 	}
@@ -310,10 +312,12 @@ func (av *AuthValidator) SecureValidateToken(token string) bool {
 func AuthenticationMiddleware(validator *AuthValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip authentication for health checks
+			// Skip authentication for health/probe endpoints
 			if strings.HasPrefix(r.URL.Path, "/health") ||
 				strings.HasPrefix(r.URL.Path, "/livez") ||
-				strings.HasPrefix(r.URL.Path, "/readyz") {
+				strings.HasPrefix(r.URL.Path, "/readyz") ||
+				strings.HasPrefix(r.URL.Path, "/startupz") ||
+				strings.HasPrefix(r.URL.Path, "/healthz") {
 				next.ServeHTTP(w, r)
 				return
 			}
