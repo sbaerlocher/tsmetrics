@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `first_scrape_complete` boolean to `/health` response so consumers can distinguish zero
   online devices from not-yet-scraped state
 
-### CI
+### Changed
 
 - Add Claude Code Review via shared reusable workflow (`sbaerlocher/.github`)
 - Update all shared workflow refs from `2026-03-20` to `2026-03-22`
