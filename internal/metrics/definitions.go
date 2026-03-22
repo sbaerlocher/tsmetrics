@@ -2,6 +2,8 @@
 package metrics
 
 import (
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -303,6 +305,24 @@ var (
 		[]string{"device_id", "device_name"},
 	)
 )
+
+// GetLastScrapeTime returns the Unix timestamp of the last successful scrape from the Prometheus metric.
+func GetLastScrapeTime() int64 {
+	m := &dto.Metric{}
+	if err := LastScrapeTime.Write(m); err != nil || m.Gauge == nil {
+		return 0
+	}
+	return int64(m.Gauge.GetValue())
+}
+
+// GetOnlineDevicesCount returns the current count of online devices from the Prometheus metric.
+func GetOnlineDevicesCount() int {
+	m := &dto.Metric{}
+	if err := OnlineDevicesCount.Write(m); err != nil || m.Gauge == nil {
+		return 0
+	}
+	return int(m.Gauge.GetValue())
+}
 
 // CleanupDeviceMetrics removes all metrics associated with a specific device.
 func CleanupDeviceMetrics(deviceID string) {

@@ -115,6 +115,8 @@ tsmetrics_api_requests_total{endpoint}
 - **Development:** `make dev` (live reload via `air` if available)
 - **Testing:** `make test`
 - **Docker:** `make docker-build`, `make docker-run`
+- **Git staging:** `.gitignore` rule `tsmetrics` matches `cmd/tsmetrics/` —
+  use `git add -f cmd/tsmetrics/main.go` for already-tracked files
 
 ### Key Files
 
@@ -132,6 +134,9 @@ tsmetrics_api_requests_total{endpoint}
 - `PORT` — HTTP listen port (default: 9100)
 - `ENV` — `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1
 - `SCRAPE_INTERVAL` — Device discovery interval (default: 30s)
+- `METRICS_TOKEN` — Bearer token to protect all non-health endpoints (optional; omit to allow unauthenticated access)
+- `RATE_LIMIT_RPS` — Rate limit requests per second (default: 10)
+- `RATE_LIMIT_BURST` — Rate limit burst size (default: 20)
 
 ### Tailscale API Access
 
@@ -443,6 +448,10 @@ func (e *Exporter) scrapeClientMetrics(devices []Device) error {
 - **OAuth Token Security:** Use OAuth2 client credentials flow, handle token refresh
 - **tsnet State:** Secure state directory permissions in production
 - **Network Access:** Restrict scraping to devices with appropriate tags
+- **SSRF:** `ValidateURL` blocks all private/loopback/link-local ranges (not just localhost) — do not weaken this
+- **Rate Limiting:** `getClientID` uses `RemoteAddr` only — never trust X-Forwarded-For/X-Real-IP (forgeable)
+- **Timing Attacks:** `SecureValidateToken` must never `break` early — always iterate all tokens
+- **DevSkim:** Add `// DevSkim: ignore DS162092` on lines that intentionally reference private IPs in security validators
 
 ## Performance Requirements
 

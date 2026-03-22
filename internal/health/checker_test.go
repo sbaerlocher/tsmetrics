@@ -182,18 +182,15 @@ func TestHealthChecker_GetHealthStatus(t *testing.T) {
 }
 
 func TestAPIHealthChecker(t *testing.T) {
-	// Create mock HTTP server
+	// Mock server returns 500 so TestConnectivity reports a failure.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v2/device") {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"devices": []}`))
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-		}
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
-	client := api.NewClientWithToken("test-token", "test-tailnet")
+	// Point the client at the mock server so the health check is self-contained
+	// and does not reach the real Tailscale API.
+	client := api.NewClientWithBaseURL("test-token", server.URL+"/api/v2/tailnet/test-tailnet")
 
 	checker := NewAPIHealthChecker(client)
 
@@ -201,10 +198,9 @@ func TestAPIHealthChecker(t *testing.T) {
 		t.Errorf("Expected component name 'tailscale_api', got %s", checker.ComponentName())
 	}
 
-	// Note: This will fail because we don't have a real API, but it tests the flow
 	err := checker.CheckHealth(context.Background())
 	if err == nil {
-		t.Error("Expected error with mock server, but got none")
+		t.Error("Expected error from mock server returning 500, but got none")
 	}
 
 	// Test with nil client
@@ -290,11 +286,11 @@ func TestWriteHealthResponse(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	if !strings.Contains(body, `"status": "healthy"`) {
+	if !strings.Contains(body, `"status":"healthy"`) {
 		t.Error("Response should contain status")
 	}
 
-	if !strings.Contains(body, `"test": {`) {
+	if !strings.Contains(body, `"test":{`) {
 		t.Error("Response should contain check results")
 	}
 }

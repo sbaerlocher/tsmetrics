@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/health"
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
+	"github.com/sbaerlocher/tsmetrics/internal/security"
 )
 
 // createHTTPServer creates a configured HTTP server with standard timeouts.
@@ -49,6 +51,53 @@ func SetupRoutes() *http.ServeMux {
 	mux.HandleFunc("/healthz", DetailedHealthHandler)
 
 	return mux
+}
+
+// applySecurityMiddleware wraps the handler with rate limiting, optional token auth,
+// and security headers. A background goroutine cleans up idle rate-limiter entries
+// every 5 minutes for the lifetime of ctx.
+func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Handler {
+	rps := 10.0
+	if v := os.Getenv("RATE_LIMIT_RPS"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
+			rps = f
+		}
+	}
+	burst := 20
+	if v := os.Getenv("RATE_LIMIT_BURST"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			burst = n
+		}
+	}
+	rateLimiter := security.NewRateLimiter(rps, burst)
+
+	// Cleanup idle per-IP limiters to prevent unbounded map growth (VULN-002)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				rateLimiter.Cleanup()
+			}
+		}
+	}()
+
+	h := security.RateLimitMiddleware(rateLimiter)(handler)
+
+	// Token auth is opt-in: set METRICS_TOKEN to require a Bearer token on all
+	// non-probe endpoints. AuthenticationMiddleware whitelists /health, /healthz,
+	// /livez, /readyz, and /startupz so Kubernetes probes always pass.
+	if token := os.Getenv("METRICS_TOKEN"); token != "" {
+		validator := security.NewAuthValidator()
+		validator.AddValidToken(token)
+		h = security.AuthenticationMiddleware(validator)(h)
+		slog.Info("metrics endpoint protected with bearer token authentication")
+	}
+
+	return security.SecurityHeadersMiddleware(h)
 }
 
 // initializeHealthChecker sets up the health checker with appropriate components based on configuration
@@ -92,7 +141,7 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	slog.Info("HTTP client configured", "network", "standard")
 
 	mux := SetupRoutes()
-	srv := createHTTPServer(addr, mux)
+	srv := createHTTPServer(addr, applySecurityMiddleware(ctx, mux))
 
 	// Initialize health checker and background scraper
 	initializeServerComponents(cfg, ctx, collector)
