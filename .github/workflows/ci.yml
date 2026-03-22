@@ -14,7 +14,7 @@ permissions:
 jobs:
   go-ci:
     name: Go CI Pipeline
-    uses: sbaerlocher/.github/.github/workflows/ci-go.yml@2026-03-20
+    uses: sbaerlocher/.github/.github/workflows/ci-go.yml@2026-03-22
     with:
       # renovate: datasource=golang-version depName=golang
       go-version: "1.26"
@@ -30,7 +30,33 @@ jobs:
 
   helm-test:
     name: Helm Chart Test
-    uses: sbaerlocher/.github/.github/workflows/helm-test.yml@2026-03-20
+    uses: sbaerlocher/.github/.github/workflows/ci-gitops.yml@2026-03-22
     with:
-      chart-path: "deploy/helm"
-      enable-kind-tests: true
+      fleet-paths: "deploy"
+      enable-yaml-lint: false
+      enable-fleet-validation: false
+      enable-gitrepo-validation: false
+      enable-helm-lint: true
+      enable-k8s-validation: false
+      enable-docs-check: false
+
+  status:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [go-ci, helm-test]
+    if: always()
+    steps:
+      - name: Check results
+        env:
+          GO_CI_RESULT: ${{ needs.go-ci.result }}
+          HELM_TEST_RESULT: ${{ needs.helm-test.result }}
+        run: |
+          if [[ "$GO_CI_RESULT" != "success" ]]; then
+            echo "Go CI failed"
+            exit 1
+          fi
+          if [[ "$HELM_TEST_RESULT" != "success" ]]; then
+            echo "Helm test failed"
+            exit 1
+          fi
+          echo "All checks passed"
