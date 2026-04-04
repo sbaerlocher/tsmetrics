@@ -8,7 +8,7 @@
     {
       "description": "Track tsmetrics appVersion in Helm Chart.yaml",
       "customType": "regex",
-      "managerFilePatterns": ["/^deploy/helm/Chart\.yaml$/"],
+      "managerFilePatterns": ["/^deploy/helm/Chart\\.yaml$/"],
       "matchStrings": ["appVersion: \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "ghcr.io/sbaerlocher/tsmetrics",
       "datasourceTemplate": "docker",
