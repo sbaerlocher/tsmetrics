@@ -81,11 +81,11 @@ set_development_defaults() {
 	# Application configuration
 	export ENV="${ENV:-development}"
 	export PORT="${PORT:-9100}"
-	export LOG_LEVEL="${LOG_LEVEL:-info}"
+	export LOG_LEVEL="${LOG_LEVEL:-debug}"
 	export LOG_FORMAT="${LOG_FORMAT:-text}"
 
 	# Device and performance configuration
-	export TARGET_DEVICES="${TARGET_DEVICES:-gateway-140207,gateway-130104}"
+	export TARGET_DEVICES="${TARGET_DEVICES:-gateway-140207}"
 	export CLIENT_METRICS_TIMEOUT="${CLIENT_METRICS_TIMEOUT:-10s}"
 	export MAX_CONCURRENT_SCRAPES="${MAX_CONCURRENT_SCRAPES:-10}"
 	export CLIENT_METRICS_PORT="${CLIENT_METRICS_PORT:-5252}"
