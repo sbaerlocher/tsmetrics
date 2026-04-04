@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-04-04
+
+### Fixed
+
+- Set `HOME=/tmp` in Kubernetes deployments to fix `mkdir /nonexistent: read-only file system`
+  crash when tsnet runs as nonroot user (65534) in distroless container
+
 ## [1.1.2] - 2026-04-04
 
 ### Fixed
@@ -235,6 +242,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
+[1.1.3]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.0.4...v1.1.0

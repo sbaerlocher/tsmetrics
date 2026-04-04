@@ -3,8 +3,8 @@ apiVersion: v2
 name: tsmetrics
 description: A Helm chart for tsmetrics - Tailscale Prometheus Exporter
 type: application
-version: 0.3.2
-appVersion: "1.1.2"
+version: 0.3.3
+appVersion: "1.1.3"
 keywords:
   - tailscale
   - prometheus
@@ -43,7 +43,7 @@ annotations:
       --set tailscale.tailnetName=your-company
     ```
   artifacthub.io/changes: |
-    - Fix missing server.Close() on early-return error paths in tsnet init
+    - Fix read-only filesystem crash by setting HOME=/tmp for nonroot distroless
   artifacthub.io/links: |
     - name: Chart Source
       url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm/tsmetrics
