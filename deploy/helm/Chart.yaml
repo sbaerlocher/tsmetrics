@@ -3,8 +3,8 @@ apiVersion: v2
 name: tsmetrics
 description: A Helm chart for tsmetrics - Tailscale Prometheus Exporter
 type: application
-version: 0.3.1
-appVersion: "1.1.1"
+version: 0.3.2
+appVersion: "1.1.2"
 keywords:
   - tailscale
   - prometheus
@@ -43,10 +43,7 @@ annotations:
       --set tailscale.tailnetName=your-company
     ```
   artifacthub.io/changes: |
-    - Kubernetes Secret as tsnet state backend (replaces PVC)
-    - RBAC resources (ServiceAccount, Role, RoleBinding)
-    - Security hardening (label truncation, response limits, health endpoint)
-    - Helm Secret name and key alignment fixes
+    - Fix missing server.Close() on early-return error paths in tsnet init
   artifacthub.io/links: |
     - name: Chart Source
       url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm/tsmetrics
