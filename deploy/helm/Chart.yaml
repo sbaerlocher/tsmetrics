@@ -43,7 +43,7 @@ annotations:
       --set tailscale.tailnetName=your-company
     ```
   artifacthub.io/changes: |
-    - Fix nil pointer dereference in tsnet server.Close() on init failure
+    - Fix missing server.Close() on early-return error paths in tsnet init
   artifacthub.io/links: |
     - name: Chart Source
       url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm/tsmetrics

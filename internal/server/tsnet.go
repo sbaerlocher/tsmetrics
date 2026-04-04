@@ -62,12 +62,6 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 			"note", "auth_key required for tagged devices")
 	}
 
-	defer func() {
-		if server != nil {
-			_ = server.Close()
-		}
-	}()
-
 	tsnetProvider := &metrics.TsnetHTTPClientProvider{
 		Server:  server,
 		Timeout: cfg.ClientMetricsTimeout,
@@ -82,6 +76,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	if err != nil {
 		return fmt.Errorf("tsnet listen failed: %w", err)
 	}
+	defer func() { _ = server.Close() }()
 
 	mux := SetupRoutes()
 	handler := applySecurityMiddleware(ctx, mux)

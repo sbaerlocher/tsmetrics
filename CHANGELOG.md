@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Prevent nil pointer dereference in deferred `server.Close()` when tsnet
-  server initialization fails
+- Move deferred `server.Close()` to immediately after server creation so
+  early-return error paths (e.g. `store.New`, `server.Listen`) clean up properly
 
 ## [1.1.1] - 2026-04-04
 
