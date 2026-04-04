@@ -4,12 +4,33 @@
     "github>sbaerlocher/.github:renovate-go#2026-03-28",
     "github>sbaerlocher/.github:renovate-docker#2026-03-28"
   ],
+  "customManagers": [
+    {
+      "description": "Track tsmetrics appVersion in Helm Chart.yaml",
+      "customType": "regex",
+      "managerFilePatterns": ["/^deploy/helm/Chart\.yaml$/"],
+      "matchStrings": ["appVersion: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "ghcr.io/sbaerlocher/tsmetrics",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    }
+  ],
   "packageRules": [
     {
-      "description": "Disable digest pinning for tsmetrics image (version managed via Chart.appVersion)",
+      "description": "tsmetrics image: disable digest pinning, auto-merge version updates after CI",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/sbaerlocher/tsmetrics"],
-      "pinDigests": false
+      "pinDigests": false,
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "tsmetrics image: disable Renovate for dev overlay (uses rolling 'dev' tag)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/sbaerlocher/tsmetrics"],
+      "matchFileNames": ["deploy/kustomize/overlays/development/**"],
+      "enabled": false
     }
   ]
 }
