@@ -101,6 +101,8 @@ spec:
               containerPort: {{ .Values.config.port }}
               protocol: TCP
           env:
+            - name: HOME
+              value: /tmp
             - name: PORT
               value: {{ .Values.config.port | quote }}
             - name: ENV

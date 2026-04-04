@@ -62,6 +62,8 @@ spec:
               containerPort: 9100
               protocol: TCP
           env:
+            - name: HOME
+              value: /tmp
             - name: PORT
               value: "9100"
             - name: ENV
