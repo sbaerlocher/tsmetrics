@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"tailscale.com/ipn/store"
+	_ "tailscale.com/ipn/store/kubestore" // Register "kube:" state store provider
 	"tailscale.com/tsnet"
 
 	"github.com/sbaerlocher/tsmetrics/internal/config"
