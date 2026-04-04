@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-04-04
 
 ### Added
 
@@ -39,11 +39,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `readOnlyRootFilesystem: true`)
 - Delete orphaned `pvc.yaml` from production overlay
 - Pin Kustomize image tags to `v1.0.4` instead of `latest`
+- Remove dead code: `runtime.ReadMemStats`, `bToMb`, `getOnlineDeviceCount` and
+  unused `runtime` import from health handler
+- Fix `truncateLabel` to slice by runes instead of bytes (UTF-8 safety)
 
 ### Changed
 
 - Kustomize production overlay: replaced PVC volume mount with `TSNET_STATE_SECRET` env var
 - Helm default `storage.type` changed from `pvc` to `k8s-secret`
+- Downgrade kube store internal log level from Info to Debug (noisy Tailscale library logs)
+
+### Dependencies
+
+- Bump `tailscale.com` to v1.96.5
 
 ## [1.0.4] - 2026-03-22
 
