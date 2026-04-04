@@ -36,7 +36,12 @@ spec:
         app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- if eq .Values.storage.type "k8s-secret" }}
+      automountServiceAccountToken: true
+      serviceAccountName: {{ include "tsmetrics.serviceAccountName" . }}
+      {{- else }}
       automountServiceAccountToken: false
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -111,8 +116,13 @@ spec:
               value: {{ .Values.tailscale.tsnet.hostname | quote }}
             - name: TSNET_TAGS
               value: {{ .Values.tailscale.tsnet.tags | quote }}
+            {{- if eq .Values.storage.type "k8s-secret" }}
+            - name: TSNET_STATE_SECRET
+              value: {{ default (printf "%s-state" (include "tsmetrics.fullname" .)) .Values.storage.kubeSecret.name | quote }}
+            {{- else }}
             - name: TSNET_STATE_DIR
               value: {{ .Values.tailscale.tsnet.stateDir | quote }}
+            {{- end }}
             {{- if .Values.config.scrapeTag }}
             - name: SCRAPE_TAG
               value: {{ .Values.config.scrapeTag | quote }}
@@ -135,29 +145,29 @@ spec:
             - name: OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tsmetrics.fullname" . }}
-                  key: oauth-client-id
+                  name: {{ include "tsmetrics.fullname" . }}-secrets
+                  key: OAUTH_CLIENT_ID
 {{- end }}
 {{- if .Values.tailscale.oauthClientSecret }}
             - name: OAUTH_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tsmetrics.fullname" . }}
-                  key: oauth-client-secret
+                  name: {{ include "tsmetrics.fullname" . }}-secrets
+                  key: OAUTH_CLIENT_SECRET
 {{- end }}
 {{- if .Values.tailscale.tailnetName }}
             - name: TAILNET_NAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tsmetrics.fullname" . }}
-                  key: tailnet-name
+                  name: {{ include "tsmetrics.fullname" . }}-secrets
+                  key: TAILNET_NAME
 {{- end }}
 {{- if .Values.tailscale.tsnet.authKey }}
             - name: TS_AUTHKEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tsmetrics.fullname" . }}
-                  key: ts-authkey
+                  name: {{ include "tsmetrics.fullname" . }}-secrets
+                  key: TS_AUTHKEY
 {{- end }}
 {{- end }}
 {{- if .Values.externalSecret.enabled }}
@@ -172,9 +182,13 @@ spec:
                 name: {{ include "tsmetrics.fullname" . }}-config
 {{- end }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- if ne .Values.storage.type "k8s-secret" }}
             # kics-scan ignore-line: Volume Mount With OS Directory Write Permissions - Required for tsnet state
             - name: tsnet-state
               mountPath: {{ .Values.tailscale.tsnet.stateDir }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /livez
@@ -207,6 +221,10 @@ spec:
               cpu: "500m"
               memory: "512Mi"
       volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: "100Mi"
+      {{- if ne .Values.storage.type "k8s-secret" }}
         - name: tsnet-state
 {{- if eq .Values.storage.type "pvc" }}
           persistentVolumeClaim:
@@ -230,6 +248,7 @@ spec:
             sizeLimit: {{ .Values.storage.memory.sizeLimit }}
             {{- end }}
 {{- end }}
+      {{- end }}
 {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

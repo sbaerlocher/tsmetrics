@@ -13,10 +13,13 @@ resources:
   - service.yaml
   - configmap.yaml
   - networkpolicy.yaml
+  - serviceaccount.yaml
+  - role.yaml
+  - rolebinding.yaml
 
 images:
   - name: ghcr.io/sbaerlocher/tsmetrics
-    newTag: latest
+    newTag: v1.0.4
 
 labels:
   - pairs:

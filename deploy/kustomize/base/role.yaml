@@ -1,0 +1,17 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tsmetrics-state
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tsmetrics-state"]
+    verbs: ["get", "update", "patch"]
+  # create cannot be scoped by resourceNames (K8s limitation: resource doesn't exist yet)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]

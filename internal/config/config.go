@@ -15,6 +15,7 @@ type Config struct {
 	UseTsnet             bool
 	TsnetHostname        string
 	TsnetStateDir        string
+	TsnetStateSecret     string
 	TsnetAuthKey         string
 	Port                 string
 	OAuthClientID        string
@@ -73,6 +74,7 @@ func (cfg *Config) loadTsnetSettings() {
 	}
 	cfg.TsnetHostname = os.Getenv("TSNET_HOSTNAME")
 	cfg.TsnetStateDir = os.Getenv("TSNET_STATE_DIR")
+	cfg.TsnetStateSecret = os.Getenv("TSNET_STATE_SECRET")
 	cfg.TsnetAuthKey = os.Getenv("TS_AUTHKEY")
 
 	if v := os.Getenv("TSNET_TAGS"); v != "" {

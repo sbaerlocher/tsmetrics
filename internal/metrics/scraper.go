@@ -181,7 +181,7 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 		return handleHTTPError(dev, resp, buildMetricsURL(dev, cfg))
 	}
 
-	return parseMetricsResponse(dev, resp.Body)
+	return parseMetricsResponse(dev, io.LimitReader(resp.Body, 10*1024*1024))
 }
 
 func buildMetricsURL(dev device.Device, cfg config.Config) string {

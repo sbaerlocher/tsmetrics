@@ -32,7 +32,8 @@ spec:
         prometheus.io/port: "9100"
         prometheus.io/path: "/metrics"
     spec:
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true
+      serviceAccountName: tsmetrics
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -75,8 +76,8 @@ spec:
               value: "tsmetrics"
             - name: TSNET_TAGS
               value: "exporter"
-            - name: TSNET_STATE_DIR
-              value: "/var/lib/tsmetrics/state"
+            - name: TSNET_STATE_SECRET
+              value: "tsmetrics-state"
             - name: SCRAPE_TAG
               value: "exporter"
             - name: CLIENT_METRICS_TIMEOUT
@@ -124,13 +125,9 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 30
           volumeMounts:
-            # kics-scan ignore-line: Volume Mount With OS Directory Write Permissions - Required for tsnet state
-            - name: tsnet-state
-              mountPath: /var/lib/tsmetrics/state
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: tsnet-state
-          emptyDir: {}
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: "100Mi"

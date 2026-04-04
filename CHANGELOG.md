@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Support Kubernetes Secret as tsnet state backend via `TSNET_STATE_SECRET` env var; uses
+  Tailscale's built-in `kube:` store prefix (`tailscale.com/ipn/store`) — no PVC required
+- Helm: new `storage.type: k8s-secret` (now default) with `storage.kubeSecret` configuration
+- Helm: ServiceAccount, Role, and RoleBinding templates for K8s Secret state store access
+- Helm: empty state Secret created automatically when `storage.kubeSecret.create: true`
+- Kustomize: RBAC resources (ServiceAccount, Role, RoleBinding) in base layer
+- `TSNET_STATE_SECRET` fallback: existing `TSNET_STATE_DIR`/PVC path still supported
+
+### Security
+
+- Truncate all API-sourced Prometheus label values to 128 characters to prevent cardinality bombs
+  from compromised devices (`truncateLabel` on `d.OS`, `d.User`, `d.ClientVersion`, routes, regions)
+- Limit client metrics response body to 10 MB via `io.LimitReader` to prevent OOM from
+  malicious device responses
+- Remove version, build time, memory usage, goroutine count, and device count from
+  unauthenticated `/health` endpoint to prevent information disclosure
+- Scope RBAC Role `resourceNames` to only the state Secret for get/update/patch operations
+- Add `sizeLimit: 100Mi` to all tmp emptyDir volumes to prevent node disk exhaustion
+- Remove open NetworkPolicy ingress rule (`from: []`) that bypassed namespace restrictions
+- Add conflict warning when both `TSNET_STATE_SECRET` and `TSNET_STATE_DIR` are set
+
+### Fixed
+
+- Helm Secret name now uses `fullname`-secrets template instead of hardcoded `tsmetrics-secrets`
+- Helm Secret keys aligned between `secret.yaml` and `deployment.yaml` secretKeyRef
+- Remove `TAILNET_NAME` from ConfigMap (was duplicated with Secret, could cause override conflicts)
+- Add `/tmp` emptyDir volume in Helm k8s-secret storage mode (was missing, broke
+  `readOnlyRootFilesystem: true`)
+- Delete orphaned `pvc.yaml` from production overlay
+- Pin Kustomize image tags to `v1.0.4` instead of `latest`
+
+### Changed
+
+- Kustomize production overlay: replaced PVC volume mount with `TSNET_STATE_SECRET` env var
+- Helm default `storage.type` changed from `pvc` to `k8s-secret`
+
 ## [1.0.4] - 2026-03-22
 
 ### Security

@@ -14,7 +14,6 @@ metadata:
 spec:
   template:
     spec:
-      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -44,6 +43,8 @@ spec:
               value: "production"
             - name: SCRAPE_TAG
               value: "production"
+            - name: TSNET_STATE_SECRET
+              value: "tsmetrics-state"
           resources:
             requests:
               cpu: 200m
@@ -63,11 +64,3 @@ spec:
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
-          volumeMounts:
-            - name: tsnet-state
-              mountPath: /var/lib/tsmetrics/state
-              readOnly: false
-      volumes:
-        - name: tsnet-state
-          persistentVolumeClaim:
-            claimName: tsmetrics-state

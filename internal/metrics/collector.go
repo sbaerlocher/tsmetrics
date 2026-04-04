@@ -17,6 +17,21 @@ import (
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
+const maxLabelLength = 128
+
+// truncateLabel limits a Prometheus label value to maxLabelLength to prevent
+// cardinality bombs from compromised API data.
+func truncateLabel(s string) string {
+	if len(s) <= maxLabelLength {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxLabelLength {
+		return s
+	}
+	return string(r[:maxLabelLength])
+}
+
 var (
 	apiCredentialsWarningShown bool
 	apiCredentialsWarningMutex sync.Mutex
@@ -197,7 +212,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 	onlineCount := 0
 	for _, d := range devices {
 		// Set static device info (always present, no online status in labels)
-		DeviceInfo.WithLabelValues(d.ID.String(), d.Name.String(), d.OS, d.ClientVersion).Set(1)
+		DeviceInfo.WithLabelValues(d.ID.String(), d.Name.String(), truncateLabel(d.OS), truncateLabel(d.ClientVersion)).Set(1)
 
 		// Set online status as numeric value (1=online, 0=offline)
 		onlineValue := 0.0
@@ -218,7 +233,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 		}
 
 		if d.User != "" {
-			DeviceUser.WithLabelValues(d.ID.String(), d.Name.String(), d.User).Set(1)
+			DeviceUser.WithLabelValues(d.ID.String(), d.Name.String(), truncateLabel(d.User)).Set(1)
 		}
 
 		if !d.KeyExpiryDisabled && !d.Expires.IsZero() {
@@ -228,11 +243,11 @@ func (c *Collector) UpdateMetrics(target string) error {
 		}
 
 		for _, route := range d.AdvertisedRoutes {
-			DeviceRoutesAdvertised.WithLabelValues(d.ID.String(), d.Name.String(), route).Set(1)
+			DeviceRoutesAdvertised.WithLabelValues(d.ID.String(), d.Name.String(), truncateLabel(route)).Set(1)
 		}
 
 		for _, route := range d.EnabledRoutes {
-			DeviceRoutesEnabled.WithLabelValues(d.ID.String(), d.Name.String(), route).Set(1)
+			DeviceRoutesEnabled.WithLabelValues(d.ID.String(), d.Name.String(), truncateLabel(route)).Set(1)
 		}
 
 		exitNodeValue := 0.0
@@ -307,7 +322,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 				if latencyInfo.Preferred {
 					preferredStr = "true"
 				}
-				DeviceLatency.WithLabelValues(d.ID.String(), d.Name.String(), region, preferredStr).Set(latencyInfo.LatencyMs)
+				DeviceLatency.WithLabelValues(d.ID.String(), d.Name.String(), truncateLabel(region), preferredStr).Set(latencyInfo.LatencyMs)
 			}
 
 			// Set client support metrics

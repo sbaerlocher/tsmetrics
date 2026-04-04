@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
@@ -35,20 +34,11 @@ func SetHealthChecker(hc *health.HealthChecker) {
 
 // EnhancedHealthHandler provides enhanced health check information.
 func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
 	lastScrape := getLastScrapeTime()
 	status := map[string]interface{}{
 		"status":                "ok",
-		"version":               version,
-		"build_time":            buildTime,
 		"timestamp":             time.Now().Unix(),
-		"memory_mb":             bToMb(m.Alloc),
-		"goroutines":            runtime.NumGoroutine(),
-		"last_scrape":           lastScrape,
 		"first_scrape_complete": lastScrape != 0,
-		"devices_online":        getOnlineDeviceCount(),
 		"uptime_seconds":        getUptimeSeconds(),
 	}
 
@@ -172,18 +162,10 @@ func DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
 	health.WriteHealthResponse(w, status, httpStatus)
 }
 
-func bToMb(b uint64) uint64 {
-	return b / 1024 / 1024
-}
-
 func getUptimeSeconds() int64 {
 	return int64(time.Since(startTime).Seconds())
 }
 
 func getLastScrapeTime() int64 {
 	return metrics.GetLastScrapeTime()
-}
-
-func getOnlineDeviceCount() int {
-	return metrics.GetOnlineDevicesCount()
 }

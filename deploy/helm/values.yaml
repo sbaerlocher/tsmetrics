@@ -102,13 +102,22 @@ resources: {}
 
 # Storage configuration for tsnet state
 # Available storage types:
+# - k8s-secret: Kubernetes Secret via tailscale kube: store (default, recommended)
 # - pvc: PersistentVolumeClaim (CSI/traditional storage)
 # - emptyDir: Temporary storage, persists for pod lifetime
 # - hostPath: Direct host filesystem mount (node-local)
 # - memory: In-memory tmpfs storage (fastest, non-persistent)
 storage:
-  # Storage type: pvc, emptyDir, hostPath, memory
-  type: "pvc"
+  # Storage type: k8s-secret, pvc, emptyDir, hostPath, memory
+  type: "k8s-secret"
+
+  # Kubernetes Secret configuration (when type=k8s-secret)
+  kubeSecret:
+    # Name of the Secret to use; defaults to <fullname>-state
+    name: ""
+    # Create the Secret if it does not exist
+    create: true
+    annotations: {}
 
   # PVC configuration (when type=pvc)
   pvc:
@@ -132,6 +141,11 @@ storage:
   # Memory configuration (when type=memory)
   memory:
     sizeLimit: "512Mi"
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
 
 # Security and permissions
 security:
