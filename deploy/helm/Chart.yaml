@@ -43,10 +43,10 @@ annotations:
       --set tailscale.tailnetName=your-company
     ```
   artifacthub.io/changes: |
-    - Initial release with OCI support
-    - Health checks and probes
-    - ServiceMonitor for Prometheus Operator
-    - Persistence for tsnet state
+    - Kubernetes Secret as tsnet state backend (replaces PVC)
+    - RBAC resources (ServiceAccount, Role, RoleBinding)
+    - Security hardening (label truncation, response limits, health endpoint)
+    - Helm Secret name and key alignment fixes
   artifacthub.io/links: |
     - name: Chart Source
       url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm/tsmetrics
