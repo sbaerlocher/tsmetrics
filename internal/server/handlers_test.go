@@ -28,7 +28,7 @@ func TestEnhancedHealthHandler(t *testing.T) {
 
 	// Check if response contains expected fields
 	body := rr.Body.String()
-	expectedFields := []string{"status", "version", "build_time", "timestamp", "memory_mb", "goroutines"}
+	expectedFields := []string{"status", "timestamp", "first_scrape_complete", "uptime_seconds"}
 
 	for _, field := range expectedFields {
 		if !contains(body, field) {

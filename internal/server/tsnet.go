@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"tailscale.com/ipn/store"
 	"tailscale.com/tsnet"
 
 	"github.com/sbaerlocher/tsmetrics/internal/config"
@@ -26,11 +27,26 @@ func getLocalBindHost() string {
 }
 
 func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
-	stateDir := config.SetupTsnetStateDir(cfg.TsnetStateDir)
-
 	server := &tsnet.Server{
 		Hostname: cfg.TsnetHostname,
-		Dir:      stateDir,
+	}
+
+	if cfg.TsnetStateSecret != "" {
+		if cfg.TsnetStateDir != "" {
+			slog.Warn("both TSNET_STATE_SECRET and TSNET_STATE_DIR set, using Secret store")
+		}
+		logf := func(format string, args ...any) {
+			slog.Info(fmt.Sprintf(format, args...))
+		}
+		stateStore, err := store.New(logf, "kube:"+cfg.TsnetStateSecret)
+		if err != nil {
+			return fmt.Errorf("failed to create kube state store: %w", err)
+		}
+		server.Store = stateStore
+		slog.Info("tsnet using Kubernetes Secret as state store", "secret", cfg.TsnetStateSecret)
+	} else {
+		stateDir := config.SetupTsnetStateDir(cfg.TsnetStateDir)
+		server.Dir = stateDir
 	}
 
 	if cfg.TsnetAuthKey != "" {

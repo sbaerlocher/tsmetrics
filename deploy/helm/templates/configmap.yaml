@@ -31,6 +31,5 @@ data:
   SCRAPE_INTERVAL: {{ .Values.config.scrapeInterval | quote }}
 
   # Tailscale API configuration
-  TAILNET_NAME: {{ .Values.tailscale.tailnetName | quote }}
   SCRAPE_TAG: {{ .Values.config.scrapeTag | quote }}
   TARGET_DEVICES: {{ .Values.config.targetDevices | quote }}

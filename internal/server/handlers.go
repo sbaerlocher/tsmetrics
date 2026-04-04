@@ -41,14 +41,8 @@ func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 	lastScrape := getLastScrapeTime()
 	status := map[string]interface{}{
 		"status":                "ok",
-		"version":               version,
-		"build_time":            buildTime,
 		"timestamp":             time.Now().Unix(),
-		"memory_mb":             bToMb(m.Alloc),
-		"goroutines":            runtime.NumGoroutine(),
-		"last_scrape":           lastScrape,
 		"first_scrape_complete": lastScrape != 0,
-		"devices_online":        getOnlineDeviceCount(),
 		"uptime_seconds":        getUptimeSeconds(),
 	}
 

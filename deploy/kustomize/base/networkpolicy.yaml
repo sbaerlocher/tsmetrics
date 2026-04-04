@@ -21,10 +21,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9100
-    - from: [] # Allow all for health checks
-      ports:
-        - protocol: TCP
-          port: 9100
   egress:
     - to: [] # Allow all outbound for API calls
       ports:
