@@ -25,7 +25,11 @@ func truncateLabel(s string) string {
 	if len(s) <= maxLabelLength {
 		return s
 	}
-	return s[:maxLabelLength]
+	r := []rune(s)
+	if len(r) <= maxLabelLength {
+		return s
+	}
+	return string(r[:maxLabelLength])
 }
 
 var (

@@ -36,7 +36,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 			slog.Warn("both TSNET_STATE_SECRET and TSNET_STATE_DIR set, using Secret store")
 		}
 		logf := func(format string, args ...any) {
-			slog.Info(fmt.Sprintf(format, args...))
+			slog.Debug(fmt.Sprintf(format, args...))
 		}
 		stateStore, err := store.New(logf, "kube:"+cfg.TsnetStateSecret)
 		if err != nil {

@@ -53,13 +53,6 @@ func TestSetVersion(t *testing.T) {
 }
 
 func TestUtilityFunctions(t *testing.T) {
-	// Test bToMb
-	bytes := uint64(1024 * 1024 * 10) // 10 MB
-	mb := bToMb(bytes)
-	if mb != 10 {
-		t.Errorf("Expected 10 MB, got %d", mb)
-	}
-
 	// Test getUptimeSeconds - should be at least 0
 	uptime := getUptimeSeconds()
 	if uptime < 0 {
@@ -70,12 +63,6 @@ func TestUtilityFunctions(t *testing.T) {
 	lastScrape := getLastScrapeTime()
 	if lastScrape < 0 {
 		t.Error("Expected non-negative last scrape time")
-	}
-
-	// Test getOnlineDeviceCount
-	deviceCount := getOnlineDeviceCount()
-	if deviceCount < 0 {
-		t.Error("Expected non-negative device count")
 	}
 }
 

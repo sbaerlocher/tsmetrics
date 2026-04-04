@@ -8,6 +8,7 @@ rules:
     resources: ["secrets"]
     resourceNames: ["tsmetrics-state"]
     verbs: ["get", "update", "patch"]
+  # create cannot be scoped by resourceNames (K8s limitation: resource doesn't exist yet)
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create"]
