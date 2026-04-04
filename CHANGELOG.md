@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-04
+
 ### Added
 
 - Support Kubernetes Secret as tsnet state backend via `TSNET_STATE_SECRET` env var; uses
@@ -39,11 +41,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `readOnlyRootFilesystem: true`)
 - Delete orphaned `pvc.yaml` from production overlay
 - Pin Kustomize image tags to `v1.0.4` instead of `latest`
+- Remove dead code: `runtime.ReadMemStats`, `bToMb`, `getOnlineDeviceCount` and
+  unused `runtime` import from health handler
+- Fix `truncateLabel` to slice by runes instead of bytes (UTF-8 safety)
 
 ### Changed
 
 - Kustomize production overlay: replaced PVC volume mount with `TSNET_STATE_SECRET` env var
 - Helm default `storage.type` changed from `pvc` to `k8s-secret`
+- Downgrade kube store internal log level from Info to Debug (noisy Tailscale library logs)
+
+### Dependencies
+
+- Bump `tailscale.com` to v1.96.5
 
 ## [1.0.4] - 2026-03-22
 
@@ -211,6 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
+[1.1.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/sbaerlocher/tsmetrics/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.3
 [1.0.2]: https://github.com/sbaerlocher/tsmetrics/releases/tag/v1.0.2
