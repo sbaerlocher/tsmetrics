@@ -21,7 +21,6 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
@@ -30,6 +29,8 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Development](#development)
 - [Architecture](#architecture)
+- [API Reference](#api-reference)
+- [Advanced Usage](#advanced-usage)
 - [Migration Guide](#migration-guide)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -53,7 +54,7 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
    ```bash
    git clone https://github.com/sbaerlocher/tsmetrics
    cd tsmetrics
-   make build
+   just build
    ./bin/tsmetrics
    ```
 
@@ -100,8 +101,6 @@ docker run -d \
   ghcr.io/sbaerlocher/tsmetrics:latest
 ```
 
-### Quick Start
-
 ### Prerequisites
 
 1. Tailscale account with API access
@@ -115,7 +114,7 @@ docker run -d \
    ```bash
    git clone https://github.com/sbaerlocher/tsmetrics
    cd tsmetrics
-   make build
+   just build
    ```
 
 2. **Configure environment:**
@@ -128,7 +127,7 @@ docker run -d \
 3. **Run standalone:**
 
    ```bash
-   make run
+   dde project:exec -- go run ./cmd/tsmetrics
    ```
 
 4. **Verify metrics:**
@@ -157,7 +156,7 @@ tsmetrics/
 │   ├── helm/              # Helm chart
 │   └── kustomize/         # Kustomize overlays (dev/prod)
 ├── .env.example           # Environment configuration template
-├── Makefile              # Build and development targets
+├── justfile              # Task runner (dde + just)
 ├── Dockerfile            # Container build configuration
 └── bin/                  # Compiled binaries
 ```
@@ -173,35 +172,6 @@ tsmetrics/
 | `internal/metrics` | Prometheus metrics definitions and collection   |
 | `internal/server`  | HTTP server, handlers, and tsnet integration    |
 | `pkg/device`       | Public device data structures and utilities     |
-
-### Docker Deployment
-
-**Standalone mode:**
-
-```bash
-docker run -d \
-  --name tsmetrics \
-  -e OAUTH_CLIENT_ID=your_client_id \
-  -e OAUTH_CLIENT_SECRET=your_client_secret \
-  -e TAILNET_NAME=your-company \
-  -p 9100:9100 \
-  ghcr.io/sbaerlocher/tsmetrics:latest
-```
-
-**tsnet mode (recommended for production):**
-
-```bash
-docker run -d \
-  --name tsmetrics \
-  -e USE_TSNET=true \
-  -e TSNET_HOSTNAME=tsmetrics \
-  -e TSNET_TAGS=exporter \
-  -e OAUTH_CLIENT_ID=your_client_id \
-  -e OAUTH_CLIENT_SECRET=your_client_secret \
-  -e TAILNET_NAME=your-company \
-  -v tsnet-state:/tmp/tsnet-state \
-  ghcr.io/sbaerlocher/tsmetrics:latest
-```
 
 ## Configuration
 
@@ -258,6 +228,20 @@ REQUIRE_EXPORTER_TAG=true
 
 # Custom metrics port for devices
 CLIENT_METRICS_PORT=5252
+
+# Bearer token protecting /metrics and /debug (opt-in).
+# Minimum 20 chars, alphanumeric + -._. The server exits on startup if
+# METRICS_TOKEN is set but fails validation — weak auth is worse than none.
+# Generate: openssl rand -base64 32
+METRICS_TOKEN=
+
+# Direct API token (alternative to OAUTH_CLIENT_ID/SECRET). Mutually
+# exclusive with the OAuth2 client-credentials flow.
+OAUTH_TOKEN=
+
+# Per-client-IP rate limiting (applied before token auth).
+RATE_LIMIT_RPS=10
+RATE_LIMIT_BURST=20
 ```
 
 #### Development/Testing
@@ -282,18 +266,22 @@ TARGET_DEVICES=production-gateway,backup-server
 
 #### Optional Variables
 
-| Variable               | Default                | Description                                     |
-| ---------------------- | ---------------------- | ----------------------------------------------- |
-| `PORT`                 | `9100`                 | HTTP server port                                |
-| `ENV`                  | `development`          | Environment (`production`/`prod` binds 0.0.0.0) |
-| `USE_TSNET`            | `false`                | Enable tsnet integration                        |
-| `TSNET_HOSTNAME`       | `tsmetrics`            | Hostname in tailnet                             |
-| `TSNET_STATE_DIR`      | `/tmp/tsnet-tsmetrics` | Persistent state directory                      |
-| `TSNET_TAGS`           | -                      | Comma-separated device tags                     |
-| `TS_AUTHKEY`           | -                      | Auth key for automatic registration             |
-| `REQUIRE_EXPORTER_TAG` | `false`                | Enforce "exporter" tag requirement              |
-| `LOG_LEVEL`            | `info`                 | Logging level                                   |
-| `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                   |
+| Variable               | Default                | Description                                                           |
+| ---------------------- | ---------------------- | --------------------------------------------------------------------- |
+| `PORT`                 | `9100`                 | HTTP server port                                                      |
+| `ENV`                  | `development`          | Environment (`production`/`prod` binds 0.0.0.0)                       |
+| `USE_TSNET`            | `false`                | Enable tsnet integration                                              |
+| `TSNET_HOSTNAME`       | `tsmetrics`            | Hostname in tailnet                                                   |
+| `TSNET_STATE_DIR`      | `/tmp/tsnet-tsmetrics` | Persistent state directory                                            |
+| `TSNET_TAGS`           | -                      | Comma-separated device tags                                           |
+| `TS_AUTHKEY`           | -                      | Auth key for automatic registration                                   |
+| `REQUIRE_EXPORTER_TAG` | `false`                | Enforce "exporter" tag requirement                                    |
+| `LOG_LEVEL`            | `info`                 | Logging level                                                         |
+| `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                                         |
+| `METRICS_TOKEN`        | -                      | Bearer token for `/metrics` and `/debug`; startup fails on weak token |
+| `OAUTH_TOKEN`          | -                      | Direct API token; alternative to OAuth2 client credentials            |
+| `RATE_LIMIT_RPS`       | `10`                   | Per-client requests per second                                        |
+| `RATE_LIMIT_BURST`     | `20`                   | Per-client burst capacity                                             |
 
 ## Metrics Reference
 
@@ -349,32 +337,11 @@ tailscale_device_posture_serial_numbers_total{device_id, device_name}
 
 ### Grafana Dashboards
 
-Pre-built dashboards are available in the `deploy/grafana/` directory:
-
-#### TSMetrics Overview Dashboard
-
-- **File**: `deploy/grafana/tsmetrics-overview.json`
-- **UID**: `tsmetrics-overview`
-- **Features**: Network status, device count, performance KPIs, traffic analysis
-
-#### TSMetrics Device Details Dashboard
-
-- **File**: `deploy/grafana/tsmetrics-device-details.json`
-- **UID**: `tsmetrics-device-details`
-- **Features**: Per-device metrics, connectivity analysis, route advertisements
-
-#### Dashboard Import
-
-1. **Configure Prometheus data source** in Grafana
-2. **Import dashboards**:
-   - Via UI: + → Import → Upload JSON files from `deploy/grafana/`
-   - Via API: `curl -X POST -H "Content-Type: application/json" -d @deploy/grafana/tsmetrics-overview.json http://admin:admin@localhost:3000/api/dashboards/db`
-
-### Grafana Dashboards
+Pre-built dashboards live in [`deploy/observability/dashboards/`](deploy/observability/dashboards/).
 
 #### Available Dashboards
 
-**1. Tailscale / Overview (`deploy/grafana/tsmetrics-overview.json`)**
+**1. Tailscale / Overview (`deploy/observability/dashboards/tsmetrics-overview.json`)**
 
 - UID: `tsmetrics-overview`
 - Network status and health metrics
@@ -384,7 +351,7 @@ Pre-built dashboards are available in the `deploy/grafana/` directory:
 - Traffic analysis and error rates
 - Service monitoring
 
-**2. Tailscale / Device Details (`deploy/grafana/tsmetrics-device-details.json`)**
+**2. Tailscale / Device Details (`deploy/observability/dashboards/tsmetrics-device-details.json`)**
 
 - UID: `tsmetrics-device-details`
 - Individual device metrics and status
@@ -403,7 +370,7 @@ Pre-built dashboards are available in the `deploy/grafana/` directory:
 **Import via Grafana UI:**
 
 1. Go to + → Import
-2. Upload the JSON files from `deploy/grafana/`
+2. Upload the JSON files from `deploy/observability/dashboards/`
 3. Select your Prometheus data source
 4. Click Import
 
@@ -418,13 +385,13 @@ GRAFANA_TOKEN="your-admin-token"
 curl -X POST "${GRAFANA_URL}/api/dashboards/db"
   -H "Authorization: Bearer ${GRAFANA_TOKEN}"
   -H "Content-Type: application/json"
-  -d @deploy/grafana/tsmetrics-overview.json
+  -d @deploy/observability/dashboards/tsmetrics-overview.json
 
 # Import Device Details Dashboard
 curl -X POST "${GRAFANA_URL}/api/dashboards/db"
   -H "Authorization: Bearer ${GRAFANA_TOKEN}"
   -H "Content-Type: application/json"
-  -d @deploy/grafana/tsmetrics-device-details.json
+  -d @deploy/observability/dashboards/tsmetrics-device-details.json
 ```
 
 #### Dashboard Features
@@ -640,13 +607,12 @@ kubectl create secret generic tsmetrics-secrets \
 
 ```bash
 # Build and Test (CI/CD Pipeline Tasks)
-make build                    # Build binary with GoReleaser
-make test                     # Run test suite
-make lint                     # Run Go linting (golangci-lint)
+just build                    # Build binary with GoReleaser
+just test                     # Run test suite
+just lint                     # Run Go linting (golangci-lint)
 
 # Container Operations
 docker build -t tsmetrics .   # Build container image
-make container-test           # Run container structure tests
 
 # Deployment Validation
 helm lint deploy/helm                    # Validate Helm chart
@@ -823,132 +789,130 @@ Main branch is protected with:
 - **No Force Push**: History preservation enforced
 - **Admin Enforcement**: Rules apply to all contributors
 
-For detailed pipeline documentation, see [`.github/workflows/README.md`](.github/workflows/README.md).
+Workflow sources live in [`.github/workflows/`](.github/workflows/); shared
+reusable workflows are maintained in
+[`sbaerlocher/.github`](https://github.com/sbaerlocher/.github).
 
 ## Development
 
-### Development Scripts
-
-The `scripts/` directory contains build and development scripts:
-
-**Script Overview:**
-
-- **`setup-env.sh`**: Central environment variable configuration with build metadata
-- **`start-dev.sh`**: Development environment with live reload using air
-- **`build-app.sh`**: Production build with version metadata
-
-**Development Workflow:**
-
-```bash
-# Start development environment (recommended)
-make dev                    # Uses scripts/start-dev.sh with live reload
-
-# Build application
-make build                  # Uses scripts/build-app.sh
-
-# Run directly
-make run                    # Direct go run
-
-# Load environment manually
-source scripts/setup-env.sh
-```
-
-**Environment Management:**
-
-All environment variables are centrally managed in `setup-env.sh` with:
-
-1. Default development values
-2. Override via `.env` file in project root
-3. Override via system environment variables
-4. Build metadata from Makefile variables
-
 ### Prerequisites
 
-- Go 1.25+
-- Docker (optional)
-- [air](https://github.com/air-verse/air) for live reload (optional)
+- [dde](https://dde.sh) v2 — Docker dev environment manager
+- [just](https://github.com/casey/just) — task runner
+- Docker (macOS: Docker Desktop / OrbStack)
+
+No host-side Go install required — `just dev` starts a container with Go, Air hot-reload
+and all build tooling included. Host-side Go is optional for running a binary directly.
+
+### Development Environment (dde)
+
+This project uses [dde](https://dde.sh) to manage the local Docker dev
+environment. dde owns the container lifecycle, provides a shared Traefik reverse proxy
+for `*.test` hostnames with auto-generated TLS, and wires up per-project DNS.
+
+**Install on macOS:**
+
+```bash
+brew tap whatwedo/tap
+brew install dde
+```
+
+**One-time system bootstrap** (starts shared Traefik, dnsmasq, mailpit, ssh-agent):
+
+```bash
+dde system:up
+```
+
+After that, any `*.test` hostname (e.g. `https://tsmetrics.test`) resolves locally and
+routes through Traefik with a self-signed certificate trusted by dde's root CA.
+
+**Per-project lifecycle:**
+
+```bash
+dde project:up          # start this project's containers (alias for `just dev`)
+dde project:down        # stop and remove containers
+dde project:restart     # restart after config changes
+dde project:logs        # tail container logs
+dde project:describe    # show project URLs, containers, services
+dde project:exec -- <cmd>   # run a command inside the main container
+dde project:shell       # interactive shell in the main container
+```
+
+Project config lives in [.dde/config.yml](.dde/config.yml). The compose stack is defined
+in [docker-compose.yml](docker-compose.yml) (app + optional `observability` profile).
 
 ### Development Workflow
 
 ```bash
-# Setup development environment
+# One-time setup
 cp .env.example .env
-# Edit .env with your Tailscale credentials
+# Edit .env with your Tailscale credentials (OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET / TAILNET_NAME, optionally TS_AUTHKEY)
 
-# Start development server with live reload
-make dev
+# Start dev container with live reload + tail logs
+just dev
 
-# Run tests
-make test
+# Run tests in the container
+just test
 
-# Build and run locally
-make build
-make run
+# Build the binary in the container (with version ldflags)
+just build
+
+# Optional: local Prometheus + Grafana stack (compose profile "observability")
+dde project:exec:observability:up
+# → https://tsmetrics.test   (app)
+# → https://prometheus.tsmetrics.test
+# → https://grafana.tsmetrics.test   (anonymous admin, dashboards auto-provisioned)
+
+# Stop the observability stack
+dde project:exec:observability:down
 ```
 
-### Scripts Overview
+### Task Runner (`just`) and Direct Commands
 
-The `scripts/` directory contains build and development scripts:
+`just` only wraps multi-step or parameterized commands; one-liners are invoked directly.
 
-- **`setup-env.sh`**: Central environment variable configuration
-- **`start-dev.sh`**: Development environment with live reload
-- **`build-app.sh`**: Production build script
+| just recipe  | What it does                                    |
+| ------------ | ----------------------------------------------- |
+| `just dev`   | `dde project:up` + `dde project:logs --tail=50` |
+| `just test`  | `go test -v ./...` inside the dev container     |
+| `just build` | `go build` with `-ldflags` from git describe    |
+| `just lint`  | `golangci-lint run` inside the container        |
 
-All environment variables are centrally managed and can be overridden via:
+Production Docker images are built by CI on release (GoReleaser + `release.yml`), not via just.
 
-1. `.env` file in project root
-2. System environment variables
-3. Makefile variables (for build metadata)
+dde project plugins ([.dde/plugins/](.dde/plugins/), auto-registered):
 
-### Environment Configuration
+| Plugin command                        | What it does                                           |
+| ------------------------------------- | ------------------------------------------------------ |
+| `dde project:exec:observability:up`   | start compose profile `observability` (Prom + Grafana) |
+| `dde project:exec:observability:down` | stop the observability stack                           |
 
-The development environment uses a dedicated `dev.sh` script that:
+Direct invocations (no wrapper — no value-add):
 
-1. **Loads `.env` file** if present (automatically exports variables)
-2. **Sets sensible defaults** for all configuration options
-3. **Ensures consistency** between development runs
-4. **Manages air installation** and execution
+- Container lifecycle: `dde project:up|down|restart|logs|exec ...`
+- Helm: `helm install|upgrade|template|lint tsmetrics deploy/helm/tsmetrics`
+- Kustomize: `kubectl apply -k deploy/kustomize/overlays/{development,production}`
 
-You only need to:
+### Environment Management
 
-1. **Copy the example:** `cp .env.example .env`
-2. **Configure credentials:** Edit `.env` with your Tailscale OAuth details
-3. **Run development:** `make dev`
-
-All environment variables are managed centrally through the `dev.sh` script,
-eliminating the need to maintain duplicated configurations.
+All runtime config lives in `.env` (copy from `.env.example`). Docker Compose auto-loads it.
+Override precedence inside the container: compose `environment:` > `.env` > hardcoded defaults
+in `internal/config/config.go`. `BIND_HOST` is auto-detected by runtime and only needs to be
+set to override the heuristic.
 
 ### Testing with Mock Devices
 
-For development without real Tailscale credentials:
+For development without real Tailscale credentials, set `TEST_DEVICES` in `.env`:
 
-```bash
-export TEST_DEVICES="gateway-1,gateway-2,server-3"
-make run
+```env
+TEST_DEVICES=gateway-1,gateway-2,server-3
 ```
+
+Then `just dev` starts with mock targets — no OAuth or tsnet required.
 
 ## Architecture
 
-### Project Structure
-
-```text
-tsmetrics/
-├── cmd/tsmetrics/          # Application entry point
-│   └── main.go
-├── internal/               # Private application packages
-│   ├── api/               # Tailscale API client
-│   ├── config/            # Configuration management
-│   ├── errors/            # Error types and handling
-│   ├── metrics/           # Metrics collection and definitions
-│   └── server/            # HTTP server and handlers
-├── pkg/device/            # Public device package
-├── scripts/               # Build and development scripts
-├── deploy/                # Deployment configurations
-│   ├── grafana/           # Grafana dashboards
-│   ├── helm/              # Helm chart
-│   └── kustomize/         # Kustomize overlays (dev/prod)
-└── bin/                   # Compiled binaries
-```
+See [Project Structure](#project-structure) above for the layout.
 
 ### Operation Flow
 
@@ -1006,6 +970,20 @@ docker run --rm -v tsnet-state:/data -v $(pwd):/backup \
 
 ### Common Issues
 
+#### `https://tsmetrics.test` returns Bad Gateway or DNS fails
+
+The `*.test` hostnames are served by dde's shared Traefik + dnsmasq. If the URL doesn't
+resolve or returns 502/504:
+
+```bash
+dde system:status     # check that traefik + dnsmasq are running
+dde system:up         # (re)start the shared services if not
+dde system:doctor     # deeper health checks
+dde project:describe  # verify this project's containers are up and labelled correctly
+```
+
+A fresh container restart after config changes: `dde project:restart`.
+
 #### OAuth2 Authentication Failed
 
 - Verify `OAUTH_CLIENT_ID` and `OAUTH_CLIENT_SECRET`
@@ -1050,11 +1028,11 @@ docker logs tsmetrics -f
 
 # Enable debug logging
 export LOG_LEVEL=debug
-make run
+dde project:exec -- go run ./cmd/tsmetrics
 
 # Test specific device
 export TEST_DEVICES="specific-device-name"
-make run
+dde project:exec -- go run ./cmd/tsmetrics
 ```
 
 #### Performance Troubleshooting
@@ -1171,20 +1149,20 @@ This project has been restructured to follow Go best practices. If you're upgrad
 
    ```bash
    git pull origin main
-   make build
+   just build
    ```
 
 3. **Verify functionality**:
 
    ```bash
    # Test with existing configuration
-   make run
+   dde project:exec -- go run ./cmd/tsmetrics
    curl http://localhost:9100/health
    ```
 
 4. **Update deployment scripts** (if custom):
-   - Build commands: Use `make build`
-   - Run commands: Use `make run` or `./bin/tsmetrics`
+   - Build commands: Use `just build`
+   - Run commands: Use `dde project:exec -- go run ./cmd/tsmetrics` or `./bin/tsmetrics`
 
 #### Compatibility
 
@@ -1343,13 +1321,12 @@ scrape_configs:
    ```bash
    cp .env.example .env
    # Edit .env with your Tailscale credentials
-   make dev-deps
    ```
 
 4. **Start development server:**
 
    ```bash
-   make dev
+   just dev
    ```
 
 ### Making Changes
@@ -1365,8 +1342,8 @@ scrape_configs:
 4. **Ensure all tests pass:**
 
    ```bash
-   make test
-   make lint
+   just test
+   just lint
    goreleaser check  # Validate release configuration
    ```
 
@@ -1403,14 +1380,13 @@ scrape_configs:
 
 ```bash
 # Run all tests
-make test
+just test
 
 # Run with coverage
 go test -v -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 
 # Run integration tests (planned)
-make test-integration
 ```
 
 ## License

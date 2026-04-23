@@ -109,21 +109,48 @@ tsmetrics_api_requests_total{endpoint}
 
 ## Build & Development
 
-### Build System
+### Build System (dde + just)
 
-- **Build:** `make build` (uses ldflags for version/buildTime)
-- **Development:** `make dev` (live reload via `air` if available)
-- **Testing:** `make test`
-- **Docker:** `make docker-build`, `make docker-run`
-- **Git staging:** `.gitignore` rule `tsmetrics` matches `cmd/tsmetrics/` —
-  use `git add -f cmd/tsmetrics/main.go` for already-tracked files
+Development runs inside a container managed by **[dde](https://dde.sh)** —
+a Docker dev environment manager that owns the container lifecycle and provides a shared
+Traefik reverse proxy for `*.test` hostnames (app reachable at `https://tsmetrics.test`).
+Project config lives in `.dde/config.yml`; compose stack in `docker-compose.yml`.
+
+**just** only wraps multi-step or parameterized commands; trivial one-liners are invoked directly.
+
+Bootstrap (one-time per machine): `brew tap whatwedo/tap && brew install dde && dde system:up`.
+
+just recipes (`just` to list):
+
+- `just dev` — start dev container + tail logs
+- `just test` — run test suite in container
+- `just build` — build binary in container with version ldflags
+- `just lint` — run golangci-lint in container
+
+dde project plugins (`.dde/plugins/*.sh`, auto-registered):
+
+- `dde project:exec:observability:up` — start local Prometheus + Grafana (compose profile `observability`)
+- `dde project:exec:observability:down` — stop local observability stack
+
+Direct invocations (no just wrapper):
+
+- `dde project:up|down|restart|logs|exec ...` — container lifecycle
+- `helm install|upgrade|uninstall|template|lint tsmetrics deploy/helm/tsmetrics` — Helm
+- `kubectl apply -k deploy/kustomize/overlays/{development,production}` — Kustomize
+
+Git staging note: `.gitignore` rule `tsmetrics` matches `cmd/tsmetrics/` —
+use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 
 ### Key Files
 
 - `cmd/tsmetrics/main.go` — Main application with exporter logic and tsnet integration
-- `Makefile` — Build/dev/docker targets
-- `.air.toml` — Live-reload configuration
+- `justfile` — Task runner (replaces former Makefile)
+- `.dde/config.yml` — dde project config
+- `docker-compose.yml` — Dev container (`app`) + optional `prometheus`/`grafana` under profile `observability`
+- `Dockerfile` — Multi-stage: `backend-dev` (Air hot reload) + `production` (distroless release binary)
+- `.air.toml` — Live-reload configuration (runs inside `backend-dev` container)
 - `.env.example` — All environment variables
+- `deploy/observability/` — Local Prometheus scrape + Grafana datasource config
 - `deploy/helm/` — Helm chart for Kubernetes deployment
 - `deploy/kustomize/` — Kustomize overlays for dev/prod
 
@@ -168,57 +195,54 @@ tsmetrics_api_requests_total{endpoint}
 
 ### 1. Build & Test
 
+All Go commands run inside the dde container:
+
 ```bash
-# Dependency management
-go mod tidy
-
-# Testing
-go test -v ./...
-
-# Build with metadata
-go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o bin/tsmetrics ./cmd/tsmetrics
+just test                                   # go test -v ./...
+just build                                  # go build with version ldflags
+dde project:exec sh -c "go mod tidy && go mod download"
 ```
 
 ### 2. Development Runtime Checks
 
-**Standalone Mode:**
+**Standalone Mode (API-only, no tsnet):**
+
+Configure `.env` with mock values:
+
+```env
+ENV=development
+PORT=9100
+OAUTH_CLIENT_ID=mock_client_id
+OAUTH_CLIENT_SECRET=mock_client_secret
+TAILNET_NAME=mock_tailnet
+TEST_DEVICES=gateway-1,gateway-2
+USE_TSNET=false
+```
+
+Start and verify:
 
 ```bash
-# Environment setup
-export ENV=development
-export PORT=9100
-export OAUTH_CLIENT_ID=mock_client_id
-export OAUTH_CLIENT_SECRET=mock_client_secret
-export TAILNET_NAME=mock_tailnet
-export TEST_DEVICES=gateway-1,gateway-2
-
-# Start development server
-make dev
-
-# Verification
-curl http://127.0.0.1:9100/health    # -> 200 OK
-curl http://127.0.0.1:9100/metrics   # -> Prometheus format
-curl http://127.0.0.1:9100/debug     # -> JSON debug info
+just dev
+curl https://tsmetrics.test/health    # -> 200 OK (via Traefik)
+curl https://tsmetrics.test/metrics   # -> Prometheus format
+curl https://tsmetrics.test/debug     # -> JSON debug info
 ```
 
 **tsnet Mode:**
 
-```bash
-# Environment setup
-export USE_TSNET=true
-export TSNET_HOSTNAME=tsmetrics-dev
-export TSNET_TAGS=exporter
-export REQUIRE_EXPORTER_TAG=true
-
-# Start with tsnet (set USE_TSNET=true before running make dev)
-make dev
-
-# Verification
-# 1. Check tsnet startup logs
-# 2. Verify listener on Tailscale IP
-# 3. Confirm device appears in `tailscale status`
-# 4. Test HTTP endpoints over Tailnet
+```env
+USE_TSNET=true
+TSNET_HOSTNAME=tsmetrics-dev
+TSNET_TAGS=exporter
+REQUIRE_EXPORTER_TAG=true
 ```
+
+State persists in the `tsnet_state` named volume. Start with `just dev`, then:
+
+1. Check tsnet startup logs: `just logs`
+2. Verify listener on Tailscale IP
+3. Confirm device appears in `tailscale status`
+4. Test HTTP endpoints over Tailnet
 
 ### 3. Testing Requirements
 
@@ -499,18 +523,20 @@ With real Tailscale credentials:
 cp .env.example .env
 # Edit .env with your Tailscale credentials
 
-# Development cycle
-make dev          # Standalone development with live reload
-make test         # Run test suite
-make build        # Production build
+# Development cycle (dde container + just)
+just dev                 # Start dev container with live reload + logs
+just test                # Run test suite in container
+just build               # Build binary in container
+just lint                # Run golangci-lint in container
 
-# Docker workflow
-make docker-build
-make docker-run
+# Optional local Prometheus + Grafana (compose profile "observability")
+dde project:exec:observability:up
 
-# Kubernetes deployment
-make helm-install       # Deploy with Helm
-make kustomize-prod     # Deploy with Kustomize
+# Production image is built by CI on release (GoReleaser + release.yml)
+
+# Kubernetes deployment (host, direct tooling)
+helm install tsmetrics deploy/helm/tsmetrics
+kubectl apply -k deploy/kustomize/overlays/production
 ```
 
 ## Troubleshooting

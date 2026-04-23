@@ -1,0 +1,4 @@
+data/
+!data/.gitkeep
+snapshots/
+!snapshots/.gitkeep

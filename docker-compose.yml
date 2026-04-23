@@ -1,0 +1,105 @@
+services:
+    tsmetrics:
+        profiles:
+            - dev
+            - ''
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: backend-dev
+        environment:
+            PORT: 9100
+            VERSION: '${VERSION:-dev}'
+            APP_ENV: dev
+        env_file:
+            - .env
+        restart: unless-stopped
+        volumes:
+            - '.:/app:delegated'
+            - /app/tmp
+            - 'tsnet_state:/tmp/tsnet-tsmetrics'
+        security_opt:
+            - 'no-new-privileges:true'
+        labels:
+            - 'traefik.enable=true'
+            - 'traefik.http.routers.tsmetrics.rule=Host(`tsmetrics.test`)'
+            - 'traefik.http.routers.tsmetrics.tls=true'
+            - 'traefik.http.services.tsmetrics.loadbalancer.server.port=9100'
+        networks:
+            default: null
+
+    prometheus:
+        profiles:
+            - observability
+        image: 'prom/prometheus:v3.11.2@sha256:5550dc63da361dc30f6fe02ac0e4dfc736ededfef3c8d12a634db04a67824d78'
+        restart: unless-stopped
+        command:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+            - '--web.console.templates=/usr/share/prometheus/consoles'
+        volumes:
+            - './deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro'
+            - 'prometheus_data:/prometheus'
+        labels:
+            - 'traefik.enable=true'
+            - 'traefik.http.routers.tsmetrics-prometheus.rule=Host(`prometheus.tsmetrics.test`)'
+            - 'traefik.http.routers.tsmetrics-prometheus.tls=true'
+            - 'traefik.http.services.tsmetrics-prometheus.loadbalancer.server.port=9090'
+        healthcheck:
+            test:
+                - CMD
+                - wget
+                - '--spider'
+                - '-q'
+                - 'http://localhost:9090/-/healthy'
+            interval: 10s
+            timeout: 5s
+            retries: 3
+        networks:
+            default: null
+            
+    grafana:
+        profiles:
+            - observability
+        image: 'grafana/grafana:12.4@sha256:2e986801428cd689c2358605289c90ab37d2b39e24808874971f54c99bcdc412'
+        environment:
+            GF_AUTH_ANONYMOUS_ENABLED: 'true'
+            GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+            GF_SECURITY_ADMIN_PASSWORD: admin
+            GF_USERS_ALLOW_SIGN_UP: 'false'
+        restart: unless-stopped
+        volumes:
+            - './deploy/observability/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro'
+            - './deploy/observability/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/provider.yaml:ro'
+            - './deploy/observability/dashboards:/var/lib/grafana/dashboards:ro'
+            - 'grafana_data:/var/lib/grafana'
+        depends_on:
+            - prometheus
+        labels:
+            - 'traefik.enable=true'
+            - 'traefik.http.routers.tsmetrics-grafana.rule=Host(`grafana.tsmetrics.test`)'
+            - 'traefik.http.routers.tsmetrics-grafana.tls=true'
+            - 'traefik.http.services.tsmetrics-grafana.loadbalancer.server.port=3000'
+        healthcheck:
+            test:
+                - CMD
+                - wget
+                - '--spider'
+                - '-q'
+                - 'http://localhost:3000/api/health'
+            interval: 10s
+            timeout: 5s
+            retries: 3
+        networks:
+            default: null
+
+volumes:
+    tsnet_state: null
+    prometheus_data: null
+    grafana_data: null
+
+networks:
+  default:
+    name: dde
+    external: true
