@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
@@ -19,6 +18,11 @@ var (
 	buildTime     = "unknown"
 	startTime     = time.Now()
 	healthChecker *health.HealthChecker
+	// apiClient is initialized once at startup when OAuth credentials are
+	// configured; reused across every /health request to avoid re-running the
+	// OAuth2 client-credentials flow and allocating a new http.Transport per
+	// probe (Prometheus/Kubernetes can hit /health every few seconds).
+	apiClient *api.Client
 )
 
 // SetVersion sets the global version and build time for handlers.
@@ -32,6 +36,13 @@ func SetHealthChecker(hc *health.HealthChecker) {
 	healthChecker = hc
 }
 
+// SetAPIClient stores the singleton API client used by health handlers.
+// Passing nil marks the API as not configured; subsequent health probes
+// will report "not_configured" instead of attempting a connectivity check.
+func SetAPIClient(c *api.Client) {
+	apiClient = c
+}
+
 // EnhancedHealthHandler provides enhanced health check information.
 func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 	lastScrape := getLastScrapeTime()
@@ -42,30 +53,15 @@ func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 		"uptime_seconds":        getUptimeSeconds(),
 	}
 
-	if tailnet := os.Getenv("TAILNET_NAME"); tailnet != "" {
-		clientID := os.Getenv("OAUTH_CLIENT_ID")
-		token := os.Getenv("OAUTH_TOKEN")
+	if apiClient != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-		if clientID != "" || token != "" {
-			var apiClient *api.Client
-			if clientID != "" {
-				apiClient = api.NewClient(clientID, os.Getenv("OAUTH_CLIENT_SECRET"), tailnet)
-			} else {
-				apiClient = api.NewClientWithToken(token, tailnet)
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			_, err := apiClient.TestConnectivity(ctx)
-			if err != nil {
-				slog.Warn("API connectivity check failed", "error", err)
-				status["api_status"] = "degraded"
-			} else {
-				status["api_status"] = "healthy"
-			}
+		if _, err := apiClient.TestConnectivity(ctx); err != nil {
+			slog.Warn("API connectivity check failed", "error", err)
+			status["api_status"] = "degraded"
 		} else {
-			status["api_status"] = "not_configured"
+			status["api_status"] = "healthy"
 		}
 	} else {
 		status["api_status"] = "not_configured"

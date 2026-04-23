@@ -516,31 +516,76 @@ func TestGenerateSecurityAuditReport(t *testing.T) {
 }
 
 func TestRateLimiterCleanup(t *testing.T) {
-	limiter := NewRateLimiter(10.0, 5) // High rate for testing
+	limiter := NewRateLimiter(10.0, 5)
 
-	// Create some limiters
+	// Freeze time so we can advance it deterministically.
+	base := time.Unix(1_700_000_000, 0)
+	current := base
+	limiter.now = func() time.Time { return current }
+	limiter.idleTTL = 30 * time.Second
+
 	limiter.Allow("client1")
 	limiter.Allow("client2")
 
-	// Check initial state
 	limiter.mutex.RLock()
-	initialCount := len(limiter.limiters)
+	initialCount := len(limiter.entries)
 	limiter.mutex.RUnlock()
-
 	if initialCount != 2 {
-		t.Errorf("Expected 2 limiters, got %d", initialCount)
+		t.Fatalf("expected 2 entries, got %d", initialCount)
 	}
 
-	// Wait for limiters to reset to full capacity, then cleanup
-	time.Sleep(100 * time.Millisecond)
+	// Still within the idle TTL — cleanup must not evict.
+	current = base.Add(10 * time.Second)
 	limiter.Cleanup()
+	limiter.mutex.RLock()
+	kept := len(limiter.entries)
+	limiter.mutex.RUnlock()
+	if kept != 2 {
+		t.Errorf("expected 2 entries after in-TTL cleanup, got %d", kept)
+	}
+
+	// Advance past idle TTL — both entries should be evicted.
+	current = base.Add(2 * time.Hour)
+	limiter.Cleanup()
+	limiter.mutex.RLock()
+	final := len(limiter.entries)
+	limiter.mutex.RUnlock()
+	if final != 0 {
+		t.Errorf("expected 0 entries after idle eviction, got %d", final)
+	}
+}
+
+func TestRateLimiterMaxEntries(t *testing.T) {
+	limiter := NewRateLimiter(10.0, 5)
+	limiter.maxEntries = 3
+
+	// Fill to capacity, advancing time so each entry has a distinct lastUsed.
+	base := time.Unix(1_700_000_000, 0)
+	current := base
+	limiter.now = func() time.Time { return current }
+
+	for i, id := range []string{"a", "b", "c"} {
+		current = base.Add(time.Duration(i) * time.Second)
+		limiter.Allow(id)
+	}
+
+	// Inserting a fourth entry must evict the oldest ("a") rather than grow the map.
+	current = base.Add(10 * time.Second)
+	limiter.Allow("d")
 
 	limiter.mutex.RLock()
-	finalCount := len(limiter.limiters)
+	size := len(limiter.entries)
+	_, hasA := limiter.entries["a"]
+	_, hasD := limiter.entries["d"]
 	limiter.mutex.RUnlock()
 
-	// Limiters at full capacity should be cleaned up
-	if finalCount >= initialCount {
-		t.Errorf("Cleanup should have removed some limiters, initial: %d, final: %d", initialCount, finalCount)
+	if size != 3 {
+		t.Errorf("expected map size 3 after LRU eviction, got %d", size)
+	}
+	if hasA {
+		t.Error("oldest entry 'a' should have been evicted")
+	}
+	if !hasD {
+		t.Error("newest entry 'd' should be present")
 	}
 }

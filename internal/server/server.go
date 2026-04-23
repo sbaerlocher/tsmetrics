@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -90,10 +89,19 @@ func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Han
 	// Token auth is opt-in: set METRICS_TOKEN to require a Bearer token on all
 	// non-probe endpoints. AuthenticationMiddleware whitelists /health, /healthz,
 	// /livez, /readyz, and /startupz so Kubernetes probes always pass.
+	//
+	// An operator who sets METRICS_TOKEN obviously wants auth to be enforced —
+	// refusing to start on a weak/malformed token is safer than silently
+	// accepting it and shipping trivially bypassable protection to production.
 	if token := os.Getenv("METRICS_TOKEN"); token != "" {
-		validator := security.NewAuthValidator()
-		validator.AddValidToken(token)
-		h = security.AuthenticationMiddleware(validator)(h)
+		validator := security.NewInputValidator()
+		if err := validator.ValidateToken(token); err != nil {
+			slog.Error("METRICS_TOKEN rejected — refusing to start with weak auth", "error", err)
+			os.Exit(1)
+		}
+		auth := security.NewAuthValidator()
+		auth.AddValidToken(token)
+		h = security.AuthenticationMiddleware(auth)(h)
 		slog.Info("metrics endpoint protected with bearer token authentication")
 	}
 
@@ -130,12 +138,7 @@ func (s *simpleHealthChecker) CheckHealth(ctx context.Context) error {
 
 // RunStandalone starts the HTTP server in standalone mode.
 func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
-	env := strings.ToLower(os.Getenv("ENV"))
-	host := "127.0.0.1" // DevSkim: ignore DS162092 - Localhost binding is intentional for development
-	if env == "production" || env == "prod" {
-		host = "0.0.0.0"
-	}
-	addr := fmt.Sprintf("%s:%s", host, cfg.Port)
+	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.Port)
 
 	metrics.SetHTTPClientProvider(&metrics.StandardHTTPClientProvider{})
 	slog.Info("HTTP client configured", "network", "standard")

@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"tailscale.com/ipn/store"
@@ -18,14 +16,6 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
-
-func getLocalBindHost() string {
-	env := strings.ToLower(os.Getenv("ENV"))
-	if env == "production" || env == "prod" {
-		return "0.0.0.0"
-	}
-	return "127.0.0.1" // DevSkim: ignore DS162092 - Localhost binding is intentional for development
-}
 
 func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
 	server := &tsnet.Server{
@@ -84,8 +74,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	tsHTTPServer := createHTTPServer("", handler) // No Addr for tsnet server
 	tsHTTPServer.Addr = ""                        // Clear Addr for tsnet
 
-	host := getLocalBindHost()
-	localAddr := fmt.Sprintf("%s:%s", host, cfg.Port)
+	localAddr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.Port)
 	localHTTPServer := createHTTPServer(localAddr, handler)
 
 	// Initialize health checker and background scraper
@@ -93,7 +82,7 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 
 	errCh := make(chan error, 2)
 
-	slog.Info("HTTP servers starting", "port", cfg.Port, "local_bind", host)
+	slog.Info("HTTP servers starting", "port", cfg.Port, "local_bind", cfg.BindHost)
 
 	go func() {
 		slog.Info("Tailscale server ready", "bind", ":"+cfg.Port)

@@ -168,50 +168,93 @@ func (iv *InputValidator) ValidateDeviceID(id string) error {
 }
 
 // Rate Limiting
-// RateLimiter provides per-client rate limiting functionality.
-type RateLimiter struct {
-	limiters map[string]*rate.Limiter
-	mutex    sync.RWMutex
-	rate     rate.Limit
-	burst    int
+// limiterEntry bundles a rate.Limiter with the last time it was touched, so
+// the cleanup routine can evict entries that have been idle for a while.
+type limiterEntry struct {
+	limiter  *rate.Limiter
+	lastUsed time.Time
 }
+
+// RateLimiter provides per-client rate limiting functionality.
+// maxEntries caps the map size so that a burst of unique client IDs
+// (spoofed/rotating source IPs) cannot exhaust memory; idleTTL is the
+// minimum time an entry must be idle before Cleanup may evict it.
+type RateLimiter struct {
+	entries    map[string]*limiterEntry
+	mutex      sync.RWMutex
+	rate       rate.Limit
+	burst      int
+	maxEntries int
+	idleTTL    time.Duration
+	now        func() time.Time
+}
+
+const (
+	defaultMaxRateLimiterEntries = 10000
+	defaultRateLimiterIdleTTL    = 1 * time.Hour
+)
 
 // NewRateLimiter creates a new rate limiter with the specified requests per second and burst size.
 func NewRateLimiter(rps float64, burst int) *RateLimiter {
 	return &RateLimiter{
-		limiters: make(map[string]*rate.Limiter),
-		rate:     rate.Limit(rps),
-		burst:    burst,
+		entries:    make(map[string]*limiterEntry),
+		rate:       rate.Limit(rps),
+		burst:      burst,
+		maxEntries: defaultMaxRateLimiterEntries,
+		idleTTL:    defaultRateLimiterIdleTTL,
+		now:        time.Now,
 	}
 }
 
 func (rl *RateLimiter) Allow(clientID string) bool {
-	rl.mutex.RLock()
-	limiter, exists := rl.limiters[clientID]
-	rl.mutex.RUnlock()
-
+	rl.mutex.Lock()
+	entry, exists := rl.entries[clientID]
 	if !exists {
-		rl.mutex.Lock()
-		// Double-check pattern
-		if limiter, exists = rl.limiters[clientID]; !exists {
-			limiter = rate.NewLimiter(rl.rate, rl.burst)
-			rl.limiters[clientID] = limiter
+		// Evict the oldest entry first if we are at capacity. This keeps the
+		// map bounded under a sustained burst of unique client IDs.
+		if len(rl.entries) >= rl.maxEntries {
+			rl.evictOldestLocked()
 		}
-		rl.mutex.Unlock()
+		entry = &limiterEntry{
+			limiter: rate.NewLimiter(rl.rate, rl.burst),
+		}
+		rl.entries[clientID] = entry
 	}
+	entry.lastUsed = rl.now()
+	limiter := entry.limiter
+	rl.mutex.Unlock()
 
 	return limiter.Allow()
 }
 
+// evictOldestLocked removes the entry with the oldest lastUsed timestamp.
+// Caller must hold rl.mutex for writing.
+func (rl *RateLimiter) evictOldestLocked() {
+	var oldestKey string
+	var oldestTime time.Time
+	first := true
+	for k, e := range rl.entries {
+		if first || e.lastUsed.Before(oldestTime) {
+			oldestKey = k
+			oldestTime = e.lastUsed
+			first = false
+		}
+	}
+	if !first {
+		delete(rl.entries, oldestKey)
+	}
+}
+
+// Cleanup removes entries that have been idle for longer than idleTTL.
+// Intended to be invoked periodically by a background goroutine.
 func (rl *RateLimiter) Cleanup() {
-	// Periodically clean up unused limiters
 	rl.mutex.Lock()
 	defer rl.mutex.Unlock()
 
-	for clientID, limiter := range rl.limiters {
-		// Remove limiters that haven't been used recently
-		if limiter.Tokens() >= float64(rl.burst) {
-			delete(rl.limiters, clientID)
+	cutoff := rl.now().Add(-rl.idleTTL)
+	for clientID, entry := range rl.entries {
+		if entry.lastUsed.Before(cutoff) {
+			delete(rl.entries, clientID)
 		}
 	}
 }

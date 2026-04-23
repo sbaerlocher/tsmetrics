@@ -46,6 +46,14 @@ type Collector struct {
 	tracker   *DeviceMetricsTracker
 }
 
+// APIClient returns the underlying Tailscale API client, or nil if the
+// collector was initialized without OAuth credentials. Callers (e.g. the
+// HTTP health handler) use this to avoid re-running the OAuth flow per
+// request.
+func (c *Collector) APIClient() *api.Client {
+	return c.apiClient
+}
+
 // NewCollector creates a new metrics collector with the given configuration.
 func NewCollector(cfg config.Config) *Collector {
 	var apiClient *api.Client
