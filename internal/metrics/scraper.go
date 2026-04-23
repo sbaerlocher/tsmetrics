@@ -184,21 +184,25 @@ func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) err
 	return parseMetricsResponse(dev, io.LimitReader(resp.Body, 10*1024*1024))
 }
 
-func buildMetricsURL(dev device.Device, cfg config.Config) string {
-	hostForURL := dev.Host
-	if hostForURL == "" {
-		hostForURL = dev.Name.String()
+// scrapeHost returns the host used for client-metrics requests. The FQDN from
+// dev.Name (MagicDNS) is preferred because tsnet's resolver has no search
+// domain — a short OS-reported dev.Host fails to resolve there and causes
+// scrape timeouts. dev.Host is only used as a last resort.
+func scrapeHost(dev device.Device) string {
+	if name := dev.Name.String(); name != "" {
+		return name
 	}
-	host := net.JoinHostPort(hostForURL, cfg.ClientMetricsPort)
+	return dev.Host
+}
+
+func buildMetricsURL(dev device.Device, cfg config.Config) string {
+	host := net.JoinHostPort(scrapeHost(dev), cfg.ClientMetricsPort)
 	u := url.URL{Scheme: "http", Host: host, Path: "/metrics"}
 	return u.String()
 }
 
 func fetchDeviceMetrics(dev device.Device, client *http.Client, cfg config.Config) (*http.Response, error) {
-	hostForURL := dev.Host
-	if hostForURL == "" {
-		hostForURL = dev.Name.String()
-	}
+	hostForURL := scrapeHost(dev)
 
 	if err := validateHostname(hostForURL); err != nil {
 		return nil, fmt.Errorf("invalid hostname %s: %w", hostForURL, err)
