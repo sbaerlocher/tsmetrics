@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/oauth2/clientcredentials"
 
+	tserrors "github.com/sbaerlocher/tsmetrics/internal/errors"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
@@ -143,16 +144,56 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 
 func (c *Client) makeDevicesRequest() (*http.Response, error) {
 	apiURL := fmt.Sprintf("%s/devices?fields=all", c.baseURL)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	return c.doWithRetry(context.Background(), http.MethodGet, apiURL, "devices")
+}
+
+// doWithRetry performs an HTTP request with exponential backoff for transient
+// failures (network errors, 429, 5xx). The response body of failed attempts
+// is always drained and closed before the next retry so that connections
+// can be reused from the pool.
+func (c *Client) doWithRetry(ctx context.Context, method, url, endpoint string) (*http.Response, error) {
+	retryCfg := tserrors.DefaultRetryConfig()
+
+	var lastErr error
+	var lastStatus int
+	for attempt := 0; attempt < retryCfg.MaxAttempts; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(retryCfg.CalculateDelay(attempt - 1)):
+			}
+		}
+
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from configured baseURL, not user input
+		if err != nil {
+			lastErr = err
+			slog.Warn("Tailscale API request failed, will retry",
+				"endpoint", endpoint, "attempt", attempt+1, "error", err)
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastStatus = resp.StatusCode
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+			_ = resp.Body.Close()
+			slog.Warn("Tailscale API returned retryable status",
+				"endpoint", endpoint, "status", resp.StatusCode, "attempt", attempt+1)
+			continue
+		}
+
+		return resp, nil
 	}
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from configured baseURL, not user input
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+	if lastErr != nil {
+		return nil, fmt.Errorf("request failed after %d attempts: %w", retryCfg.MaxAttempts, lastErr)
 	}
-	return resp, nil
+	return nil, fmt.Errorf("request failed after %d attempts: last status %d", retryCfg.MaxAttempts, lastStatus)
 }
 
 func (c *Client) handleAPIError(resp *http.Response) error {
@@ -433,12 +474,7 @@ type deviceRoutes struct {
 
 func (c *Client) fetchDeviceRoutes(deviceID string) (*deviceRoutes, error) {
 	apiURL := fmt.Sprintf("https://api.tailscale.com/api/v2/device/%s/routes?fields=all", deviceID)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create routes request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from known API base + validated device ID
+	resp, err := c.doWithRetry(context.Background(), http.MethodGet, apiURL, "device_routes")
 	if err != nil {
 		return nil, fmt.Errorf("routes request failed: %w", err)
 	}
