@@ -103,6 +103,32 @@ func TestValidateHostname(t *testing.T) {
 	}
 }
 
+func TestScrapeHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		devName  string
+		devHost  string
+		expected string
+	}{
+		{"FQDN preferred when both set", "device.tail1234.ts.net", "device", "device.tail1234.ts.net"},
+		{"falls back to Host when Name empty", "", "device", "device"},
+		{"returns empty when both empty", "", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dev := device.Device{
+				Name: types.DeviceName(tt.devName),
+				Host: tt.devHost,
+			}
+			got := scrapeHost(dev)
+			if got != tt.expected {
+				t.Errorf("scrapeHost() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestParseLabels(t *testing.T) {
 	tests := []struct {
 		name     string
