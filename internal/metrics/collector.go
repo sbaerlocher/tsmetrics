@@ -153,7 +153,9 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 }
 
 // UpdateMetrics updates all device metrics for the specified target.
-func (c *Collector) UpdateMetrics(target string) error {
+// The context is propagated to concurrent device scrapes so that a parent
+// cancellation (shutdown, per-cycle timeout) stops in-flight requests.
+func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 	start := time.Now()
 	defer func() {
 		ScrapeDuration.WithLabelValues(target).Observe(time.Since(start).Seconds())
@@ -349,7 +351,7 @@ func (c *Collector) UpdateMetrics(target string) error {
 
 	OnlineDevicesCount.Set(float64(onlineCount))
 
-	if err := ScrapeClientMetrics(devices, c.cfg); err != nil {
+	if err := ScrapeClientMetrics(ctx, devices, c.cfg); err != nil {
 		if errCount := CountTsnetStartupErrors(err); errCount > 0 {
 			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
 		} else {
