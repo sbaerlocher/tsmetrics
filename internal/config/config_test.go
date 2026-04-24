@@ -234,3 +234,31 @@ func TestSetupTsnetStateDir(t *testing.T) {
 		t.Errorf("Expected directory %s to be created", customDir)
 	}
 }
+
+func TestResolveBindHost_EnvOverrideWins(t *testing.T) {
+	t.Setenv("BIND_HOST", "192.0.2.10")
+	if got := resolveBindHost(); got != "192.0.2.10" {
+		t.Errorf("resolveBindHost() with BIND_HOST set = %q, want %q", got, "192.0.2.10")
+	}
+}
+
+func TestResolveBindHost_EnvOverrideIsTrimmed(t *testing.T) {
+	t.Setenv("BIND_HOST", "   0.0.0.0   ")
+	if got := resolveBindHost(); got != "0.0.0.0" {
+		t.Errorf("resolveBindHost() with whitespaced BIND_HOST = %q, want %q", got, "0.0.0.0")
+	}
+}
+
+func TestResolveBindHost_HostFallback(t *testing.T) {
+	// Explicitly clear BIND_HOST so the auto-detection path runs. On a host
+	// (no /.dockerenv, no KUBERNETES_SERVICE_HOST, no container cgroup/mount
+	// markers) the fallback must be loopback — binding 0.0.0.0 on a dev
+	// workstation would expose metrics on the LAN.
+	t.Setenv("BIND_HOST", "")
+	if detectContainer() {
+		t.Skip("running inside a container-detected environment; host fallback path not exercised")
+	}
+	if got := resolveBindHost(); got != "127.0.0.1" {
+		t.Errorf("resolveBindHost() on non-container host = %q, want %q", got, "127.0.0.1")
+	}
+}

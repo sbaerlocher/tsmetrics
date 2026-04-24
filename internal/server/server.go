@@ -54,8 +54,11 @@ func SetupRoutes() *http.ServeMux {
 
 // applySecurityMiddleware wraps the handler with rate limiting, optional token auth,
 // and security headers. A background goroutine cleans up idle rate-limiter entries
-// every 5 minutes for the lifetime of ctx.
-func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Handler {
+// every 5 minutes for the lifetime of ctx. Returns an error when METRICS_TOKEN is
+// set but fails validation — the caller (main / Run*) is responsible for
+// translating that into a process exit, keeping the exit decision out of the
+// middleware layer so tests can exercise the "weak token rejected" path.
+func applySecurityMiddleware(ctx context.Context, handler http.Handler) (http.Handler, error) {
 	rps := 10.0
 	if v := os.Getenv("RATE_LIMIT_RPS"); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
@@ -91,13 +94,12 @@ func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Han
 	// /livez, /readyz, and /startupz so Kubernetes probes always pass.
 	//
 	// An operator who sets METRICS_TOKEN obviously wants auth to be enforced —
-	// refusing to start on a weak/malformed token is safer than silently
+	// rejecting a weak/malformed token at startup is safer than silently
 	// accepting it and shipping trivially bypassable protection to production.
 	if token := os.Getenv("METRICS_TOKEN"); token != "" {
 		validator := security.NewInputValidator()
 		if err := validator.ValidateToken(token); err != nil {
-			slog.Error("METRICS_TOKEN rejected — refusing to start with weak auth", "error", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("METRICS_TOKEN rejected: %w", err)
 		}
 		auth := security.NewAuthValidator()
 		auth.AddValidToken(token)
@@ -105,7 +107,7 @@ func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Han
 		slog.Info("metrics endpoint protected with bearer token authentication")
 	}
 
-	return security.SecurityHeadersMiddleware(h)
+	return security.SecurityHeadersMiddleware(h), nil
 }
 
 // initializeHealthChecker sets up the health checker with appropriate components based on configuration
@@ -144,7 +146,11 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	slog.Info("HTTP client configured", "network", "standard")
 
 	mux := SetupRoutes()
-	srv := createHTTPServer(addr, applySecurityMiddleware(ctx, mux))
+	handler, err := applySecurityMiddleware(ctx, mux)
+	if err != nil {
+		return err
+	}
+	srv := createHTTPServer(addr, handler)
 
 	// Initialize health checker and background scraper
 	initializeServerComponents(cfg, ctx, collector)

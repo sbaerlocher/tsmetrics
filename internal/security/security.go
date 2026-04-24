@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -170,9 +171,11 @@ func (iv *InputValidator) ValidateDeviceID(id string) error {
 // Rate Limiting
 // limiterEntry bundles a rate.Limiter with the last time it was touched, so
 // the cleanup routine can evict entries that have been idle for a while.
+// lastUsed is an int64 UnixNano stored atomically so the hot Allow() path
+// can refresh it under the map's read lock without upgrading to a writer.
 type limiterEntry struct {
 	limiter  *rate.Limiter
-	lastUsed time.Time
+	lastUsed atomic.Int64
 }
 
 // RateLimiter provides per-client rate limiting functionality.
@@ -206,12 +209,34 @@ func NewRateLimiter(rps float64, burst int) *RateLimiter {
 	}
 }
 
+// Allow reports whether a request from clientID may proceed. The hot path —
+// an already-known client — completes under the reader lock and updates
+// lastUsed atomically, so concurrent requests from different IPs do not
+// serialise on a single writer. A new client (or an at-capacity eviction)
+// upgrades to a writer, with a double-check after acquiring the write lock
+// to handle races where another goroutine created the entry in between.
+//
+// At capacity the eviction is O(n) over the map since we pick the oldest
+// entry by scanning lastUsed. With the default cap of 10 000 entries and
+// eviction only happening on a new-client insert after the map is full,
+// this is acceptable; if the workload ever needs faster eviction a heap
+// keyed by lastUsed would give O(log n).
 func (rl *RateLimiter) Allow(clientID string) bool {
+	// Fast path under reader lock: already-known client.
+	rl.mutex.RLock()
+	if entry, ok := rl.entries[clientID]; ok {
+		entry.lastUsed.Store(rl.now().UnixNano())
+		limiter := entry.limiter
+		rl.mutex.RUnlock()
+		return limiter.Allow()
+	}
+	rl.mutex.RUnlock()
+
+	// Slow path: create the entry (or pick up one created by a racing
+	// goroutine) under the writer lock.
 	rl.mutex.Lock()
 	entry, exists := rl.entries[clientID]
 	if !exists {
-		// Evict the oldest entry first if we are at capacity. This keeps the
-		// map bounded under a sustained burst of unique client IDs.
 		if len(rl.entries) >= rl.maxEntries {
 			rl.evictOldestLocked()
 		}
@@ -220,7 +245,7 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 		}
 		rl.entries[clientID] = entry
 	}
-	entry.lastUsed = rl.now()
+	entry.lastUsed.Store(rl.now().UnixNano())
 	limiter := entry.limiter
 	rl.mutex.Unlock()
 
@@ -231,12 +256,13 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 // Caller must hold rl.mutex for writing.
 func (rl *RateLimiter) evictOldestLocked() {
 	var oldestKey string
-	var oldestTime time.Time
+	var oldestNanos int64
 	first := true
 	for k, e := range rl.entries {
-		if first || e.lastUsed.Before(oldestTime) {
+		used := e.lastUsed.Load()
+		if first || used < oldestNanos {
 			oldestKey = k
-			oldestTime = e.lastUsed
+			oldestNanos = used
 			first = false
 		}
 	}
@@ -251,9 +277,9 @@ func (rl *RateLimiter) Cleanup() {
 	rl.mutex.Lock()
 	defer rl.mutex.Unlock()
 
-	cutoff := rl.now().Add(-rl.idleTTL)
+	cutoffNanos := rl.now().Add(-rl.idleTTL).UnixNano()
 	for clientID, entry := range rl.entries {
-		if entry.lastUsed.Before(cutoff) {
+		if entry.lastUsed.Load() < cutoffNanos {
 			delete(rl.entries, clientID)
 		}
 	}

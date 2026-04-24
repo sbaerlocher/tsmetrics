@@ -69,7 +69,10 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 	defer func() { _ = server.Close() }()
 
 	mux := SetupRoutes()
-	handler := applySecurityMiddleware(ctx, mux)
+	handler, err := applySecurityMiddleware(ctx, mux)
+	if err != nil {
+		return err
+	}
 
 	tsHTTPServer := createHTTPServer("", handler) // No Addr for tsnet server
 	tsHTTPServer.Addr = ""                        // Clear Addr for tsnet

@@ -79,7 +79,9 @@ func resolveBindHost() string {
 }
 
 // detectContainer heuristically identifies whether the process runs inside
-// a containerized runtime (Docker, Kubernetes, containerd, etc.).
+// a containerized runtime (Docker, Kubernetes, containerd, etc.). When the
+// heuristic fails (e.g. a cgroups-v2 host with no container markers exposed
+// to the process), operators can force the result via BIND_HOST.
 func detectContainer() bool {
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
@@ -87,9 +89,25 @@ func detectContainer() bool {
 	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
 		return true
 	}
+	// cgroups v1: the hierarchy paths in /proc/self/cgroup carry the runtime
+	// slice name ("/docker/<id>", "/kubepods/...", etc.). On cgroups v2 the
+	// file typically collapses to "0::/" and these markers disappear, so the
+	// v1 read is checked first and the v2 fallback below covers the rest.
 	if b, err := os.ReadFile("/proc/self/cgroup"); err == nil {
 		s := string(b)
 		for _, marker := range []string{"/docker/", "/kubepods/", "/containerd/", "/docker-", "/lxc/"} {
+			if strings.Contains(s, marker) {
+				return true
+			}
+		}
+	}
+	// cgroups v2 fallback: container mount namespaces surface their overlay
+	// root (and frequently the container id) in /proc/self/mountinfo even
+	// when /proc/self/cgroup is generic. Match on the overlay filesystem
+	// type plus the runtime-specific paths used by Docker/Podman/K8s.
+	if b, err := os.ReadFile("/proc/self/mountinfo"); err == nil {
+		s := string(b)
+		for _, marker := range []string{"/docker/containers/", "/containers/storage/overlay", "/kubelet/pods/"} {
 			if strings.Contains(s, marker) {
 				return true
 			}

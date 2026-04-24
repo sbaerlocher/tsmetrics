@@ -22,6 +22,12 @@ var (
 	// configured; reused across every /health request to avoid re-running the
 	// OAuth2 client-credentials flow and allocating a new http.Transport per
 	// probe (Prometheus/Kubernetes can hit /health every few seconds).
+	//
+	// Contract: SetAPIClient MUST be called from main() before the HTTP server
+	// starts serving traffic, and MUST NOT be called again afterwards. Handler
+	// goroutines read this pointer without synchronisation, so a post-startup
+	// rewrite would be a data race. Runtime credential rotation is out of
+	// scope today; if it is ever added, convert this to an atomic.Pointer.
 	apiClient *api.Client
 )
 
