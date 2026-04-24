@@ -7,21 +7,31 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/oauth2/clientcredentials"
 
+	tserrors "github.com/sbaerlocher/tsmetrics/internal/errors"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
+
+const defaultAPIBase = "https://api.tailscale.com/api/v2"
 
 // Client provides HTTP client functionality for the Tailscale API.
 type Client struct {
 	httpClient  *http.Client
 	oauthConfig *clientcredentials.Config
-	baseURL     string
+	// baseURL is the tailnet-scoped root, e.g. "{apiBase}/tailnet/{tailnet}".
+	baseURL string
+	// apiBase is the unscoped API root, e.g. "https://api.tailscale.com/api/v2".
+	// Device-scoped calls (e.g. /device/{id}/routes) need this since the
+	// tailnet segment is not part of their path.
+	apiBase string
 }
 
 // NewClient creates a new Tailscale API client using OAuth credentials.
@@ -50,12 +60,15 @@ func NewClient(clientID, clientSecret, tailnet string) *Client {
 	return &Client{
 		httpClient:  httpClient,
 		oauthConfig: nil,
-		baseURL:     fmt.Sprintf("https://api.tailscale.com/api/v2/tailnet/%s", tailnet),
+		baseURL:     fmt.Sprintf("%s/tailnet/%s", defaultAPIBase, tailnet),
+		apiBase:     defaultAPIBase,
 	}
 }
 
 // NewClientWithBaseURL creates a client with a fully custom base URL.
 // Intended for use in tests where requests must be directed to an httptest.Server.
+// baseURL is expected to be the tailnet-scoped URL ({root}/tailnet/{tailnet});
+// the API base is derived from it so device-scoped calls hit the same server.
 func NewClientWithBaseURL(token, baseURL string) *Client {
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	httpClient.Transport = &tokenTransport{
@@ -65,7 +78,19 @@ func NewClientWithBaseURL(token, baseURL string) *Client {
 	return &Client{
 		httpClient: httpClient,
 		baseURL:    baseURL,
+		apiBase:    deriveAPIBase(baseURL),
 	}
+}
+
+// deriveAPIBase strips the trailing "/tailnet/{tailnet}" segment from a
+// tailnet-scoped URL so that device-scoped calls can be constructed against
+// the same server. If the expected segment is not present, the input is
+// returned unchanged — the caller will surface the resulting request URL.
+func deriveAPIBase(tailnetURL string) string {
+	if idx := strings.LastIndex(tailnetURL, "/tailnet/"); idx >= 0 {
+		return tailnetURL[:idx]
+	}
+	return tailnetURL
 }
 
 // NewClientWithToken creates a new Tailscale API client using a direct OAuth token.
@@ -89,7 +114,8 @@ func NewClientWithToken(token, tailnet string) *Client {
 	return &Client{
 		httpClient:  httpClient,
 		oauthConfig: nil,
-		baseURL:     fmt.Sprintf("https://api.tailscale.com/api/v2/tailnet/%s", tailnet),
+		baseURL:     fmt.Sprintf("%s/tailnet/%s", defaultAPIBase, tailnet),
+		apiBase:     defaultAPIBase,
 	}
 }
 
@@ -104,12 +130,15 @@ func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.transport.RoundTrip(req)
 }
 
-func (c *Client) FetchDevices() ([]device.Device, error) {
+// FetchDevices lists tailnet devices. The context is propagated to each HTTP
+// call (devices listing + per-device routes) so a shutdown or per-cycle
+// timeout aborts in-flight retries rather than waiting for exhaustion.
+func (c *Client) FetchDevices(ctx context.Context) ([]device.Device, error) {
 	if c.baseURL == "" {
 		return nil, fmt.Errorf("no tailnet configured")
 	}
 
-	resp, err := c.makeDevicesRequest()
+	resp, err := c.makeDevicesRequest(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -124,10 +153,15 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 		return nil, err
 	}
 
-	// Fetch routes for each device to determine exit node status
+	// Fetch routes for each device to determine exit node status. Abort the
+	// per-device loop early if ctx is cancelled so a shutdown does not wait
+	// for every remaining device's retry budget to drain.
 	devices := c.convertAPIDevices(result.Devices)
 	for i := range devices {
-		routes, err := c.fetchDeviceRoutes(devices[i].ID.String())
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		routes, err := c.fetchDeviceRoutes(ctx, devices[i].ID.String())
 		if err != nil {
 			slog.Warn("failed to fetch routes for device", "device", devices[i].Name, "error", err)
 			continue
@@ -141,18 +175,114 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 	return devices, nil
 }
 
-func (c *Client) makeDevicesRequest() (*http.Response, error) {
+func (c *Client) makeDevicesRequest(ctx context.Context) (*http.Response, error) {
 	apiURL := fmt.Sprintf("%s/devices?fields=all", c.baseURL)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	return c.doWithRetry(ctx, http.MethodGet, apiURL, "devices")
+}
+
+// doWithRetry performs an HTTP request with exponential backoff for transient
+// failures (network errors, 429, 5xx). The response body of failed attempts
+// is always drained and closed before the next retry so that connections
+// can be reused from the pool. Jitter (±25%) is added to the base backoff to
+// avoid multiple instances synchronising on a recovering upstream, and the
+// server's Retry-After header is honoured when present on 429 responses.
+func (c *Client) doWithRetry(ctx context.Context, method, url, endpoint string) (*http.Response, error) {
+	retryCfg := tserrors.DefaultRetryConfig()
+
+	var lastErr error
+	var lastStatus int
+	var retryAfter time.Duration
+	for attempt := 0; attempt < retryCfg.MaxAttempts; attempt++ {
+		if attempt > 0 {
+			delay := withJitter(retryCfg.CalculateDelay(attempt - 1))
+			if retryAfter > delay {
+				delay = retryAfter
+			}
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from configured baseURL, not user input
+		lastAttempt := attempt == retryCfg.MaxAttempts-1
+		if err != nil {
+			lastErr = err
+			slog.Warn("Tailscale API request failed",
+				"endpoint", endpoint, "attempt", attempt+1, "max_attempts", retryCfg.MaxAttempts, "error", err, "will_retry", !lastAttempt)
+			continue
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			lastStatus = resp.StatusCode
+			if resp.StatusCode == http.StatusTooManyRequests {
+				retryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
+			} else {
+				retryAfter = 0
+			}
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+			_ = resp.Body.Close()
+			slog.Warn("Tailscale API returned retryable status",
+				"endpoint", endpoint, "status", resp.StatusCode, "attempt", attempt+1, "max_attempts", retryCfg.MaxAttempts, "will_retry", !lastAttempt)
+			continue
+		}
+
+		return resp, nil
 	}
 
-	resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from configured baseURL, not user input
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+	if lastErr != nil {
+		return nil, fmt.Errorf("request failed after %d attempts: %w", retryCfg.MaxAttempts, lastErr)
 	}
-	return resp, nil
+	return nil, fmt.Errorf("request failed after %d attempts: last status %d", retryCfg.MaxAttempts, lastStatus)
+}
+
+// withJitter adds a random ±25% jitter to d so concurrent clients stop
+// synchronising on a recovering upstream. Negative jitter is clamped to zero.
+func withJitter(d time.Duration) time.Duration {
+	if d <= 0 {
+		return d
+	}
+	// Half-range: each side of the interval is 25% of d.
+	halfRange := int64(d) / 4
+	if halfRange == 0 {
+		return d
+	}
+	// rand.Int64N is safe for concurrent use (Go 1.22+) and suitable here —
+	// retry pacing does not need crypto-grade randomness and the jittered
+	// delay is not security-sensitive.
+	//
+	// #nosec G404 -- non-crypto RNG is appropriate for retry backoff jitter
+	offset := rand.Int64N(2*halfRange+1) - halfRange //nolint:gosec // G404: see comment above
+	jittered := int64(d) + offset
+	if jittered < 0 {
+		return 0
+	}
+	return time.Duration(jittered)
+}
+
+// parseRetryAfter parses the Retry-After header value. The header may be a
+// number of seconds (RFC 9110 §10.2.3) or an HTTP-date. Unparseable or
+// past-dated values yield a zero duration so the caller falls back to the
+// computed backoff.
+func parseRetryAfter(value string) time.Duration {
+	if value == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(value); err == nil {
+		if d := time.Until(t); d > 0 {
+			return d
+		}
+	}
+	return 0
 }
 
 func (c *Client) handleAPIError(resp *http.Response) error {
@@ -431,14 +561,13 @@ type deviceRoutes struct {
 	EnabledRoutes    []string `json:"enabledRoutes"`
 }
 
-func (c *Client) fetchDeviceRoutes(deviceID string) (*deviceRoutes, error) {
-	apiURL := fmt.Sprintf("https://api.tailscale.com/api/v2/device/%s/routes?fields=all", deviceID)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create routes request: %w", err)
+func (c *Client) fetchDeviceRoutes(ctx context.Context, deviceID string) (*deviceRoutes, error) {
+	apiBase := c.apiBase
+	if apiBase == "" {
+		apiBase = deriveAPIBase(c.baseURL)
 	}
-
-	resp, err := c.httpClient.Do(req) //nolint:gosec // URL is constructed from known API base + validated device ID
+	apiURL := fmt.Sprintf("%s/device/%s/routes?fields=all", apiBase, deviceID)
+	resp, err := c.doWithRetry(ctx, http.MethodGet, apiURL, "device_routes")
 	if err != nil {
 		return nil, fmt.Errorf("routes request failed: %w", err)
 	}

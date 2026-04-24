@@ -69,8 +69,10 @@ func NewCollector(cfg config.Config) *Collector {
 	}
 }
 
-// FetchDevices retrieves the list of devices from the Tailscale API or returns test devices.
-func (c *Collector) FetchDevices() ([]device.Device, error) {
+// FetchDevices retrieves the list of devices from the Tailscale API or returns
+// test devices. The context is propagated to the API client so a shutdown or
+// per-cycle timeout can abort in-flight retries on the devices + routes calls.
+func (c *Collector) FetchDevices(ctx context.Context) ([]device.Device, error) {
 	targetDevices := []string{}
 	if v := os.Getenv("TARGET_DEVICES"); v != "" {
 		for _, part := range strings.Split(v, ",") {
@@ -101,7 +103,7 @@ func (c *Collector) FetchDevices() ([]device.Device, error) {
 
 	if c.apiClient != nil {
 		slog.Info("attempting Tailscale API discovery")
-		devices, err := c.apiClient.FetchDevices()
+		devices, err := c.apiClient.FetchDevices(ctx)
 		if err != nil {
 			slog.Error("Tailscale API failed", "error", err)
 		} else {
@@ -161,7 +163,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 		ScrapeDuration.WithLabelValues(target).Observe(time.Since(start).Seconds())
 	}()
 
-	devices, err := c.FetchDevices()
+	devices, err := c.FetchDevices(ctx)
 	if err != nil {
 		ScrapeErrors.WithLabelValues(target, "fetch_failed").Inc()
 		return err
