@@ -1,6 +1,39 @@
 # ==============================================================================
-# tsmetrics - Dockerfile (GitHub Release Binary)
+# tsmetrics - Multi-Stage Dockerfile
 # ==============================================================================
+# Targets:
+#   - backend-dev: Go exporter with Air hot reload + golangci-lint (for dde)
+#   - production:  Minimal image with GitHub release binary (used by CI)
+# ==============================================================================
+
+# ==============================================================================
+# BACKEND-DEV STAGE (Go + Air hot reload + golangci-lint)
+# ==============================================================================
+FROM golang:1.26-alpine@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS backend-dev
+
+RUN apk add --no-cache git build-base curl ca-certificates
+
+WORKDIR /app
+
+ENV PORT=9100 \
+    CGO_ENABLED=0
+
+# renovate: datasource=go depName=github.com/air-verse/air
+RUN go install github.com/air-verse/air@v1.61.1
+
+# renovate: datasource=go depName=github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+COPY .air.toml ./
+
+RUN mkdir -p /app/tmp /app/bin /tmp/tsnet-tsmetrics
+
+EXPOSE 9100
+
+CMD ["/go/bin/air", "-c", ".air.toml"]
 
 # ==============================================================================
 # RELEASE BUILDER STAGE (Download GitHub Release Binary)
