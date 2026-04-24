@@ -36,6 +36,16 @@ else
 fi
 
 echo ""
-echo "Available at:"
 # shellcheck disable=SC2086
-extractTraefikDomains $running | sed "s|^|  ${blue}https://|;s|$|${reset}|"
+domains="$(extractTraefikDomains $running)"
+if [ -n "$domains" ]; then
+    echo "Available at:"
+    printf '%s\n' "$domains" | sed "s|^|  ${blue}https://|;s|$|${reset}|"
+else
+    # Fallback: running container but no Traefik labels (e.g. stack deployed
+    # without the shared dde proxy). Point at the default published ports
+    # so the stack is not silently "up but unreachable from the CLI hint".
+    echo "Running. Default ports (published by docker compose):"
+    echo "  ${blue}http://localhost:9090${reset}   # Prometheus"
+    echo "  ${blue}http://localhost:3000${reset}   # Grafana"
+fi
