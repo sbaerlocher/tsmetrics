@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -127,7 +128,7 @@ func TestClientFetchDevices(t *testing.T) {
 		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
 	}
 
-	devices, err := client.FetchDevices()
+	devices, err := client.FetchDevices(context.Background())
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -173,7 +174,7 @@ func TestClientFetchDevicesError(t *testing.T) {
 		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
 	}
 
-	devices, err := client.FetchDevices()
+	devices, err := client.FetchDevices(context.Background())
 	if err == nil {
 		t.Fatal("Expected error for 500 status code")
 	}
@@ -208,7 +209,7 @@ func TestClientWithRealServer(t *testing.T) {
 		baseURL:    server.URL,
 	}
 
-	devices, err := client.FetchDevices()
+	devices, err := client.FetchDevices(context.Background())
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -234,7 +235,7 @@ func TestClientTimeout(t *testing.T) {
 		baseURL:    server.URL,
 	}
 
-	_, err := client.FetchDevices()
+	_, err := client.FetchDevices(context.Background())
 	if err == nil {
 		t.Fatal("Expected timeout error")
 	}
@@ -373,7 +374,7 @@ func TestClientExitNodeDetection(t *testing.T) {
 		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
 	}
 
-	devicesResult, err := client.FetchDevices()
+	devicesResult, err := client.FetchDevices(context.Background())
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

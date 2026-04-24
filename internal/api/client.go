@@ -130,12 +130,15 @@ func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.transport.RoundTrip(req)
 }
 
-func (c *Client) FetchDevices() ([]device.Device, error) {
+// FetchDevices lists tailnet devices. The context is propagated to each HTTP
+// call (devices listing + per-device routes) so a shutdown or per-cycle
+// timeout aborts in-flight retries rather than waiting for exhaustion.
+func (c *Client) FetchDevices(ctx context.Context) ([]device.Device, error) {
 	if c.baseURL == "" {
 		return nil, fmt.Errorf("no tailnet configured")
 	}
 
-	resp, err := c.makeDevicesRequest()
+	resp, err := c.makeDevicesRequest(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -150,10 +153,15 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 		return nil, err
 	}
 
-	// Fetch routes for each device to determine exit node status
+	// Fetch routes for each device to determine exit node status. Abort the
+	// per-device loop early if ctx is cancelled so a shutdown does not wait
+	// for every remaining device's retry budget to drain.
 	devices := c.convertAPIDevices(result.Devices)
 	for i := range devices {
-		routes, err := c.fetchDeviceRoutes(devices[i].ID.String())
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		routes, err := c.fetchDeviceRoutes(ctx, devices[i].ID.String())
 		if err != nil {
 			slog.Warn("failed to fetch routes for device", "device", devices[i].Name, "error", err)
 			continue
@@ -167,9 +175,9 @@ func (c *Client) FetchDevices() ([]device.Device, error) {
 	return devices, nil
 }
 
-func (c *Client) makeDevicesRequest() (*http.Response, error) {
+func (c *Client) makeDevicesRequest(ctx context.Context) (*http.Response, error) {
 	apiURL := fmt.Sprintf("%s/devices?fields=all", c.baseURL)
-	return c.doWithRetry(context.Background(), http.MethodGet, apiURL, "devices")
+	return c.doWithRetry(ctx, http.MethodGet, apiURL, "devices")
 }
 
 // doWithRetry performs an HTTP request with exponential backoff for transient
@@ -553,13 +561,13 @@ type deviceRoutes struct {
 	EnabledRoutes    []string `json:"enabledRoutes"`
 }
 
-func (c *Client) fetchDeviceRoutes(deviceID string) (*deviceRoutes, error) {
+func (c *Client) fetchDeviceRoutes(ctx context.Context, deviceID string) (*deviceRoutes, error) {
 	apiBase := c.apiBase
 	if apiBase == "" {
 		apiBase = deriveAPIBase(c.baseURL)
 	}
 	apiURL := fmt.Sprintf("%s/device/%s/routes?fields=all", apiBase, deviceID)
-	resp, err := c.doWithRetry(context.Background(), http.MethodGet, apiURL, "device_routes")
+	resp, err := c.doWithRetry(ctx, http.MethodGet, apiURL, "device_routes")
 	if err != nil {
 		return nil, fmt.Errorf("routes request failed: %w", err)
 	}

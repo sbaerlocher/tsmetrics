@@ -43,7 +43,7 @@ func TestFetchDevicesWithoutAPI(t *testing.T) {
 	}
 
 	collector := NewCollector(cfg)
-	devices, err := collector.FetchDevices()
+	devices, err := collector.FetchDevices(context.Background())
 
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
