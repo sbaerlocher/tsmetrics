@@ -160,6 +160,16 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	return srv.Shutdown(shutdownCtx)
 }
 
+// scrapeInterval and scrapeCycleTimeout bound the background scrape loop.
+// scrapeCycleTimeout must stay >= scrapeInterval: the ticker fires every
+// scrapeInterval, but time.Ticker silently drops ticks while runCycle is
+// still executing, so a slow cycle turns into backpressure rather than
+// overlapping runs.
+const (
+	scrapeInterval     = 30 * time.Second
+	scrapeCycleTimeout = 60 * time.Second
+)
+
 func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *metrics.Collector) {
 	go func() {
 		if cfg.UseTsnet {
@@ -171,29 +181,29 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 			}
 		}
 
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(scrapeInterval)
 		defer ticker.Stop()
 
-		if err := collector.UpdateMetrics("tailscale"); err != nil {
-			if cfg.UseTsnet && metrics.CountTsnetStartupErrors(err) > 0 {
-				slog.Info("Initial scrape waiting for connectivity")
-			} else {
-				slog.Error("initial update failed", "error", err)
+		runCycle := func(label string) {
+			cycleCtx, cancel := context.WithTimeout(ctx, scrapeCycleTimeout)
+			defer cancel()
+			if err := collector.UpdateMetrics(cycleCtx, "tailscale"); err != nil {
+				if cfg.UseTsnet && metrics.CountTsnetStartupErrors(err) > 0 {
+					slog.Debug(label+" waiting for connectivity", "tsnet_startup_errors", metrics.CountTsnetStartupErrors(err))
+				} else {
+					slog.Error(label+" failed", "error", err)
+				}
 			}
 		}
+
+		runCycle("initial update")
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := collector.UpdateMetrics("tailscale"); err != nil {
-					if cfg.UseTsnet && metrics.CountTsnetStartupErrors(err) > 0 {
-						slog.Debug("Scrape waiting for connectivity")
-					} else {
-						slog.Error("updateMetrics error", "error", err)
-					}
-				}
+				runCycle("updateMetrics")
 			}
 		}
 	}()

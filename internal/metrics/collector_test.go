@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -197,7 +198,7 @@ func TestScrapeClient(t *testing.T) {
 
 	// Test with unreachable host
 	client := &http.Client{Timeout: 100 * time.Millisecond}
-	err := scrapeClient(device, client, cfg)
+	err := scrapeClient(context.Background(), device, client, cfg)
 
 	if err == nil {
 		t.Error("Expected error when connecting to unreachable host")

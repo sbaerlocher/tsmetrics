@@ -68,7 +68,9 @@ func SetHTTPClientProvider(provider HTTPClientProvider) {
 }
 
 // ScrapeClientMetrics scrapes metrics from the provided devices using the given configuration.
-func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
+// The provided context is propagated to each per-device HTTP request so that a
+// parent shutdown cancels in-flight scrapes promptly.
+func ScrapeClientMetrics(ctx context.Context, devices []device.Device, cfg config.Config) error {
 	if cfg.TsnetScrapeTag != "" {
 		slog.Info("scraping devices with tag filter", "requiredTag", cfg.TsnetScrapeTag)
 	} else {
@@ -113,7 +115,7 @@ func ScrapeClientMetrics(devices []device.Device, cfg config.Config) error {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			if err := scrapeClient(dev, client, cfg); err != nil {
+			if err := scrapeClient(ctx, dev, client, cfg); err != nil {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("device %s: %w", dev.Name.String(), err))
 				mu.Unlock()
@@ -170,8 +172,8 @@ func isTsnetStartupError(err error) bool {
 		strings.Contains(errStr, "no such host")
 }
 
-func scrapeClient(dev device.Device, client *http.Client, cfg config.Config) error {
-	resp, err := fetchDeviceMetrics(dev, client, cfg)
+func scrapeClient(ctx context.Context, dev device.Device, client *http.Client, cfg config.Config) error {
+	resp, err := fetchDeviceMetrics(ctx, dev, client, cfg)
 	if err != nil {
 		return err
 	}
@@ -201,7 +203,7 @@ func buildMetricsURL(dev device.Device, cfg config.Config) string {
 	return u.String()
 }
 
-func fetchDeviceMetrics(dev device.Device, client *http.Client, cfg config.Config) (*http.Response, error) {
+func fetchDeviceMetrics(ctx context.Context, dev device.Device, client *http.Client, cfg config.Config) (*http.Response, error) {
 	hostForURL := scrapeHost(dev)
 
 	if err := validateHostname(hostForURL); err != nil {
@@ -209,7 +211,22 @@ func fetchDeviceMetrics(dev device.Device, client *http.Client, cfg config.Confi
 	}
 
 	urlStr := buildMetricsURL(dev, cfg)
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, urlStr, nil)
+
+	// SSRF hardening: the scraper must never reach loopback, link-local, or
+	// current-network addresses — even if the Tailscale API returns a
+	// manipulated hostname or IP literal. RFC1918 and 100.64.0.0/10 (Tailscale
+	// CGNAT) are intentionally allowed since that is where scraped devices
+	// live in the homelab/tailnet.
+	if err := validateDeviceMetricsURL(urlStr); err != nil {
+		return nil, fmt.Errorf("invalid device metrics URL %s: %w", urlStr, err)
+	}
+
+	// http.Client.Timeout covers connect + headers + body read, so we do NOT
+	// wrap with context.WithTimeout here: the deferred cancel() would fire as
+	// soon as this function returns — while the caller is still reading the
+	// response body. A prematurely cancelled reqCtx broke body reads as
+	// "context canceled".
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if reqErr != nil {
 		return nil, fmt.Errorf("failed to create request for %s: %w", urlStr, reqErr)
 	}
@@ -388,6 +405,63 @@ func validateHostname(hostname string) error {
 	}
 	if !validHostnameRe.MatchString(hostname) {
 		return fmt.Errorf("hostname contains invalid characters (only letters, digits, dot, hyphen, and brackets allowed)")
+	}
+	return nil
+}
+
+// scraperBlockedIPNets contains IP ranges the scraper must never contact, even
+// if a compromised Tailscale API response injects such a literal host.
+// Notably RFC1918 and 100.64.0.0/10 (Tailscale CGNAT) are NOT blocked: those
+// are the exact ranges where legitimate devices live in a homelab/tailnet.
+var scraperBlockedIPNets []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		"0.0.0.0/8",      // current network (RFC 1122) — never a valid destination
+		"127.0.0.0/8",    // IPv4 loopback — prevents hitting the exporter itself
+		"::1/128",        // IPv6 loopback
+		"169.254.0.0/16", // IPv4 link-local (AWS/GCP/Azure instance metadata)
+		"fe80::/10",      // IPv6 link-local
+	} {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("scraperBlockedIPNets: invalid CIDR %q: %v", cidr, err))
+		}
+		scraperBlockedIPNets = append(scraperBlockedIPNets, network)
+	}
+}
+
+// validateDeviceMetricsURL parses a device metrics URL and rejects it if the
+// host resolves to a forbidden literal IP (loopback, link-local, current-net).
+// DNS names are accepted; DNS rebinding is out of scope because device hostnames
+// originate from the authenticated Tailscale API.
+func validateDeviceMetricsURL(urlStr string) error {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("malformed URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("scheme %q not allowed (only http/https)", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("URL has no host")
+	}
+	if strings.EqualFold(host, "localhost") {
+		return fmt.Errorf("host %q is not a permitted scrape target", host)
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		// DNS name — trust the Tailscale API as the source of truth.
+		return nil
+	}
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	for _, network := range scraperBlockedIPNets { // DevSkim: ignore DS162092 - intentionally enumerates loopback/link-local for SSRF validation
+		if network.Contains(ip) {
+			return fmt.Errorf("host %q is in a forbidden range %s", host, network.String())
+		}
 	}
 	return nil
 }
