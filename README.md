@@ -97,7 +97,7 @@ docker run -d \
   -e OAUTH_CLIENT_ID=your_client_id \
   -e OAUTH_CLIENT_SECRET=your_client_secret \
   -e TAILNET_NAME=your-company \
-  -v tsnet-state:/tmp/tsnet-state \
+  -v tsnet-state:/tmp/tsnet-tsmetrics \
   ghcr.io/sbaerlocher/tsmetrics:latest
 ```
 
@@ -269,12 +269,13 @@ TARGET_DEVICES=production-gateway,backup-server
 | Variable               | Default                | Description                                                           |
 | ---------------------- | ---------------------- | --------------------------------------------------------------------- |
 | `PORT`                 | `9100`                 | HTTP server port                                                      |
-| `ENV`                  | `development`          | Environment (`production`/`prod` binds 0.0.0.0)                       |
+| `BIND_HOST`            | auto-detected          | Listen interface; auto `0.0.0.0` in container, `127.0.0.1` on host    |
 | `USE_TSNET`            | `false`                | Enable tsnet integration                                              |
 | `TSNET_HOSTNAME`       | `tsmetrics`            | Hostname in tailnet                                                   |
 | `TSNET_STATE_DIR`      | `/tmp/tsnet-tsmetrics` | Persistent state directory                                            |
 | `TSNET_TAGS`           | -                      | Comma-separated device tags                                           |
 | `TS_AUTHKEY`           | -                      | Auth key for automatic registration                                   |
+| `SCRAPE_TAG`           | -                      | Only scrape devices carrying this tag                                 |
 | `REQUIRE_EXPORTER_TAG` | `false`                | Enforce "exporter" tag requirement                                    |
 | `LOG_LEVEL`            | `info`                 | Logging level                                                         |
 | `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                                         |

@@ -23,7 +23,7 @@ bold=$'\033[1m'; dim=$'\033[2m'; reset=$'\033[0m'
 {
     echo ""
     echo "${bold}→ .env setup${reset}"
-    echo "${dim}  Credentials erhältst du in der Tailscale Admin-Konsole:${reset}"
+    echo "${dim}  Get credentials from the Tailscale admin console:${reset}"
     echo "${dim}    https://login.tailscale.com/admin/settings/oauth${reset}"
     echo ""
 } > /dev/tty
@@ -51,8 +51,8 @@ ask_secret() {
 
 oauth_id=$(ask OAUTH_CLIENT_ID "Tailscale OAuth Client ID")
 oauth_secret=$(ask_secret OAUTH_CLIENT_SECRET "Tailscale OAuth Client Secret")
-tailnet=$(ask TAILNET_NAME "Tailnet name (z.B. yourcompany)")
-auth_key=$(ask TS_AUTHKEY "Auth key for tsnet (leer lassen zum Überspringen)" "")
+tailnet=$(ask TAILNET_NAME "Tailnet name (e.g. yourcompany)")
+auth_key=$(ask TS_AUTHKEY "Auth key for tsnet (leave empty to skip)" "")
 scrape_tag=$(ask SCRAPE_TAG "Tag that marks devices as scrape targets" "exporter")
 
 cat > .env <<EOF
@@ -75,5 +75,5 @@ TS_AUTHKEY=${auth_key}
 EOF
 
 echo "" > /dev/tty
-echo "✓ .env geschrieben." > /dev/tty
+echo "✓ .env written." > /dev/tty
 echo "" > /dev/tty

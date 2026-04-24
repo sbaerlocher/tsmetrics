@@ -29,7 +29,7 @@ RUN go mod download && go mod verify
 
 COPY .air.toml ./
 
-RUN mkdir -p /app/tmp /app/bin /tmp/tsnet-state
+RUN mkdir -p /app/tmp /app/bin /tmp/tsnet-tsmetrics
 
 EXPOSE 9100
 
