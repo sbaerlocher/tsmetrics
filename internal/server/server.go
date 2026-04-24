@@ -160,9 +160,15 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	return srv.Shutdown(shutdownCtx)
 }
 
-// scrapeCycleTimeout caps a single UpdateMetrics run so a hanging device cannot
-// block the next tick or delay shutdown beyond this budget.
-const scrapeCycleTimeout = 60 * time.Second
+// scrapeInterval and scrapeCycleTimeout bound the background scrape loop.
+// scrapeCycleTimeout must stay >= scrapeInterval: the ticker fires every
+// scrapeInterval, but time.Ticker silently drops ticks while runCycle is
+// still executing, so a slow cycle turns into backpressure rather than
+// overlapping runs.
+const (
+	scrapeInterval     = 30 * time.Second
+	scrapeCycleTimeout = 60 * time.Second
+)
 
 func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *metrics.Collector) {
 	go func() {
@@ -175,7 +181,7 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 			}
 		}
 
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(scrapeInterval)
 		defer ticker.Stop()
 
 		runCycle := func(label string) {

@@ -212,18 +212,20 @@ func fetchDeviceMetrics(ctx context.Context, dev device.Device, client *http.Cli
 
 	urlStr := buildMetricsURL(dev, cfg)
 
-	// SSRF-Härtung: Scraper darf nie Loopback, Link-Local oder Current-Network
-	// ansprechen — auch wenn die Tailscale-API einen manipulierten Hostnamen/IP-Literal
-	// liefert. RFC1918 und 100.64.0.0/10 (Tailscale CGNAT) sind bewusst erlaubt,
-	// da dort die zu scrapenden Geräte leben.
+	// SSRF hardening: the scraper must never reach loopback, link-local, or
+	// current-network addresses — even if the Tailscale API returns a
+	// manipulated hostname or IP literal. RFC1918 and 100.64.0.0/10 (Tailscale
+	// CGNAT) are intentionally allowed since that is where scraped devices
+	// live in the homelab/tailnet.
 	if err := validateDeviceMetricsURL(urlStr); err != nil {
 		return nil, fmt.Errorf("invalid device metrics URL %s: %w", urlStr, err)
 	}
 
-	// http.Client.Timeout deckt Connect + Headers + Body-Read ab, deshalb KEIN
-	// context.WithTimeout hier: das defer cancel() würde feuern, sobald diese
-	// Funktion zurückkehrt — und danach liest der Caller den Body noch. Ein
-	// früh abgebrochener reqCtx brach den Body-Read als "context canceled" ab.
+	// http.Client.Timeout covers connect + headers + body read, so we do NOT
+	// wrap with context.WithTimeout here: the deferred cancel() would fire as
+	// soon as this function returns — while the caller is still reading the
+	// response body. A prematurely cancelled reqCtx broke body reads as
+	// "context canceled".
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
 	if reqErr != nil {
 		return nil, fmt.Errorf("failed to create request for %s: %w", urlStr, reqErr)
@@ -421,7 +423,10 @@ func init() {
 		"169.254.0.0/16", // IPv4 link-local (AWS/GCP/Azure instance metadata)
 		"fe80::/10",      // IPv6 link-local
 	} {
-		_, network, _ := net.ParseCIDR(cidr)
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("scraperBlockedIPNets: invalid CIDR %q: %v", cidr, err))
+		}
 		scraperBlockedIPNets = append(scraperBlockedIPNets, network)
 	}
 }
