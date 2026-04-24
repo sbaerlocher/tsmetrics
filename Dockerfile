@@ -19,10 +19,10 @@ ENV PORT=9100 \
     CGO_ENABLED=0
 
 # renovate: datasource=go depName=github.com/air-verse/air
-RUN go install github.com/air-verse/air@v1.61.1
+RUN go install github.com/air-verse/air@v1.65.1
 
 # renovate: datasource=go depName=github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
