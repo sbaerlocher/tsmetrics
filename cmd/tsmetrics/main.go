@@ -155,6 +155,11 @@ func main() {
 
 	server.SetVersion(version, buildTime)
 
+	collector := metrics.NewCollector(cfg)
+	// Share the collector's Tailscale API client with the HTTP handlers so
+	// /health does not reconstruct an oauth2.Client on every probe.
+	server.SetAPIClient(collector.APIClient())
+
 	slog.Info("Starting tsmetrics",
 		"version", version,
 		"build_time", buildTime,
@@ -164,8 +169,6 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	collector := metrics.NewCollector(cfg)
 
 	var err error
 	if cfg.UseTsnet {

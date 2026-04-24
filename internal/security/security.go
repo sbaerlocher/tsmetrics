@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -168,50 +169,118 @@ func (iv *InputValidator) ValidateDeviceID(id string) error {
 }
 
 // Rate Limiting
-// RateLimiter provides per-client rate limiting functionality.
-type RateLimiter struct {
-	limiters map[string]*rate.Limiter
-	mutex    sync.RWMutex
-	rate     rate.Limit
-	burst    int
+// limiterEntry bundles a rate.Limiter with the last time it was touched, so
+// the cleanup routine can evict entries that have been idle for a while.
+// lastUsed is an int64 UnixNano stored atomically so the hot Allow() path
+// can refresh it under the map's read lock without upgrading to a writer.
+type limiterEntry struct {
+	limiter  *rate.Limiter
+	lastUsed atomic.Int64
 }
+
+// RateLimiter provides per-client rate limiting functionality.
+// maxEntries caps the map size so that a burst of unique client IDs
+// (spoofed/rotating source IPs) cannot exhaust memory; idleTTL is the
+// minimum time an entry must be idle before Cleanup may evict it.
+type RateLimiter struct {
+	entries    map[string]*limiterEntry
+	mutex      sync.RWMutex
+	rate       rate.Limit
+	burst      int
+	maxEntries int
+	idleTTL    time.Duration
+	now        func() time.Time
+}
+
+const (
+	defaultMaxRateLimiterEntries = 10000
+	defaultRateLimiterIdleTTL    = 1 * time.Hour
+)
 
 // NewRateLimiter creates a new rate limiter with the specified requests per second and burst size.
 func NewRateLimiter(rps float64, burst int) *RateLimiter {
 	return &RateLimiter{
-		limiters: make(map[string]*rate.Limiter),
-		rate:     rate.Limit(rps),
-		burst:    burst,
+		entries:    make(map[string]*limiterEntry),
+		rate:       rate.Limit(rps),
+		burst:      burst,
+		maxEntries: defaultMaxRateLimiterEntries,
+		idleTTL:    defaultRateLimiterIdleTTL,
+		now:        time.Now,
 	}
 }
 
+// Allow reports whether a request from clientID may proceed. The hot path —
+// an already-known client — completes under the reader lock and updates
+// lastUsed atomically, so concurrent requests from different IPs do not
+// serialise on a single writer. A new client (or an at-capacity eviction)
+// upgrades to a writer, with a double-check after acquiring the write lock
+// to handle races where another goroutine created the entry in between.
+//
+// At capacity the eviction is O(n) over the map since we pick the oldest
+// entry by scanning lastUsed. With the default cap of 10 000 entries and
+// eviction only happening on a new-client insert after the map is full,
+// this is acceptable; if the workload ever needs faster eviction a heap
+// keyed by lastUsed would give O(log n).
 func (rl *RateLimiter) Allow(clientID string) bool {
+	// Fast path under reader lock: already-known client.
 	rl.mutex.RLock()
-	limiter, exists := rl.limiters[clientID]
+	if entry, ok := rl.entries[clientID]; ok {
+		entry.lastUsed.Store(rl.now().UnixNano())
+		limiter := entry.limiter
+		rl.mutex.RUnlock()
+		return limiter.Allow()
+	}
 	rl.mutex.RUnlock()
 
+	// Slow path: create the entry (or pick up one created by a racing
+	// goroutine) under the writer lock.
+	rl.mutex.Lock()
+	entry, exists := rl.entries[clientID]
 	if !exists {
-		rl.mutex.Lock()
-		// Double-check pattern
-		if limiter, exists = rl.limiters[clientID]; !exists {
-			limiter = rate.NewLimiter(rl.rate, rl.burst)
-			rl.limiters[clientID] = limiter
+		if len(rl.entries) >= rl.maxEntries {
+			rl.evictOldestLocked()
 		}
-		rl.mutex.Unlock()
+		entry = &limiterEntry{
+			limiter: rate.NewLimiter(rl.rate, rl.burst),
+		}
+		rl.entries[clientID] = entry
 	}
+	entry.lastUsed.Store(rl.now().UnixNano())
+	limiter := entry.limiter
+	rl.mutex.Unlock()
 
 	return limiter.Allow()
 }
 
+// evictOldestLocked removes the entry with the oldest lastUsed timestamp.
+// Caller must hold rl.mutex for writing.
+func (rl *RateLimiter) evictOldestLocked() {
+	var oldestKey string
+	var oldestNanos int64
+	first := true
+	for k, e := range rl.entries {
+		used := e.lastUsed.Load()
+		if first || used < oldestNanos {
+			oldestKey = k
+			oldestNanos = used
+			first = false
+		}
+	}
+	if !first {
+		delete(rl.entries, oldestKey)
+	}
+}
+
+// Cleanup removes entries that have been idle for longer than idleTTL.
+// Intended to be invoked periodically by a background goroutine.
 func (rl *RateLimiter) Cleanup() {
-	// Periodically clean up unused limiters
 	rl.mutex.Lock()
 	defer rl.mutex.Unlock()
 
-	for clientID, limiter := range rl.limiters {
-		// Remove limiters that haven't been used recently
-		if limiter.Tokens() >= float64(rl.burst) {
-			delete(rl.limiters, clientID)
+	cutoffNanos := rl.now().Add(-rl.idleTTL).UnixNano()
+	for clientID, entry := range rl.entries {
+		if entry.lastUsed.Load() < cutoffNanos {
+			delete(rl.entries, clientID)
 		}
 	}
 }

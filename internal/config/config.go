@@ -18,6 +18,7 @@ type Config struct {
 	TsnetStateSecret     string
 	TsnetAuthKey         string
 	Port                 string
+	BindHost             string
 	OAuthClientID        string
 	OAuthSecret          string //nolint:gosec // G117: not a hardcoded credential, loaded from env
 	TailnetName          string
@@ -49,6 +50,8 @@ func (cfg *Config) loadNetworkSettings() {
 		cfg.Port = "9100"
 	}
 
+	cfg.BindHost = resolveBindHost()
+
 	cfg.ClientMetricsPort = "5252"
 	if v := os.Getenv("CLIENT_METRICS_PORT"); v != "" {
 		cfg.ClientMetricsPort = v
@@ -60,6 +63,57 @@ func (cfg *Config) loadNetworkSettings() {
 			cfg.MaxConcurrentScrapes = n
 		}
 	}
+}
+
+// resolveBindHost returns the listen address for the HTTP server.
+// BIND_HOST env wins; otherwise auto-detect: containers → 0.0.0.0, host → loopback.
+func resolveBindHost() string {
+	if v := strings.TrimSpace(os.Getenv("BIND_HOST")); v != "" {
+		return v
+	}
+	if detectContainer() {
+		slog.Debug("container runtime detected, binding on all interfaces")
+		return "0.0.0.0"
+	}
+	return "127.0.0.1" // DevSkim: ignore DS162092 - Host-native default avoids exposing metrics on a dev LAN
+}
+
+// detectContainer heuristically identifies whether the process runs inside
+// a containerized runtime (Docker, Kubernetes, containerd, etc.). When the
+// heuristic fails (e.g. a cgroups-v2 host with no container markers exposed
+// to the process), operators can force the result via BIND_HOST.
+func detectContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+		return true
+	}
+	// cgroups v1: the hierarchy paths in /proc/self/cgroup carry the runtime
+	// slice name ("/docker/<id>", "/kubepods/...", etc.). On cgroups v2 the
+	// file typically collapses to "0::/" and these markers disappear, so the
+	// v1 read is checked first and the v2 fallback below covers the rest.
+	if b, err := os.ReadFile("/proc/self/cgroup"); err == nil {
+		s := string(b)
+		for _, marker := range []string{"/docker/", "/kubepods/", "/containerd/", "/docker-", "/lxc/"} {
+			if strings.Contains(s, marker) {
+				return true
+			}
+		}
+	}
+	// cgroups v2 fallback: container mount namespaces surface their overlay
+	// root (and frequently the container id) in /proc/self/mountinfo even
+	// when /proc/self/cgroup is generic. Match on the overlay filesystem
+	// type plus the runtime-specific paths used by Docker/Podman/K8s.
+	if b, err := os.ReadFile("/proc/self/mountinfo"); err == nil {
+		s := string(b)
+		for _, marker := range []string{"/docker/containers/", "/containers/storage/overlay", "/kubelet/pods/"} {
+			if strings.Contains(s, marker) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (cfg *Config) loadAuthSettings() {

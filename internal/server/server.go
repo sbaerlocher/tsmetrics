@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -55,8 +54,11 @@ func SetupRoutes() *http.ServeMux {
 
 // applySecurityMiddleware wraps the handler with rate limiting, optional token auth,
 // and security headers. A background goroutine cleans up idle rate-limiter entries
-// every 5 minutes for the lifetime of ctx.
-func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Handler {
+// every 5 minutes for the lifetime of ctx. Returns an error when METRICS_TOKEN is
+// set but fails validation — the caller (main / Run*) is responsible for
+// translating that into a process exit, keeping the exit decision out of the
+// middleware layer so tests can exercise the "weak token rejected" path.
+func applySecurityMiddleware(ctx context.Context, handler http.Handler) (http.Handler, error) {
 	rps := 10.0
 	if v := os.Getenv("RATE_LIMIT_RPS"); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
@@ -90,14 +92,22 @@ func applySecurityMiddleware(ctx context.Context, handler http.Handler) http.Han
 	// Token auth is opt-in: set METRICS_TOKEN to require a Bearer token on all
 	// non-probe endpoints. AuthenticationMiddleware whitelists /health, /healthz,
 	// /livez, /readyz, and /startupz so Kubernetes probes always pass.
+	//
+	// An operator who sets METRICS_TOKEN obviously wants auth to be enforced —
+	// rejecting a weak/malformed token at startup is safer than silently
+	// accepting it and shipping trivially bypassable protection to production.
 	if token := os.Getenv("METRICS_TOKEN"); token != "" {
-		validator := security.NewAuthValidator()
-		validator.AddValidToken(token)
-		h = security.AuthenticationMiddleware(validator)(h)
+		validator := security.NewInputValidator()
+		if err := validator.ValidateToken(token); err != nil {
+			return nil, fmt.Errorf("METRICS_TOKEN rejected: %w", err)
+		}
+		auth := security.NewAuthValidator()
+		auth.AddValidToken(token)
+		h = security.AuthenticationMiddleware(auth)(h)
 		slog.Info("metrics endpoint protected with bearer token authentication")
 	}
 
-	return security.SecurityHeadersMiddleware(h)
+	return security.SecurityHeadersMiddleware(h), nil
 }
 
 // initializeHealthChecker sets up the health checker with appropriate components based on configuration
@@ -130,18 +140,17 @@ func (s *simpleHealthChecker) CheckHealth(ctx context.Context) error {
 
 // RunStandalone starts the HTTP server in standalone mode.
 func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
-	env := strings.ToLower(os.Getenv("ENV"))
-	host := "127.0.0.1" // DevSkim: ignore DS162092 - Localhost binding is intentional for development
-	if env == "production" || env == "prod" {
-		host = "0.0.0.0"
-	}
-	addr := fmt.Sprintf("%s:%s", host, cfg.Port)
+	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.Port)
 
 	metrics.SetHTTPClientProvider(&metrics.StandardHTTPClientProvider{})
 	slog.Info("HTTP client configured", "network", "standard")
 
 	mux := SetupRoutes()
-	srv := createHTTPServer(addr, applySecurityMiddleware(ctx, mux))
+	handler, err := applySecurityMiddleware(ctx, mux)
+	if err != nil {
+		return err
+	}
+	srv := createHTTPServer(addr, handler)
 
 	// Initialize health checker and background scraper
 	initializeServerComponents(cfg, ctx, collector)
