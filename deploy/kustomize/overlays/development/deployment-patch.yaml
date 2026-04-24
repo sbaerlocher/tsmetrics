@@ -41,8 +41,6 @@ spec:
             - name: LOG_LEVEL
               # devskim: ignore DS173237 - Debug level appropriate for development environment
               value: "debug"
-            - name: ENV
-              value: "development"
             - name: TSNET_HOSTNAME
               value: "tsmetrics-dev"
           resources:

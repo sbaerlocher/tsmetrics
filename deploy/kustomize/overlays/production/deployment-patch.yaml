@@ -39,8 +39,6 @@ spec:
           env:
             - name: LOG_LEVEL
               value: "info"
-            - name: ENV
-              value: "production"
             - name: SCRAPE_TAG
               value: "production"
             - name: TSNET_STATE_SECRET

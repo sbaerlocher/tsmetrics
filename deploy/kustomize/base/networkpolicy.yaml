@@ -22,13 +22,22 @@ spec:
         - protocol: TCP
           port: 9100
   egress:
-    - to: [] # Allow all outbound for API calls
+    # Tailscale API (HTTPS) + HTTP redirects from upstream captive portals.
+    - to: []
       ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
           port: 80
-    - to: [] # Allow DNS
+    # Tailscale device metrics endpoints (port 5252) inside the tailnet.
+    # Safe to restrict further with `to.ipBlock.cidr: 100.64.0.0/10` if you
+    # only scrape devices that live in the standard Tailscale CGNAT range.
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 5252
+    # DNS resolution (UDP primary, TCP fallback for large responses).
+    - to: []
       ports:
         - protocol: UDP
           port: 53

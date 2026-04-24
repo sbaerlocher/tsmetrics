@@ -11,7 +11,6 @@ metadata:
 data:
   # Application settings
   PORT: "9100"
-  ENV: "production"
   LOG_LEVEL: "info"
   LOG_FORMAT: "json"
 
