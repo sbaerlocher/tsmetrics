@@ -183,7 +183,7 @@ tsmetrics/
 | `OAUTH_CLIENT_SECRET` | Tailscale OAuth2 Client Secret                         | Required      |
 | `TAILNET_NAME`        | Tailnet name or "-" for default                        | Required      |
 | `PORT`                | HTTP server port                                       | `9100`        |
-| `ENV`                 | `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1 | `development` |
+| `BIND_HOST`           | HTTP interface; auto `0.0.0.0` / `127.0.0.1`           | auto-detected |
 
 ### tsnet Configuration
 
