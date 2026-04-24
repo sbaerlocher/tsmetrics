@@ -246,8 +246,11 @@ func withJitter(d time.Duration) time.Duration {
 		return d
 	}
 	// rand.Int64N is safe for concurrent use (Go 1.22+) and suitable here —
-	// we do not need crypto-grade randomness for retry pacing.
-	offset := rand.Int64N(2*halfRange+1) - halfRange
+	// retry pacing does not need crypto-grade randomness and the jittered
+	// delay is not security-sensitive.
+	//
+	// #nosec G404 -- non-crypto RNG is appropriate for retry backoff jitter
+	offset := rand.Int64N(2*halfRange+1) - halfRange //nolint:gosec // G404: see comment above
 	jittered := int64(d) + offset
 	if jittered < 0 {
 		return 0
