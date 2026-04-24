@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: tsmetrics
+    static_configs:
+      - targets:
+          - tsmetrics:9100
+    scrape_interval: 30s
+    metrics_path: /metrics

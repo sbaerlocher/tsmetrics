@@ -2414,7 +2414,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "/.*prom/",
+        "regex": "/.*prom/i",
         "type": "datasource"
       }
     ]
