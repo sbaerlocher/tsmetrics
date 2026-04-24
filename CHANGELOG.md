@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-24
+
+### Added
+
+- Local observability compose profile: Prometheus + Grafana wired via
+  `docker compose --profile observability up`, auto-provisioned datasource
+  and the `tsmetrics-overview` / `tsmetrics-device-details` dashboards.
+  `dde project:exec:observability:up|down` plugins start/stop the stack.
+- New dev environment on [dde](https://dde.sh) + [just](https://github.com/casey/just):
+  containerised toolchain with Air hot-reload, `just dev|test|build|lint`
+  recipes, and an onboarding hook that generates `.env` interactively.
+- `BIND_HOST` env var overrides the HTTP listen interface. Without it,
+  the server auto-detects containerised runtimes via `/.dockerenv`,
+  `KUBERNETES_SERVICE_HOST`, and `/proc/self/{cgroup,mountinfo}` (cgroups
+  v2 fallback); binds `0.0.0.0` in containers, `127.0.0.1` on a host.
+- Tailscale API retry helper: exponential backoff with ±25% jitter for
+  network errors, 429 (honours `Retry-After`), and 5xx. Context-aware,
+  covered by table-driven tests for each status sequence.
+- SSRF block list in the device-metrics scraper: loopback, current-net,
+  and link-local (v4+v6) IP literals are rejected even when the
+  Tailscale API returns them. RFC1918 and 100.64.0.0/10 stay allowed so
+  homelab and Tailscale CGNAT devices continue to scrape.
+- Port 5252 egress rule on Helm and Kustomize NetworkPolicy so tsnet
+  scrapes can reach each peer's `tailscaled /metrics` endpoint.
+
+### Changed
+
+- `Client.FetchDevices`, `Collector.FetchDevices`, and the background
+  scraper all accept a `context.Context`. A 60 s `scrapeCycleTimeout`
+  cancels in-flight API retries and device scrapes on shutdown or a
+  slow upstream, replacing the fire-and-forget loop.
+- `/health` reuses the API client initialised at startup instead of
+  rebuilding an `oauth2.Client` per probe; cuts the per-request cost of
+  Kubernetes / Prometheus liveness traffic.
+- `RateLimiter.Allow` uses an `RWMutex` fast path with an `atomic.Int64`
+  timestamp so repeat requests from known clients no longer serialise
+  on an exclusive writer.
+
+### Removed
+
+- `Makefile` and `scripts/*.sh` (`build-app.sh`, `setup-env.sh`,
+  `start-dev.sh`) in favour of the `just` + dde flow. **Breaking for
+  developer workflows:** callers of `make build|test|lint|run` and the
+  former bootstrap scripts must switch to `just build|test|lint|dev`.
+  The `.dde/hooks/project.up.pre/00-env.sh` hook replaces
+  `scripts/setup-env.sh` as the interactive `.env` onboarding entry.
+
+### Fixed
+
+- tsnet scrape URL prefers the MagicDNS FQDN (`dev.Name`) over the
+  OS-reported short hostname (`dev.Host`). tsnet's embedded resolver
+  has no search domain, so short names timed out with `context deadline
+  exceeded` while FQDNs resolved correctly.
+- `tsnet_state` path aligned across `docker-compose.yml`, `.env.example`
+  and `Dockerfile` on `/tmp/tsnet-tsmetrics`. The previous mismatch
+  silently wrote state to the ephemeral container filesystem, forcing
+  tsnet to re-authenticate on every restart.
+- Helm and Kustomize deployments drop the dead `ENV` env var. After the
+  runtime bind-host auto-detection landed it no longer had any effect,
+  so shipping it encouraged operators to tune a knob that did nothing.
+
+### Security
+
+- Reject weak `METRICS_TOKEN` values at startup via
+  `security.ValidateToken` (minimum length, alphanumeric + `-._`).
+  Operators who set the variable obviously want auth enforced; failing
+  fast is safer than silently accepting a bypassable token.
+- Scraper HTTP request no longer wrapped in a redundant
+  `context.WithTimeout` whose `defer cancel()` fired before the caller
+  finished reading the body. `http.Client.Timeout` already bounds the
+  whole request; the extra context was cancelling body reads mid-stream
+  as `context canceled`.
+- Retry backoff carries ±25% jitter so multiple exporter instances
+  cannot synchronise on a recovering upstream (thundering herd).
+
+### Dependencies
+
+- Bump `grafana/grafana` Docker tag to v13
+- Bump Go toolchain to v1.26.2
+- Bump Alpine base image digest
+- Bump `sbaerlocher/.github` action and presets to v2026-04-23
+- Other non-major transitive bumps via Renovate
+
 ## [1.1.3] - 2026-04-04
 
 ### Fixed
