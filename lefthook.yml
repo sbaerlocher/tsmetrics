@@ -1,0 +1,48 @@
+# Git hooks managed by lefthook (https://lefthook.dev).
+# Run host-native tooling (go, golangci-lint, markdownlint, yamllint,
+# shellcheck) as a fast safety net before commit/push. The dde + just
+# container flow remains the canonical CI path; lefthook is opt-in and
+# can be skipped with `LEFTHOOK=0 git commit` or `--no-verify`.
+#
+# Install locally with: `brew install lefthook && lefthook install`
+---
+pre-commit:
+  parallel: true
+  commands:
+    # Auto-format and re-stage. Avoids the working-tree-vs-index mismatch
+    # of `gofmt -l` and removes the "block, run `go fmt`, retry" round-trip.
+    gofmt:
+      glob: '*.go'
+      run: gofmt -w {staged_files}
+      stage_fixed: true
+
+    # Full-project lint via .golangci.yml (govet + gosec included).
+    # The glob only gates *whether* the hook runs (skip on non-Go commits);
+    # the lint itself analyses the entire module to catch cross-file
+    # regressions that a staged-subset run would miss.
+    golangci-lint:
+      glob: '*.go'
+      run: golangci-lint run
+
+    markdownlint:
+      glob: '*.md'
+      run: markdownlint {staged_files}
+
+    yamllint:
+      glob: '*.{yml,yaml}'
+      run: yamllint {staged_files}
+
+    shellcheck:
+      glob: '*.sh'
+      run: shellcheck {staged_files}
+
+pre-push:
+  commands:
+    # Unit + integration + structure suites. The 45 s tests/load stress
+    # sweep is intentionally excluded from local pushes — it gates merges
+    # in CI but is too slow to run on every push.
+    test:
+      run: >
+        go test
+        ./internal/... ./pkg/... ./cmd/...
+        ./tests/integration/... ./tests/structure/...
