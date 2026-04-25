@@ -120,6 +120,15 @@ Project config lives in `.dde/config.yml`; compose stack in `docker-compose.yml`
 
 Bootstrap (one-time per machine): `brew tap whatwedo/tap && brew install dde && dde system:up`.
 
+Optional git hooks via [lefthook](https://lefthook.dev) — install once with
+`brew install lefthook && lefthook install`. Pre-commit auto-formats staged Go
+files (`gofmt -w` + `stage_fixed`), runs full-project `golangci-lint`, and
+`markdownlint`/`yamllint`/`shellcheck` on the matching staged files. Pre-push
+runs `go test` over `./internal/... ./pkg/... ./cmd/... ./tests/integration/...
+./tests/structure/...` — the 45 s `tests/load` stress sweep is intentionally
+left to CI. Host-native tooling, no container required. Skip with
+`LEFTHOOK=0 git commit` or `--no-verify`. Config in `lefthook.yml`.
+
 just recipes (`just` to list):
 
 - `just dev` — start dev container + tail logs
