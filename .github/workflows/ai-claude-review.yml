@@ -14,6 +14,6 @@ permissions:
 jobs:
   claude-review:
     name: Claude Code Review
-    uses: sbaerlocher/.github/.github/workflows/ai-claude-review.yml@2026-04-23
+    uses: sbaerlocher/.github/.github/workflows/ai-claude-review.yml@2026-04-25
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
