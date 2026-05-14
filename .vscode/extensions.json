@@ -1,8 +1,11 @@
 {
   "recommendations": [
+    "docker.docker",
+    "exiasr.hadolint",
+    "golang.go",
+    "ms-azuretools.vscode-containers",
     "ms-kubernetes-tools.vscode-kubernetes-tools",
     "redhat.vscode-yaml",
-    "tim-koehler.helm-intellisense",
-    "ms-vscode.vscode-json"
+    "tim-koehler.helm-intellisense"
   ]
 }
