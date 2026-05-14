@@ -63,6 +63,7 @@ jobs:
       extra-env: |
         VERSION_LONG=${{ needs.setup.outputs.version-long }}
         VERSION_SHORT=${{ needs.setup.outputs.version-short }}
+      concurrency-suffix: go
 
   docker-release:
     name: Docker Multi-Platform
@@ -84,6 +85,7 @@ jobs:
         type=semver,pattern={{major}}.{{minor}}
         type=semver,pattern={{major}}
         type=raw,value=latest,enable={{is_default_branch}}
+      concurrency-suffix: docker
 
   helm-release:
     name: Helm Chart
@@ -96,5 +98,6 @@ jobs:
       registry-path: "${{ github.repository_owner }}/chart"
       version: "${{ needs.setup.outputs.version }}"
       image-digest: "${{ needs.docker-release.outputs.image-digest }}"
+      concurrency-suffix: helm
     secrets:
       registry-token: "${{ secrets.GITHUB_TOKEN }}"

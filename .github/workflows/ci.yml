@@ -25,6 +25,7 @@ jobs:
       enable-security-scans: true
       enable-sarif-upload: true
       binary-path: "./cmd/tsmetrics"
+      concurrency-suffix: go
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -39,6 +40,7 @@ jobs:
       enable-helm-lint: true
       enable-k8s-validation: false
       enable-docs-check: false
+      concurrency-suffix: gitops
 
   status:
     name: All Checks Passed
