@@ -55,7 +55,7 @@ jobs:
   go-release:
     name: Go Binaries
     needs: setup
-    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-04-25
+    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-05-07
     with:
       # renovate: datasource=golang-version depName=golang
       go-version: "1.26"
@@ -63,11 +63,12 @@ jobs:
       extra-env: |
         VERSION_LONG=${{ needs.setup.outputs.version-long }}
         VERSION_SHORT=${{ needs.setup.outputs.version-short }}
+      concurrency-suffix: go
 
   docker-release:
     name: Docker Multi-Platform
     needs: [setup, go-release]
-    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-04-25
+    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-05-07
     with:
       image-name: "sbaerlocher/tsmetrics"
       dockerfile: "Dockerfile"
@@ -84,11 +85,12 @@ jobs:
         type=semver,pattern={{major}}.{{minor}}
         type=semver,pattern={{major}}
         type=raw,value=latest,enable={{is_default_branch}}
+      concurrency-suffix: docker
 
   helm-release:
     name: Helm Chart
     needs: [setup, docker-release]
-    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-04-25
+    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-05-07
     with:
       chart-path: "deploy/helm"
       chart-name: "tsmetrics"
@@ -96,5 +98,6 @@ jobs:
       registry-path: "${{ github.repository_owner }}/chart"
       version: "${{ needs.setup.outputs.version }}"
       image-digest: "${{ needs.docker-release.outputs.image-digest }}"
+      concurrency-suffix: helm
     secrets:
       registry-token: "${{ secrets.GITHUB_TOKEN }}"
