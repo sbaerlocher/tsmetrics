@@ -1,7 +1,6 @@
 {
   "recommendations": [
     "docker.docker",
-    "exiasr.hadolint",
     "golang.go",
     "ms-azuretools.vscode-containers",
     "ms-kubernetes-tools.vscode-kubernetes-tools",
