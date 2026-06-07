@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
@@ -55,7 +55,7 @@ jobs:
   go-release:
     name: Go Binaries
     needs: setup
-    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-05-17
+    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-05-30
     with:
       # renovate: datasource=golang-version depName=golang
       go-version: "1.26"
@@ -68,7 +68,7 @@ jobs:
   docker-release:
     name: Docker Multi-Platform
     needs: [setup, go-release]
-    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-05-17
+    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-05-30
     with:
       image-name: "sbaerlocher/tsmetrics"
       dockerfile: "Dockerfile"
@@ -90,7 +90,7 @@ jobs:
   helm-release:
     name: Helm Chart
     needs: [setup, docker-release]
-    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-05-17
+    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-05-30
     with:
       chart-path: "deploy/helm"
       chart-name: "tsmetrics"
