@@ -9,7 +9,7 @@
 # ==============================================================================
 # BACKEND-DEV STAGE (Go + Air hot reload + golangci-lint)
 # ==============================================================================
-FROM golang:1.26-alpine@sha256:7a3e50096189ad57c9f9f865e7e4aa8585ed1585248513dc5cda498e2f41812c AS backend-dev
+FROM golang:1.26-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS backend-dev
 
 RUN apk add --no-cache git build-base curl ca-certificates
 
