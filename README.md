@@ -935,7 +935,7 @@ tsmetrics operates in two phases:
 - **Connection Pooling**: Reuses HTTP connections for efficiency
 - **Concurrent Scraping**: Parallel device metrics collection
 - **Memory Management**: Automatic cleanup of stale device metrics
-- **Circuit Breaker**: Protects against API failures (planned)
+- **API Resilience**: Retry with exponential backoff + jitter, request timeouts, and graceful fallback to the configured device list on Tailscale API failure
 
 ### High Availability
 

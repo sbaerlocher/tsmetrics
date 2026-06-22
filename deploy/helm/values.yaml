@@ -21,6 +21,12 @@ tailscale:
   oauthClientSecret: ""
   tailnetName: ""
 
+  # Bearer token protecting /metrics and /debug (recommended in shared clusters).
+  # /metrics exposes device_user{user_email}, NodeKeys and external IPs — leave
+  # empty only when network-level controls (NetworkPolicy) already isolate the
+  # endpoint. Min 20 chars, alphanumeric + -._ (server exits if set but invalid).
+  metricsToken: ""
+
   # tsnet configuration
   tsnet:
     enabled: true
@@ -76,6 +82,7 @@ externalSecret:
     oauthClientSecret: "OAUTH_CLIENT_SECRET"
     tailnetName: "TAILNET_NAME"
     authKey: "TS_AUTHKEY" # optional
+    metricsToken: "METRICS_TOKEN" # optional
 
 # Pod configuration
 podAnnotations: {}
