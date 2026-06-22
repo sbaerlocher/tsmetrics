@@ -169,6 +169,13 @@ spec:
                   name: {{ include "tsmetrics.fullname" . }}-secrets
                   key: TS_AUTHKEY
 {{- end }}
+{{- if .Values.tailscale.metricsToken }}
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tsmetrics.fullname" . }}-secrets
+                  key: METRICS_TOKEN
+{{- end }}
 {{- end }}
 {{- if .Values.externalSecret.enabled }}
           envFrom:
