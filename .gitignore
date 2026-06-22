@@ -49,9 +49,6 @@ tmp/
 deploy/helm/test-output.yaml
 deploy/helm/*/test-output.yaml
 
-# Docker
-.dockerignore
-
 # Environment files
 .env
 .env.local
