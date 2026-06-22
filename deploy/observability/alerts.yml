@@ -1,0 +1,91 @@
+---
+# Prometheus alerting rules for tsmetrics.
+# Wired via `rule_files` in prometheus.yml. Load into Alertmanager (or
+# Grafana's "Prometheus-managed" alert evaluation) as-is.
+#
+# Thresholds are deliberately conservative defaults — tune `for:` windows and
+# comparison values per tailnet before relying on paging.
+groups:
+  - name: tsmetrics-exporter
+    rules:
+      # The exporter process itself is down / not scraped.
+      - alert: TsmetricsExporterDown
+        expr: up{job="tsmetrics"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "tsmetrics exporter is down"
+          description: "Prometheus cannot scrape tsmetrics ({{ $labels.instance }}) for 5m."
+
+      # Exporter is up but its own collection loop has stalled — metrics go stale.
+      - alert: TsmetricsScrapeStale
+        expr: time() - tsmetrics_last_scrape_timestamp_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "tsmetrics collection loop stalled"
+          description: "No successful device collection for >5m (last: {{ $value | humanizeDuration }} ago). Tailscale API likely unreachable."
+
+      # Sustained scrape errors against the API or a device target.
+      - alert: TsmetricsScrapeErrors
+        expr: sum(rate(tsmetrics_scrape_errors_total[5m])) by (target, error_type) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "tsmetrics scrape errors ({{ $labels.target }})"
+          description: "Sustained {{ $labels.error_type }} errors against {{ $labels.target }} over 15m."
+
+  - name: tsmetrics-tailnet
+    rules:
+      # A device that was online dropped offline.
+      - alert: TailscaleDeviceOffline
+        expr: tailscale_device_online == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tailscale device offline: {{ $labels.device_name }}"
+          description: "Device {{ $labels.device_name }} ({{ $labels.device_id }}) has been offline for 15m."
+
+      # Machine key expires within 7 days (0 = expiry disabled, excluded).
+      - alert: TailscaleMachineKeyExpiringSoon
+        expr: tailscale_device_machine_key_expiry > 0 and tailscale_device_machine_key_expiry - time() < 7 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Machine key expiring soon: {{ $labels.device_name }}"
+          description: "Machine key for {{ $labels.device_name }} expires in {{ $value | humanizeDuration }}."
+
+      # High DERP latency on the preferred region — relay path degraded.
+      - alert: TailscaleHighDerpLatency
+        expr: tailscale_device_latency_ms{preferred="true"} > 250
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High DERP latency: {{ $labels.device_name }}"
+          description: "Preferred DERP region {{ $labels.derp_region }} latency {{ $value }}ms (>250ms) for {{ $labels.device_name }}."
+
+      # Tailnet lock verification error — device cannot be trusted.
+      - alert: TailscaleTailnetLockError
+        expr: tailscale_device_tailnet_lock_error == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tailnet lock error: {{ $labels.device_name }}"
+          description: "Device {{ $labels.device_name }} ({{ $labels.device_id }}) has a tailnet lock verification error."
+
+      # Device reporting one or more health messages from tailscaled.
+      - alert: TailscaleDeviceHealthMessages
+        expr: sum(tailscaled_health_messages) by (device_id, device_name, type) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tailscale health warning: {{ $labels.device_name }}"
+          description: "Device {{ $labels.device_name }} reports {{ $labels.type }} health messages."

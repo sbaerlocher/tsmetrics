@@ -44,6 +44,10 @@ jobs:
       enable-fleet-validation: false
       enable-gitrepo-validation: false
       enable-helm-lint: true
+      # enable-k8s-validation stays false: it runs kubeconform over the raw
+      # files under fleet-paths, which for this repo are Helm templates ({{ }})
+      # — kubeconform can't parse those. The "Validate Rendered Helm Output"
+      # check already renders the chart and validates the result.
       enable-k8s-validation: false
       enable-docs-check: false
       concurrency-suffix: gitops

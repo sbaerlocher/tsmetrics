@@ -46,6 +46,24 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+# SBOM per archive (syft, SPDX JSON) — published as release assets.
+sboms:
+  - artifacts: archive
+
+# Keyless cosign signatures (Sigstore OIDC via GitHub Actions). Signs the
+# archives, checksums and SBOMs; .sig + .pem land next to each artifact.
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    output: true
+    artifacts: checksum
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - --yes
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
