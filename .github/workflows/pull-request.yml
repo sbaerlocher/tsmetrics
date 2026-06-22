@@ -44,7 +44,7 @@ jobs:
       enable-fleet-validation: false
       enable-gitrepo-validation: false
       enable-helm-lint: true
-      enable-k8s-validation: false
+      enable-k8s-validation: true
       enable-docs-check: false
       concurrency-suffix: gitops
 
