@@ -1,7 +1,9 @@
 ---
-name: Software Release
+name: Tag Release
+run-name: |
+  Release ${{ github.ref_name }} by @${{ github.actor }}
 
-"on":
+'on':
   push:
     tags: ["v*"]
 
@@ -28,17 +30,20 @@ jobs:
 
       - name: Get version
         id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          VERSION="${{ github.ref_name }}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Version: $VERSION"
+          echo "version=$REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "Version: $REF_NAME"
 
       - name: Calculate build versions
         id: build-versions
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           # Get Tailscale version from go.mod
           TSNET_VERSION=$(go list -m -f '{{.Version}}' tailscale.com 2>/dev/null | sed 's/^v//' || echo "unknown")
-          VERSION_CLEAN=$(echo "${{ steps.version.outputs.version }}" | sed 's/^v//')
+          VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')
           VERSION_LONG="${TSNET_VERSION}-${VERSION_CLEAN}"
           VERSION_SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -55,7 +60,7 @@ jobs:
   go-release:
     name: Go Binaries
     needs: setup
-    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/release-go.yml@2026-06-21
     with:
       # renovate: datasource=golang-version depName=golang
       go-version: "1.26"
@@ -68,7 +73,7 @@ jobs:
   docker-release:
     name: Docker Multi-Platform
     needs: [setup, go-release]
-    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/release-docker.yml@2026-06-21
     with:
       image-name: "sbaerlocher/tsmetrics"
       dockerfile: "Dockerfile"
@@ -90,7 +95,7 @@ jobs:
   helm-release:
     name: Helm Chart
     needs: [setup, docker-release]
-    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/release-helm.yml@2026-06-21
     with:
       chart-path: "deploy/helm"
       chart-name: "tsmetrics"
