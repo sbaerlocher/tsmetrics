@@ -1,20 +1,26 @@
 ---
-name: Continuous Integration
+name: Pull Request
+run-name: |
+  Pull Request by @${{ github.actor }}
 
-"on":
+'on':
   pull_request:
     branches: [main]
+    types: [opened, synchronize, ready_for_review, reopened]
   workflow_call:
 
 permissions:
   contents: read
   security-events: write
   pull-requests: write
+  issues: read
+  actions: read
+  id-token: write
 
 jobs:
   go-ci:
     name: Go CI Pipeline
-    uses: sbaerlocher/.github/.github/workflows/ci-go.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/ci-go.yml@2026-06-21
     with:
       # renovate: datasource=golang-version depName=golang
       go-version: "1.26"
@@ -31,7 +37,7 @@ jobs:
 
   helm-test:
     name: Helm Chart Test
-    uses: sbaerlocher/.github/.github/workflows/ci-gitops.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/ci-gitops.yml@2026-06-21
     with:
       fleet-paths: "deploy"
       enable-yaml-lint: false
@@ -41,6 +47,21 @@ jobs:
       enable-k8s-validation: false
       enable-docs-check: false
       concurrency-suffix: gitops
+
+  secret-scan:
+    name: Secret Detection Scan
+    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-06-21
+    with:
+      enable-gitleaks: true
+      enable-trufflehog: true
+      enable-pattern-detection: true
+      concurrency-suffix: 'pr-secret-scan'
+
+  code-review:
+    name: Claude Code Review
+    uses: sbaerlocher/.github/.github/workflows/ai-claude-review.yml@2026-06-21
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
   status:
     name: All Checks Passed

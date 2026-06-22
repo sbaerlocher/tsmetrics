@@ -1,9 +1,12 @@
 ---
-name: Security Scan
+name: Nightly Security Scan
+run-name: |
+  Security Scan by @${{ github.actor }}
 
-"on":
+'on':
   schedule:
-    - cron: "0 2 * * 1" # Weekly Monday 02:00 UTC
+    # Weekly on Monday at 02:00 UTC
+    - cron: "0 2 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +18,7 @@ permissions:
 jobs:
   code-analysis:
     name: SAST (CodeQL)
-    uses: sbaerlocher/.github/.github/workflows/security-code.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/security-code.yml@2026-06-21
     with:
       languages: '["go"]'
       go-version: "1.26"
@@ -23,7 +26,7 @@ jobs:
 
   dependency-scan:
     name: Dependencies & Licenses
-    uses: sbaerlocher/.github/.github/workflows/security-deps.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/security-deps.yml@2026-06-21
     with:
       language: "go"
       enable-license-check: true
@@ -31,13 +34,13 @@ jobs:
 
   secret-detection:
     name: Secret Detection
-    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-06-21
     with:
       concurrency-suffix: secrets
 
   container-scan:
     name: Container Security
-    uses: sbaerlocher/.github/.github/workflows/security-containers.yml@2026-06-19
+    uses: sbaerlocher/.github/.github/workflows/security-containers.yml@2026-06-21
     with:
       image-ref: "ghcr.io/${{ github.repository }}:latest"
       concurrency-suffix: containers
