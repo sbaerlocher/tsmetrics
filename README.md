@@ -1307,6 +1307,8 @@ scrape_configs:
 
 ## Contributing
 
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full guide. Quick start below.
+
 ### Development Setup
 
 1. **Fork the repository**
