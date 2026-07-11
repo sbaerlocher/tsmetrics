@@ -14,7 +14,7 @@ patches:
 
 images:
   - name: ghcr.io/sbaerlocher/tsmetrics
-    newTag: v1.1.3
+    newTag: 1.2.0
 
 replicas:
   - name: tsmetrics
