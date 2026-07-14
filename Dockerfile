@@ -56,7 +56,7 @@ RUN apk add --no-cache curl tar ca-certificates && \
 # ==============================================================================
 # PRODUCTION STAGE (GitHub Release Binary)
 # ==============================================================================
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:b7bb25d9f7c31d2bdd1982feb4dafcaf137703c7075dbe2febb41c24212b946f AS production
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:aef9602f8710ec12bde19d593fed1f76c708531bb7aba205110f1029786ead7b AS production
 
 LABEL org.opencontainers.image.title="tsmetrics"
 LABEL org.opencontainers.image.description="A comprehensive Tailscale Prometheus exporter that combines API metadata with live device metrics for complete network observability."
