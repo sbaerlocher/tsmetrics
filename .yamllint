@@ -7,7 +7,6 @@ ignore: |
   # Helm templates (complex templating)
   deploy/helm/templates/
   # Generated files
-  megalinter-reports/
   .git/
   bin/
   tmp/

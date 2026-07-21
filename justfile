@@ -25,3 +25,7 @@ build:
 lint:
     dde project:exec -- golangci-lint run
 
+# Show test coverage in the container
+coverage:
+    dde project:exec -- go test -cover ./...
+
