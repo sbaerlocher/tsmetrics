@@ -62,7 +62,7 @@ services:
     grafana:
         profiles:
             - observability
-        image: 'grafana/grafana:13.0@sha256:1a345428a36270f5fb9add69fea71450a5843c15266c99359d6d380470ab19c9'
+        image: 'grafana/grafana:13.0@sha256:ed2dca5b8b819ecb34ffa73b6cb218931ae4817512f649dd819516822e5996a7'
         environment:
             GF_AUTH_ANONYMOUS_ENABLED: 'true'
             GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
