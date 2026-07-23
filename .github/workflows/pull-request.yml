@@ -20,7 +20,7 @@ permissions:
 jobs:
   go-ci:
     name: Go CI Pipeline
-    uses: sbaerlocher/.github/.github/workflows/ci-go.yml@2026-07-21
+    uses: sbaerlocher/.github/.github/workflows/ci-go.yml@2026-07-22
     with:
       # renovate: datasource=golang-version depName=golang
       go-version: "1.26"
@@ -37,7 +37,7 @@ jobs:
 
   helm-test:
     name: Helm Chart Test
-    uses: sbaerlocher/.github/.github/workflows/ci-gitops.yml@2026-07-21
+    uses: sbaerlocher/.github/.github/workflows/ci-gitops.yml@2026-07-22
     with:
       fleet-paths: "deploy"
       enable-yaml-lint: false
@@ -54,7 +54,7 @@ jobs:
 
   secret-scan:
     name: Secret Detection Scan
-    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-07-21
+    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-07-22
     with:
       enable-gitleaks: true
       enable-trufflehog: true
@@ -63,7 +63,7 @@ jobs:
 
   code-review:
     name: Claude Code Review
-    uses: sbaerlocher/.github/.github/workflows/ai-claude-review.yml@2026-07-21
+    uses: sbaerlocher/.github/.github/workflows/ai-claude-review.yml@2026-07-22
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
