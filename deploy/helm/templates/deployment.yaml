@@ -130,6 +130,8 @@ spec:
             {{- end }}
             - name: CLIENT_METRICS_TIMEOUT
               value: {{ .Values.config.clientMetricsTimeout | quote }}
+            - name: PEER_RECHECK_INTERVAL
+              value: {{ .Values.config.peerRecheckInterval | quote }}
             - name: MAX_CONCURRENT_SCRAPES
               value: {{ .Values.config.maxConcurrentScrapes | quote }}
             - name: SCRAPE_INTERVAL

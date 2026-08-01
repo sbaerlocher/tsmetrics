@@ -82,6 +82,8 @@ spec:
               value: "exporter"
             - name: CLIENT_METRICS_TIMEOUT
               value: "10s"
+            - name: PEER_RECHECK_INTERVAL
+              value: "15m"
             - name: MAX_CONCURRENT_SCRAPES
               value: "10"
             - name: SCRAPE_INTERVAL

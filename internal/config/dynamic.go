@@ -37,6 +37,8 @@ var (
 	})
 )
 
+const positiveValidationMessage = "must be positive"
+
 type DynamicConfig struct {
 	mutex            sync.RWMutex
 	current          Config
@@ -357,7 +359,15 @@ func (bcv *BasicConfigValidator) ValidateConfig(config Config) error {
 		return ValidationError{
 			Field:   "ClientMetricsTimeout",
 			Value:   config.ClientMetricsTimeout,
-			Message: "must be positive",
+			Message: positiveValidationMessage,
+		}
+	}
+
+	if config.PeerRecheckInterval <= 0 {
+		return ValidationError{
+			Field:   "PeerRecheckInterval",
+			Value:   config.PeerRecheckInterval,
+			Message: positiveValidationMessage,
 		}
 	}
 
@@ -365,7 +375,7 @@ func (bcv *BasicConfigValidator) ValidateConfig(config Config) error {
 		return ValidationError{
 			Field:   "MaxConcurrentScrapes",
 			Value:   config.MaxConcurrentScrapes,
-			Message: "must be positive",
+			Message: positiveValidationMessage,
 		}
 	}
 

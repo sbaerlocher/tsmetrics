@@ -202,11 +202,22 @@ The `TSNET_TAGS` variable is used for validation only.
 
 ### Performance Tuning
 
-| Environment Variable     | Description               | Default |
-| ------------------------ | ------------------------- | ------- |
-| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout    | `10s`   |
-| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes   | `10`    |
-| `SCRAPE_INTERVAL`        | Device discovery interval | `30s`   |
+| Environment Variable     | Description                              | Default |
+| ------------------------ | ---------------------------------------- | ------- |
+| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout                   | `10s`   |
+| `PEER_RECHECK_INTERVAL`  | Retry interval for unavailable endpoints | `15m`   |
+| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes                  | `10`    |
+| `SCRAPE_INTERVAL`        | Device discovery interval                | `30s`   |
+
+When a peer first appears, the exporter probes its metrics endpoint. A failed peer waits for
+`PEER_RECHECK_INTERVAL` before another probe.
+
+The normal refresh loop runs each probe. Thus, the actual delay can include one extra refresh cycle.
+
+The exporter writes initial endpoint failures at debug level. It does not count these failures as scrape errors.
+
+If an available endpoint fails, the exporter removes its client metrics. For an unexpected failure, it writes one
+warning and starts the recheck interval.
 
 ### Advanced Configuration
 
@@ -276,6 +287,7 @@ TARGET_DEVICES=production-gateway,backup-server
 | `TSNET_TAGS`           | -                      | Comma-separated device tags                                           |
 | `TS_AUTHKEY`           | -                      | Auth key for automatic registration                                   |
 | `SCRAPE_TAG`           | -                      | Only scrape devices carrying this tag                                 |
+| `PEER_RECHECK_INTERVAL` | `15m`                  | Retry interval for unavailable peer metrics endpoints                 |
 | `REQUIRE_EXPORTER_TAG` | `false`                | Enforce "exporter" tag requirement                                    |
 | `LOG_LEVEL`            | `info`                 | Logging level                                                         |
 | `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                                         |

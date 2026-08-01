@@ -132,6 +132,7 @@ func main() {
 		fmt.Printf("  TSNET_HOSTNAME        Hostname for tsnet (default: tsmetrics)\n")
 		fmt.Printf("  TSNET_TAGS            Comma-separated list of tags for this tsnet instance\n")
 		fmt.Printf("  SCRAPE_TAG            Tag filter for devices to scrape (empty = all devices)\n")
+		fmt.Printf("  PEER_RECHECK_INTERVAL Retry interval for unavailable peer endpoints (default: 15m)\n")
 		fmt.Printf("\nFor more information, visit: https://github.com/sbaerlocher/tsmetrics\n")
 		os.Exit(0)
 	}

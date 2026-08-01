@@ -324,8 +324,8 @@ func GetOnlineDevicesCount() int {
 	return int(m.Gauge.GetValue())
 }
 
-// CleanupDeviceMetrics removes all metrics associated with a specific device.
-func CleanupDeviceMetrics(deviceID string) {
+// CleanupClientMetrics removes metrics that came from a device metrics endpoint.
+func CleanupClientMetrics(deviceID string) {
 	InboundBytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	OutboundBytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	InboundPackets.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
@@ -335,6 +335,11 @@ func CleanupDeviceMetrics(deviceID string) {
 	HealthMessages.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	AdvertisedRoutes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	ApprovedRoutes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+}
+
+// CleanupDeviceMetrics removes all metrics associated with a specific device.
+func CleanupDeviceMetrics(deviceID string) {
+	CleanupClientMetrics(deviceID)
 
 	DeviceInfo.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
 	DeviceOnline.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})

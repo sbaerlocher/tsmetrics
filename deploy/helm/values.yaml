@@ -44,6 +44,7 @@ config:
 
   # Performance settings
   clientMetricsTimeout: "10s"
+  peerRecheckInterval: "15m"
   maxConcurrentScrapes: 10
   scrapeInterval: "30s"
   clientMetricsPort: 5252

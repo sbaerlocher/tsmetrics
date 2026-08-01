@@ -4,6 +4,7 @@ package metrics
 import (
 	"bufio"
 	"context"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,7 +20,7 @@ import (
 	"tailscale.com/tsnet"
 
 	"github.com/sbaerlocher/tsmetrics/internal/config"
-	"github.com/sbaerlocher/tsmetrics/internal/errors"
+	tsmerrors "github.com/sbaerlocher/tsmetrics/internal/errors"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
@@ -63,6 +64,22 @@ func (p *TsnetHTTPClientProvider) GetClient() *http.Client {
 var httpClientProvider HTTPClientProvider
 var metricLineRE = regexp.MustCompile(`^([a-zA-Z0-9_:]+)(?:\{([^}]*)\})?\s+([-+0-9.eE]+)`)
 
+type peerEndpointState struct {
+	available  bool
+	retryAfter time.Time
+}
+
+type peerScrapeJob struct {
+	device device.Device
+	key    string
+	state  peerEndpointState
+}
+
+type peerScrapeResult struct {
+	job peerScrapeJob
+	err error
+}
+
 func SetHTTPClientProvider(provider HTTPClientProvider) {
 	httpClientProvider = provider
 }
@@ -71,73 +88,183 @@ func SetHTTPClientProvider(provider HTTPClientProvider) {
 // The provided context is propagated to each per-device HTTP request so that a
 // parent shutdown cancels in-flight scrapes promptly.
 func ScrapeClientMetrics(ctx context.Context, devices []device.Device, cfg config.Config) error {
-	if cfg.TsnetScrapeTag != "" {
-		slog.Info("scraping devices with tag filter", "requiredTag", cfg.TsnetScrapeTag)
-	} else {
-		slog.Info("scraping all devices (no tag filter)")
+	if cfg.PeerRecheckInterval <= 0 {
+		cfg.PeerRecheckInterval = config.DefaultPeerRecheckInterval
 	}
+	collector := &Collector{
+		cfg:           cfg,
+		peerEndpoints: make(map[string]peerEndpointState),
+	}
+	return collector.scrapeClientMetricsAt(ctx, devices, time.Now())
+}
 
-	sem := make(chan struct{}, cfg.MaxConcurrentScrapes)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var errs []error
-	var scrapedCount int
+func (c *Collector) scrapeClientMetricsAt(ctx context.Context, devices []device.Device, now time.Time) error {
+	return c.scrapeClientMetricsWithClientAt(ctx, devices, newMetricsHTTPClient(c.cfg), now)
+}
 
-	var client *http.Client
+func newMetricsHTTPClient(cfg config.Config) *http.Client {
 	if httpClientProvider != nil {
-		client = httpClientProvider.GetClient()
-	} else {
-		client = &http.Client{
-			Timeout: cfg.ClientMetricsTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        cfg.MaxConcurrentScrapes,
-				IdleConnTimeout:     cfg.ClientMetricsTimeout,
-				MaxIdleConnsPerHost: 2,
-			},
-		}
+		return httpClientProvider.GetClient()
 	}
+	return &http.Client{
+		Timeout: cfg.ClientMetricsTimeout,
+		Transport: &http.Transport{
+			MaxIdleConns:        cfg.MaxConcurrentScrapes,
+			IdleConnTimeout:     cfg.ClientMetricsTimeout,
+			MaxIdleConnsPerHost: 2,
+		},
+	}
+}
 
-	for _, d := range devices {
-		if cfg.TsnetScrapeTag != "" && !hasTag(d, cfg.TsnetScrapeTag) {
-			slog.Debug("skipping device without required scrape tag", "device", d.Name.String(), "requiredTag", cfg.TsnetScrapeTag, "deviceTags", getDeviceTagsString(d))
+func (c *Collector) scrapeClientMetricsWithClientAt(
+	ctx context.Context,
+	devices []device.Device,
+	client *http.Client,
+	now time.Time,
+) error {
+	c.peerEndpointsMu.Lock()
+	defer c.peerEndpointsMu.Unlock()
+
+	nextEndpoints := make(map[string]peerEndpointState, len(devices))
+	jobs := make([]peerScrapeJob, 0, len(devices))
+
+	for _, dev := range devices {
+		if scrapeHost(dev) == "" {
+			c.cleanupAvailablePeer(dev)
+			continue
+		}
+		if c.cfg.TsnetScrapeTag != "" && !hasTag(dev, c.cfg.TsnetScrapeTag) {
+			c.cleanupAvailablePeer(dev)
 			continue
 		}
 
-		slog.Debug("scraping device", "device", d.Name.String(), "tags", getDeviceTagsString(d))
+		key := peerCacheKey(dev)
+		state, found := c.peerEndpoints[key]
+		if found {
+			nextEndpoints[key] = state
+		}
+		if found && !state.available && now.Before(state.retryAfter) {
+			continue
+		}
 
-		mu.Lock()
-		scrapedCount++
-		mu.Unlock()
+		jobs = append(jobs, peerScrapeJob{
+			device: dev,
+			key:    key,
+			state:  state,
+		})
+	}
+
+	sem := make(chan struct{}, c.cfg.MaxConcurrentScrapes)
+	results := make(chan peerScrapeResult, len(jobs))
+	var wg sync.WaitGroup
+
+schedule:
+	for _, job := range jobs {
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break schedule
+		}
 
 		wg.Add(1)
-		sem <- struct{}{}
-		go func(dev device.Device) {
+		go func(job peerScrapeJob) {
 			defer wg.Done()
 			defer func() { <-sem }()
-
-			if err := scrapeClient(ctx, dev, client, cfg); err != nil {
-				mu.Lock()
-				errs = append(errs, fmt.Errorf("device %s: %w", dev.Name.String(), err))
-				mu.Unlock()
-
-				if isTsnetStartupError(err) {
-					slog.Debug("device not yet reachable via tsnet (startup)", "device", dev.Name.String(), "error", err)
-				} else {
-					slog.Error("scrapeClient error", "device", dev.Name.String(), "error", err)
-				}
-				ScrapeErrors.WithLabelValues(dev.Name.String(), "client_fetch_failed").Inc()
+			results <- peerScrapeResult{
+				job: job,
+				err: scrapeClient(ctx, job.device, client, c.cfg),
 			}
-		}(d)
+		}(job)
 	}
 
 	wg.Wait()
+	close(results)
 
-	slog.Info("scraping completed", "totalDevices", len(devices), "scrapedDevices", scrapedCount, "errors", len(errs))
+	failures := 0
+	for result := range results {
+		if result.err == nil {
+			nextEndpoints[result.job.key] = peerEndpointState{available: true}
+			continue
+		}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("%d scraping errors: %v", len(errs), errs)
+		if ctxErr := ctx.Err(); ctxErr != nil && stderrors.Is(result.err, ctxErr) {
+			continue
+		}
+
+		failures++
+		nextEndpoints[result.job.key] = peerEndpointState{
+			retryAfter: now.Add(c.cfg.PeerRecheckInterval),
+		}
+
+		if !result.job.state.available {
+			slog.Debug("peer metrics endpoint not available",
+				"node", result.job.device.Name.String(),
+				"retry_after", now.Add(c.cfg.PeerRecheckInterval),
+				"error", result.err)
+			continue
+		}
+
+		CleanupClientMetrics(result.job.device.ID.String())
+		if isConnectionRefused(result.err) {
+			slog.Debug("peer metrics endpoint not available",
+				"node", result.job.device.Name.String(),
+				"retry_after", now.Add(c.cfg.PeerRecheckInterval),
+				"error", result.err)
+			continue
+		}
+
+		slog.Warn("peer metrics endpoint became unavailable",
+			"node", result.job.device.Name.String(),
+			"retry_after", now.Add(c.cfg.PeerRecheckInterval),
+			"error", result.err)
+		recordPeerScrapeError(result.job.device, result.err)
 	}
-	return nil
+
+	c.peerEndpoints = nextEndpoints
+	slog.Debug("peer metrics scrape complete",
+		"total_devices", len(devices),
+		"scheduled_peers", len(jobs),
+		"failed_peers", failures)
+
+	return ctx.Err()
+}
+
+func (c *Collector) cleanupAvailablePeer(dev device.Device) {
+	if state, found := c.peerEndpoints[peerCacheKey(dev)]; found && state.available {
+		CleanupClientMetrics(dev.ID.String())
+	}
+}
+
+func peerCacheKey(dev device.Device) string {
+	if id := dev.ID.String(); id != "" {
+		return id
+	}
+	if name := dev.Name.String(); name != "" {
+		return name
+	}
+	return dev.Host
+}
+
+func isConnectionRefused(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "connection refused")
+}
+
+func recordPeerScrapeError(dev device.Device, err error) {
+	errorType := "unknown"
+	retryable := false
+	var deviceErr tsmerrors.DeviceError
+	if stderrors.As(err, &deviceErr) {
+		errorType = deviceErr.ErrorType
+		retryable = deviceErr.Retryable
+	}
+
+	DeviceErrors.WithLabelValues(
+		dev.ID.String(),
+		dev.Name.String(),
+		errorType,
+		strconv.FormatBool(retryable),
+	).Inc()
+	ScrapeErrors.WithLabelValues(dev.Name.String(), "client_fetch_failed").Inc()
 }
 
 func hasTag(d device.Device, tag string) bool {
@@ -147,17 +274,6 @@ func hasTag(d device.Device, tag string) bool {
 		}
 	}
 	return false
-}
-
-func getDeviceTagsString(d device.Device) string {
-	if len(d.Tags) == 0 {
-		return "none"
-	}
-	var tags []string
-	for _, tag := range d.Tags {
-		tags = append(tags, tag.String())
-	}
-	return strings.Join(tags, ",")
 }
 
 func isTsnetStartupError(err error) bool {
@@ -232,7 +348,7 @@ func fetchDeviceMetrics(ctx context.Context, dev device.Device, client *http.Cli
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		deviceErr := errors.DeviceError{
+		deviceErr := tsmerrors.DeviceError{
 			DeviceID:   dev.ID.String(),
 			DeviceName: dev.Name.String(),
 			ErrorType:  "network",
@@ -241,7 +357,6 @@ func fetchDeviceMetrics(ctx context.Context, dev device.Device, client *http.Cli
 			RetryAfter: 30 * time.Second,
 			Timestamp:  time.Now(),
 		}
-		DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), "network", "true").Inc()
 		return nil, deviceErr
 	}
 	return resp, nil
@@ -255,7 +370,7 @@ func handleHTTPError(dev device.Device, resp *http.Response, urlStr string) erro
 		errorType = "http_server"
 	}
 
-	deviceErr := errors.DeviceError{
+	deviceErr := tsmerrors.DeviceError{
 		DeviceID:   dev.ID.String(),
 		DeviceName: dev.Name.String(),
 		ErrorType:  errorType,
@@ -264,7 +379,6 @@ func handleHTTPError(dev device.Device, resp *http.Response, urlStr string) erro
 		RetryAfter: 30 * time.Second,
 		Timestamp:  time.Now(),
 	}
-	DeviceErrors.WithLabelValues(dev.ID.String(), dev.Name.String(), errorType, fmt.Sprintf("%t", retryable)).Inc()
 	return deviceErr
 }
 

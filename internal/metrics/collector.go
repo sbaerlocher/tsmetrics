@@ -41,9 +41,11 @@ var (
 
 // Collector manages the collection of metrics from Tailscale devices.
 type Collector struct {
-	cfg       config.Config
-	apiClient *api.Client
-	tracker   *DeviceMetricsTracker
+	cfg             config.Config
+	apiClient       *api.Client
+	tracker         *DeviceMetricsTracker
+	peerEndpointsMu sync.Mutex
+	peerEndpoints   map[string]peerEndpointState
 }
 
 // APIClient returns the underlying Tailscale API client, or nil if the
@@ -56,6 +58,10 @@ func (c *Collector) APIClient() *api.Client {
 
 // NewCollector creates a new metrics collector with the given configuration.
 func NewCollector(cfg config.Config) *Collector {
+	if cfg.PeerRecheckInterval <= 0 {
+		cfg.PeerRecheckInterval = config.DefaultPeerRecheckInterval
+	}
+
 	var apiClient *api.Client
 
 	clientID := os.Getenv("OAUTH_CLIENT_ID")
@@ -71,9 +77,10 @@ func NewCollector(cfg config.Config) *Collector {
 	}
 
 	return &Collector{
-		cfg:       cfg,
-		apiClient: apiClient,
-		tracker:   NewDeviceMetricsTracker(),
+		cfg:           cfg,
+		apiClient:     apiClient,
+		tracker:       NewDeviceMetricsTracker(),
+		peerEndpoints: make(map[string]peerEndpointState),
 	}
 }
 
@@ -361,13 +368,8 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	OnlineDevicesCount.Set(float64(onlineCount))
 
-	if err := ScrapeClientMetrics(ctx, devices, c.cfg); err != nil {
-		if errCount := CountTsnetStartupErrors(err); errCount > 0 {
-			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
-		} else {
-			slog.Error("scrapeClientMetrics error", "error", err)
-		}
-		ScrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
+	if err := c.scrapeClientMetricsAt(ctx, devices, time.Now()); err != nil {
+		slog.Debug("peer metrics scrape stopped", "error", err)
 	}
 
 	c.tracker.CleanupRemovedDevices(seen)

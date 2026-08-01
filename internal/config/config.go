@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+// DefaultPeerRecheckInterval controls how often the exporter probes a peer
+// that did not expose a metrics endpoint during its last probe.
+const DefaultPeerRecheckInterval = 15 * time.Minute
+
 // Config holds all configuration settings for TSMetrics.
 type Config struct {
 	UseTsnet             bool
@@ -23,6 +27,7 @@ type Config struct {
 	OAuthSecret          string //nolint:gosec // G117: not a hardcoded credential, loaded from env
 	TailnetName          string
 	ClientMetricsTimeout time.Duration
+	PeerRecheckInterval  time.Duration
 	MaxConcurrentScrapes int
 	TsnetOwnTags         []string
 	TsnetScrapeTag       string
@@ -158,6 +163,17 @@ func (cfg *Config) loadLoggingSettings() {
 }
 
 func (cfg *Config) loadMetricsSettings() {
+	cfg.PeerRecheckInterval = DefaultPeerRecheckInterval
+	if v := os.Getenv("PEER_RECHECK_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.PeerRecheckInterval = d
+		} else if sec, err := strconv.Atoi(v); err == nil {
+			cfg.PeerRecheckInterval = time.Duration(sec) * time.Second
+		} else {
+			cfg.PeerRecheckInterval = 0
+		}
+	}
+
 	if v := os.Getenv("CLIENT_METRICS_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.ClientMetricsTimeout = d
@@ -228,6 +244,10 @@ func (cfg Config) validateNetworkSettings() error {
 
 	if cfg.ClientMetricsTimeout <= 0 {
 		return fmt.Errorf("CLIENT_METRICS_TIMEOUT must be positive")
+	}
+
+	if cfg.PeerRecheckInterval <= 0 {
+		return fmt.Errorf("PEER_RECHECK_INTERVAL must be positive")
 	}
 
 	if cfg.MaxConcurrentScrapes <= 0 {

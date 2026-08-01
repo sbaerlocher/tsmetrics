@@ -10,6 +10,7 @@ func TestNewDynamicConfig(t *testing.T) {
 	initialConfig := Config{
 		Port:                 "9100",
 		ClientMetricsTimeout: 5 * time.Second,
+		PeerRecheckInterval:  DefaultPeerRecheckInterval,
 		MaxConcurrentScrapes: 10,
 	}
 
@@ -64,6 +65,7 @@ func TestBasicConfigValidator_ValidateConfig(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 5 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 			},
 			expectErr: false,
@@ -73,6 +75,17 @@ func TestBasicConfigValidator_ValidateConfig(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 0,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
+				MaxConcurrentScrapes: 10,
+			},
+			expectErr: true,
+		},
+		{
+			name: "zero peer recheck interval",
+			config: Config{
+				Port:                 "9100",
+				ClientMetricsTimeout: 5 * time.Second,
+				PeerRecheckInterval:  0,
 				MaxConcurrentScrapes: 10,
 			},
 			expectErr: true,
@@ -82,6 +95,7 @@ func TestBasicConfigValidator_ValidateConfig(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 5 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 0,
 			},
 			expectErr: true,
@@ -91,6 +105,7 @@ func TestBasicConfigValidator_ValidateConfig(t *testing.T) {
 			config: Config{
 				Port:                 "",
 				ClientMetricsTimeout: 5 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 			},
 			expectErr: true,

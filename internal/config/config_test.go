@@ -18,6 +18,7 @@ func TestConfigLoad(t *testing.T) {
 	t.Setenv("OAUTH_CLIENT_SECRET", "test-secret")
 	t.Setenv("TAILNET_NAME", "test-tailnet")
 	t.Setenv("CLIENT_METRICS_TIMEOUT", "15s")
+	t.Setenv("PEER_RECHECK_INTERVAL", "45m")
 	t.Setenv("MAX_CONCURRENT_SCRAPES", "20")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("LOG_FORMAT", "json")
@@ -41,6 +42,10 @@ func TestConfigLoad(t *testing.T) {
 
 	if cfg.ClientMetricsTimeout != 15*time.Second {
 		t.Errorf("Expected ClientMetricsTimeout 15s, got %v", cfg.ClientMetricsTimeout)
+	}
+
+	if cfg.PeerRecheckInterval != 45*time.Minute {
+		t.Errorf("Expected PeerRecheckInterval 45m, got %v", cfg.PeerRecheckInterval)
 	}
 
 	if cfg.MaxConcurrentScrapes != 20 {
@@ -81,6 +86,10 @@ func TestConfigLoadDefaults(t *testing.T) {
 		t.Errorf("Expected default ClientMetricsTimeout 10s, got %v", cfg.ClientMetricsTimeout)
 	}
 
+	if cfg.PeerRecheckInterval != DefaultPeerRecheckInterval {
+		t.Errorf("Expected default PeerRecheckInterval %v, got %v", DefaultPeerRecheckInterval, cfg.PeerRecheckInterval)
+	}
+
 	if cfg.MaxConcurrentScrapes != 10 {
 		t.Errorf("Expected default MaxConcurrentScrapes 10, got %d", cfg.MaxConcurrentScrapes)
 	}
@@ -110,6 +119,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -121,6 +131,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "invalid",
 				LogFormat:            "text",
@@ -132,6 +143,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "invalid",
@@ -143,6 +155,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -154,6 +167,19 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 0,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
+				MaxConcurrentScrapes: 10,
+				LogLevel:             "info",
+				LogFormat:            "text",
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero peer recheck interval",
+			config: Config{
+				Port:                 "9100",
+				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  0,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -165,6 +191,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 0,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -177,6 +204,7 @@ func TestConfigValidate(t *testing.T) {
 				UseTsnet:             true,
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -190,6 +218,7 @@ func TestConfigValidate(t *testing.T) {
 				OAuthSecret:          "test-secret",
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				PeerRecheckInterval:  DefaultPeerRecheckInterval,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",

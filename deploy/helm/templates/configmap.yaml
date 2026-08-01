@@ -26,6 +26,7 @@ data:
   # Client metrics configuration
   CLIENT_METRICS_PORT: {{ .Values.config.clientMetricsPort | quote }}
   CLIENT_METRICS_TIMEOUT: {{ .Values.config.clientMetricsTimeout | quote }}
+  PEER_RECHECK_INTERVAL: {{ .Values.config.peerRecheckInterval | quote }}
   MAX_CONCURRENT_SCRAPES: {{ .Values.config.maxConcurrentScrapes | quote }}
   SCRAPE_INTERVAL: {{ .Values.config.scrapeInterval | quote }}
 

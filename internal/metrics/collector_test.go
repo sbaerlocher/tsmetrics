@@ -33,6 +33,10 @@ func TestNewCollector(t *testing.T) {
 	if collector.tracker == nil {
 		t.Error("Expected tracker to be initialized")
 	}
+
+	if collector.cfg.PeerRecheckInterval != config.DefaultPeerRecheckInterval {
+		t.Errorf("Expected default peer recheck interval %v, got %v", config.DefaultPeerRecheckInterval, collector.cfg.PeerRecheckInterval)
+	}
 }
 
 func TestFetchDevicesWithoutAPI(t *testing.T) {
