@@ -4,7 +4,7 @@ A comprehensive Tailscale Prometheus exporter that combines API metadata with li
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](https://ghcr.io/sbaerlocher/tsmetrics)
-[![CI](https://github.com/sbaerlocher/tsmetrics/actions/workflows/pull-request.yml/badge.svg)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/pull-request.yml)
+[![CI](https://github.com/sbaerlocher/tsmetrics/actions/workflows/pull-request.yml/badge.svg?event=pull_request)](https://github.com/sbaerlocher/tsmetrics/actions/workflows/pull-request.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sbaerlocher/tsmetrics)](https://goreportcard.com/report/github.com/sbaerlocher/tsmetrics)
 [![Release](https://img.shields.io/github/v/release/sbaerlocher/tsmetrics)](https://github.com/sbaerlocher/tsmetrics/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
