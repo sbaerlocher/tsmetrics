@@ -7,20 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Release job installs syft, which `.goreleaser.yaml` needs for the `sboms:`
-  section. The `v1.3.0` tag produced no release at all: GoReleaser built and
-  archived the binaries, then aborted with `syft: executable file not found in
-  $PATH`, and the Docker and Helm jobs were skipped as a result.
-
-### Removed
-
-- Keyless cosign signing of `checksums.txt`. It requires an OIDC token, and the
-  reusable release workflow declares only `contents`/`packages` — `id-token:
-  write` on the caller does not propagate into a reusable workflow, so the step
-  could never have succeeded.
-
 ## [1.3.0] - 2026-08-04
 
 ### Added
@@ -38,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process immediately, leaving the pod in CrashLoopBackOff even after the API
   server recovered. A permanently unreachable API server still surfaces as a
   CrashLoopBackOff once the attempts are exhausted.
+- Release job installs syft, which `.goreleaser.yaml` needs for the `sboms:`
+  section. Without it GoReleaser archived the binaries and then aborted with
+  `syft: executable file not found in $PATH`, taking the Docker and Helm jobs
+  down with it.
 
 ### Changed
 

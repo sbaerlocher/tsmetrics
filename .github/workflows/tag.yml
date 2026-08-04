@@ -10,7 +10,6 @@ run-name: |
 permissions:
   contents: write
   packages: write
-  id-token: write
 
 jobs:
   setup:
@@ -69,11 +68,13 @@ jobs:
       # install syft, so GoReleaser aborts with "syft: executable file not
       # found in $PATH" after building the archives.
       pre-build-commands: |
+        set -euo pipefail
         # renovate: datasource=github-releases depName=anchore/syft
         SYFT_VERSION=v1.50.0
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
-          | sh -s -- -b /usr/local/bin "$SYFT_VERSION"
-        syft --version
+        curl -sSfL "https://raw.githubusercontent.com/anchore/syft/${SYFT_VERSION}/install.sh" \
+          | sh -s -- -b "$RUNNER_TEMP/bin" "$SYFT_VERSION"
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/bin/syft" --version
       extra-env: |
         VERSION_LONG=${{ needs.setup.outputs.version-long }}
         VERSION_SHORT=${{ needs.setup.outputs.version-short }}

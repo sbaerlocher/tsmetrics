@@ -52,9 +52,10 @@ sboms:
 
 # Keyless cosign signing is disabled: it needs an OIDC token, and the release
 # job runs sbaerlocher/.github/.github/workflows/release-go.yml, which declares
-# only contents+packages — `id-token: write` on the caller does not propagate
-# into a reusable workflow. Re-add `signs:` once that workflow declares it and
-# installs cosign.
+# its own `permissions:` block (contents+packages only). A called workflow's
+# permissions block replaces the caller's, so the `id-token: write` granted in
+# tag.yml is dropped. Re-add `signs:` once that workflow declares `id-token:
+# write` and installs cosign.
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
