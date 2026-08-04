@@ -129,3 +129,30 @@ func TestDeviceError(t *testing.T) {
 		t.Error("Unwrap() should return underlying error")
 	}
 }
+
+func TestStartupRetryConfig(t *testing.T) {
+	rc := StartupRetryConfig()
+
+	if rc.MaxAttempts != 8 {
+		t.Errorf("MaxAttempts = %d, want 8", rc.MaxAttempts)
+	}
+	if rc.BaseDelay != 1*time.Second {
+		t.Errorf("BaseDelay = %v, want 1s", rc.BaseDelay)
+	}
+	if rc.MaxDelay != 30*time.Second {
+		t.Errorf("MaxDelay = %v, want 30s", rc.MaxDelay)
+	}
+	if rc.Multiplier != 2.0 {
+		t.Errorf("Multiplier = %v, want 2.0", rc.Multiplier)
+	}
+
+	// The startup budget must bridge a short API server restart without
+	// hanging silently on a permanent outage.
+	var total time.Duration
+	for attempt := range rc.MaxAttempts - 1 {
+		total += rc.CalculateDelay(attempt)
+	}
+	if total < 60*time.Second || total > 180*time.Second {
+		t.Errorf("summed startup delay = %v, want between 60s and 180s", total)
+	}
+}

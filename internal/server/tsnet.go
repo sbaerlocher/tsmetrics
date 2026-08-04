@@ -29,9 +29,15 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 		logf := func(format string, args ...any) {
 			slog.Debug(fmt.Sprintf(format, args...))
 		}
-		stateStore, err := store.New(logf, "kube:"+cfg.TsnetStateSecret)
+		stateStore, err := newStateStoreWithRetry(ctx, logf, "kube:"+cfg.TsnetStateSecret, store.New)
 		if err != nil {
-			return fmt.Errorf("failed to create kube state store: %w", err)
+			// A shutdown signal during the retry window is a clean exit, not a
+			// failure — the same as the ctx.Done() path further down.
+			if ctx.Err() != nil {
+				slog.Info("state store creation aborted by shutdown", "error", err)
+				return nil
+			}
+			return err
 		}
 		server.Store = stateStore
 		slog.Info("tsnet using Kubernetes Secret as state store", "secret", cfg.TsnetStateSecret)

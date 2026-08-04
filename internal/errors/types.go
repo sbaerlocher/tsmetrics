@@ -121,6 +121,22 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
+// StartupRetryConfig returns a retry configuration for startup-time
+// dependencies that may briefly be unavailable while the surrounding platform
+// comes up (for example a Kubernetes API server that is still restarting).
+// It is deliberately more patient than DefaultRetryConfig: the summed delays
+// span roughly 91s without jitter, which bridges a short outage while still
+// letting the process exit — and stay visible as a CrashLoopBackOff — when the
+// dependency is permanently gone.
+func StartupRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxAttempts: 8,
+		BaseDelay:   1 * time.Second,
+		MaxDelay:    30 * time.Second,
+		Multiplier:  2.0,
+	}
+}
+
 // CalculateDelay calculates the delay for the given retry attempt.
 func (rc RetryConfig) CalculateDelay(attempt int) time.Duration {
 	if attempt <= 0 {

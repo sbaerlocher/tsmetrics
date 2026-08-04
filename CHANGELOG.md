@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Kubernetes state store creation now retries with exponential backoff for
+  roughly 90s on startup. A transient API server outage previously killed the
+  process immediately, leaving the pod in CrashLoopBackOff even after the API
+  server recovered. A permanently unreachable API server still surfaces as a
+  CrashLoopBackOff once the attempts are exhausted.
+
+### Changed
+
+- `WithJitter` moved from `internal/api/client.go` to `internal/errors` so both
+  the API retry loop and the new startup retry share one implementation.
+
 ## [1.2.0] - 2026-04-24
 
 ### Added
