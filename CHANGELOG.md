@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Release job installs syft, which `.goreleaser.yaml` needs for the `sboms:`
+  section. The `v1.3.0` tag produced no release at all: GoReleaser built and
+  archived the binaries, then aborted with `syft: executable file not found in
+  $PATH`, and the Docker and Helm jobs were skipped as a result.
+
+### Removed
+
+- Keyless cosign signing of `checksums.txt`. It requires an OIDC token, and the
+  reusable release workflow declares only `contents`/`packages` — `id-token:
+  write` on the caller does not propagate into a reusable workflow, so the step
+  could never have succeeded.
+
 ## [1.3.0] - 2026-08-04
 
 ### Added
@@ -15,8 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exporter's own health (down, stale scrape, scrape errors) and the tailnet
   (device offline, machine-key expiry, high DERP latency, tailnet-lock error,
   health messages), wired via `rule_files` in `prometheus.yml`.
-- Releases ship a syft SPDX SBOM plus keyless cosign signing of
-  `checksums.txt`, so consumers can verify the published artifacts.
+- Releases ship a syft SPDX SBOM per archive as a release asset.
 
 ### Fixed
 

@@ -50,19 +50,11 @@ checksum:
 sboms:
   - artifacts: archive
 
-# Keyless cosign signatures (Sigstore OIDC via GitHub Actions). Signs the
-# archives, checksums and SBOMs; .sig + .pem land next to each artifact.
-signs:
-  - cmd: cosign
-    certificate: "${artifact}.pem"
-    output: true
-    artifacts: checksum
-    args:
-      - sign-blob
-      - "--output-certificate=${certificate}"
-      - "--output-signature=${signature}"
-      - "${artifact}"
-      - --yes
+# Keyless cosign signing is disabled: it needs an OIDC token, and the release
+# job runs sbaerlocher/.github/.github/workflows/release-go.yml, which declares
+# only contents+packages — `id-token: write` on the caller does not propagate
+# into a reusable workflow. Re-add `signs:` once that workflow declares it and
+# installs cosign.
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
