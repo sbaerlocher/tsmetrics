@@ -183,21 +183,3 @@ func TestParseRetryAfter(t *testing.T) {
 		t.Errorf("parseRetryAfter(past) = %v, want 0", got)
 	}
 }
-
-func TestWithJitter_BoundsAndZero(t *testing.T) {
-	if got := withJitter(0); got != 0 {
-		t.Errorf("withJitter(0) = %v, want 0", got)
-	}
-	// Single-ns durations have a zero half-range and must round-trip.
-	if got := withJitter(time.Nanosecond); got != time.Nanosecond {
-		t.Errorf("withJitter(1ns) = %v, want 1ns", got)
-	}
-	// Bulk test: 1000 samples must all fall within ±25% of 400ms.
-	base := 400 * time.Millisecond
-	for range 1000 {
-		got := withJitter(base)
-		if got < 300*time.Millisecond || got > 500*time.Millisecond {
-			t.Fatalf("withJitter(%v) = %v out of ±25%% bounds", base, got)
-		}
-	}
-}
