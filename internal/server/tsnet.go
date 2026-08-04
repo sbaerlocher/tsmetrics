@@ -31,6 +31,12 @@ func RunWithTsnet(cfg config.Config, ctx context.Context, collector *metrics.Col
 		}
 		stateStore, err := newStateStoreWithRetry(ctx, logf, "kube:"+cfg.TsnetStateSecret, store.New)
 		if err != nil {
+			// A shutdown signal during the retry window is a clean exit, not a
+			// failure — the same as the ctx.Done() path further down.
+			if ctx.Err() != nil {
+				slog.Info("state store creation aborted by shutdown", "error", err)
+				return nil
+			}
 			return err
 		}
 		server.Store = stateStore

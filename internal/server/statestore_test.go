@@ -51,8 +51,17 @@ func TestNewStateStoreWithRetry_SucceedsFirstAttempt(t *testing.T) {
 }
 
 func TestNewStateStoreWithRetry_SucceedsSecondAttempt(t *testing.T) {
+	// Fast config: the production one would really sleep ~1s before retry 2.
+	fastCfg := tserrors.RetryConfig{
+		MaxAttempts: 8,
+		BaseDelay:   time.Millisecond,
+		MaxDelay:    2 * time.Millisecond,
+		Multiplier:  2.0,
+	}
+
 	calls := 0
-	store, err := newStateStoreWithRetry(context.Background(), discardLogf, "kube:test", failingFactory(1, &calls))
+	store, err := newStateStoreWithRetryConfig(context.Background(), discardLogf, "kube:test",
+		failingFactory(1, &calls), fastCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,10 +109,19 @@ func TestNewStateStoreWithRetry_StopsDuringBackoff(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	calls := 0
 	factory := func(logger.Logf, string) (ipn.StateStore, error) {
 		calls++
-		cancel() // fail, then cancel while the wrapper waits to retry
+		// Cancel asynchronously so the wrapper has already entered the select
+		// on time.After. Cancelling inline would instead be caught by the
+		// top-of-loop ctx.Err() guard, leaving the select's ctx.Done() arm —
+		// the one that matters for SIGTERM mid-backoff — untested.
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			cancel()
+		}()
 		return nil, errors.New("connection refused")
 	}
 
