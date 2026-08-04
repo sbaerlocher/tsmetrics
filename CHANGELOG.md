@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-04
+
+### Added
+
+- `deploy/observability/alerts.yml`: 8 Prometheus alerting rules over the
+  exporter's own health (down, stale scrape, scrape errors) and the tailnet
+  (device offline, machine-key expiry, high DERP latency, tailnet-lock error,
+  health messages), wired via `rule_files` in `prometheus.yml`.
+- Releases ship a syft SPDX SBOM plus keyless cosign signing of
+  `checksums.txt`, so consumers can verify the published artifacts.
+
 ### Fixed
 
 - Kubernetes state store creation now retries with exponential backoff for
@@ -19,6 +30,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `WithJitter` moved from `internal/api/client.go` to `internal/errors` so both
   the API retry loop and the new startup retry share one implementation.
+
+### Security
+
+- Helm chart wires `METRICS_TOKEN` through the chart Secret and container env
+  (`tailscale.metricsToken`, plus an ExternalSecret key mapping). The exporter
+  enforces Bearer auth on `/metrics` when the variable is set, but the chart
+  never bound it, so Helm deployments exposed `/metrics` — including
+  `device_user{user_email}`, NodeKeys and external IPs — unauthenticated.
+  Empty by default (opt-in), matching the OAuth wiring; operators who want
+  the endpoint protected must set the value.
+
+### Dependencies
+
+- Bump Go toolchain, `prom/prometheus`, `prometheus/client_golang`,
+  `grafana/grafana` digest, `sbaerlocher/.github` action and presets to
+  v2026-08-03, plus non-major transitive bumps via Renovate.
 
 ## [1.2.0] - 2026-04-24
 
@@ -338,6 +365,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
+[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.3...v1.2.0
 [1.1.3]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.0...v1.1.1
