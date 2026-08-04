@@ -15,8 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exporter's own health (down, stale scrape, scrape errors) and the tailnet
   (device offline, machine-key expiry, high DERP latency, tailnet-lock error,
   health messages), wired via `rule_files` in `prometheus.yml`.
-- Releases ship a syft SPDX SBOM plus keyless cosign signing of
-  `checksums.txt`, so consumers can verify the published artifacts.
+- Releases ship a syft SPDX SBOM per archive as a release asset.
 
 ### Fixed
 
@@ -25,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process immediately, leaving the pod in CrashLoopBackOff even after the API
   server recovered. A permanently unreachable API server still surfaces as a
   CrashLoopBackOff once the attempts are exhausted.
+- Release job installs syft, which `.goreleaser.yaml` needs for the `sboms:`
+  section. Without it GoReleaser archived the binaries and then aborted with
+  `syft: executable file not found in $PATH`, taking the Docker and Helm jobs
+  down with it.
 
 ### Changed
 
