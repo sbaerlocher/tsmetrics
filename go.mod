@@ -7,7 +7,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/time v0.15.0
-	tailscale.com v1.102.0
+	tailscale.com v1.102.1
 )
 
 require (
