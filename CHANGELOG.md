@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   server recovered. A permanently unreachable API server still surfaces as a
   CrashLoopBackOff once the attempts are exhausted.
 
+### Changed
+
+- `WithJitter` moved from `internal/api/client.go` to `internal/errors` so both
+  the API retry loop and the new startup retry share one implementation.
+
 ### Security
 
 - Helm chart wires `METRICS_TOKEN` through the chart Secret and container env
