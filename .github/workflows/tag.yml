@@ -70,7 +70,7 @@ jobs:
       pre-build-commands: |
         set -euo pipefail
         # renovate: datasource=github-releases depName=anchore/syft
-        SYFT_VERSION=v1.50.0
+        SYFT_VERSION=v1.51.0
         curl -sSfL "https://raw.githubusercontent.com/anchore/syft/${SYFT_VERSION}/install.sh" \
           | sh -s -- -b "$RUNNER_TEMP/bin" "$SYFT_VERSION"
         echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
