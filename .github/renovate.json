@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>sbaerlocher/.github:renovate-go#2026-08-20",
-    "github>sbaerlocher/.github:renovate-docker#2026-08-20"
+    "github>sbaerlocher/.github:renovate-go#2026-08-22",
+    "github>sbaerlocher/.github:renovate-docker#2026-08-22"
   ],
   "customManagers": [
     {
