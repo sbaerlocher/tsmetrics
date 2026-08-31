@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-31
+
+### Security
+
+- `golang.org/x/crypto` 0.54.0 -> 0.55.0, which fixes CVE-2026-56854 /
+  GO-2026-6303: in `x/crypto/ssh` the `source-address` critical option was only
+  enforced for the public-key callback paths, so a restriction set by the
+  password, keyboard-interactive, no-client-auth or GSSAPI callbacks was
+  silently ignored. tsmetrics pulls the module in transitively via
+  `tailscale.com` and does not call the affected paths -- `govulncheck` reports
+  0 vulnerabilities for the binary -- so this hardens the dependency rather than
+  closing a reachable hole in the exporter.
+
+### Changed
+
+- `tailscale.com` 1.102.1 -> 1.102.3, `prometheus/client_model` 0.6.2 -> 0.6.3,
+  `golang.org/x/text` 0.40.0 -> 0.41.0, `google.golang.org/protobuf` 1.36.11 ->
+  1.36.12.
+- Go toolchain 1.26.5 -> 1.27.0; dev image `golang:1.26-alpine` ->
+  `golang:1.27-alpine`, plus Air and golangci-lint pins.
+
+### Fixed
+
+- CI now pins Go 1.27 in the `pull-request`, `tag` and `nightly-security`
+  workflows. Renovate raised `go.mod` to 1.27.0 while the reusable-workflow
+  calls still passed `go-version: "1.26"`, and with `GOTOOLCHAIN=local` every
+  Go job failed on `go.mod requires go >= 1.27.0 (running go 1.26.7)`. The
+  custom manager in `renovate.json` matched only shell-style `*_VERSION=` pins,
+  so the annotated `go-version:` keys were invisible to Renovate and drifted
+  behind the module on each Go minor; it now also matches annotated
+  `*-version:` YAML keys, and `nightly-security.yml` got the marker comment it
+  was missing.
+
 ## [1.3.0] - 2026-08-04
 
 ### Added
@@ -368,7 +401,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
-[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.3...v1.2.0
 [1.1.3]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.2...v1.1.3
