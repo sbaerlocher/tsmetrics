@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Release workflow no longer passes `pre-build-commands:` to
+  `release-go.yml`. The input was removed upstream in `sbaerlocher/.github`,
+  and since GitHub validates reusable-workflow inputs before dispatch, the
+  first v1.3.1 tag push failed with `startup_failure` — no job ran and no log
+  was produced. The input existed only to install syft for the `sboms:`
+  section in `.goreleaser.yaml`; `release-go.yml@2026-08-31` now installs syft
+  itself, so the workaround is dropped rather than replaced.
+
 - CI now pins Go 1.27 in the `pull-request`, `tag` and `nightly-security`
   workflows. Renovate raised `go.mod` to 1.27.0 while the reusable-workflow
   calls still passed `go-version: "1.26"`, and with `GOTOOLCHAIN=local` every
