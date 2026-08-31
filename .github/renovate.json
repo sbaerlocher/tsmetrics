@@ -15,11 +15,12 @@
       "versioningTemplate": "semver"
     },
     {
-      "description": "Track annotated *_VERSION shell pins in workflow files",
+      "description": "Track annotated *_VERSION shell pins and *-version YAML keys in workflow files",
       "customType": "regex",
       "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+_VERSION=(?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\w+_VERSION=(?<currentValue>\\S+)",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[\\w-]+-version: \"(?<currentValue>[^\"]+)\""
       ]
     }
   ],
