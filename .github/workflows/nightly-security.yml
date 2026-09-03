@@ -18,7 +18,7 @@ permissions:
 jobs:
   code-analysis:
     name: SAST (CodeQL)
-    uses: sbaerlocher/.github/.github/workflows/security-code.yml@2026-08-31
+    uses: sbaerlocher/.github/.github/workflows/security-code.yml@2026-09-01
     with:
       languages: '["go"]'
       # renovate: datasource=golang-version depName=golang
@@ -27,7 +27,7 @@ jobs:
 
   dependency-scan:
     name: Dependencies & Licenses
-    uses: sbaerlocher/.github/.github/workflows/security-deps.yml@2026-08-31
+    uses: sbaerlocher/.github/.github/workflows/security-deps.yml@2026-09-01
     with:
       language: "go"
       enable-license-check: true
@@ -35,13 +35,13 @@ jobs:
 
   secret-detection:
     name: Secret Detection
-    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-08-31
+    uses: sbaerlocher/.github/.github/workflows/security-secrets.yml@2026-09-01
     with:
       concurrency-suffix: secrets
 
   container-scan:
     name: Container Security
-    uses: sbaerlocher/.github/.github/workflows/security-containers.yml@2026-08-31
+    uses: sbaerlocher/.github/.github/workflows/security-containers.yml@2026-09-01
     with:
       image-ref: "ghcr.io/${{ github.repository }}:latest"
       concurrency-suffix: containers
