@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-13
+
+### Security
+
+- `golang.org/x/net` 0.57.0 -> 0.60.0, which fixes five HTTP/2 and HTTP
+  issues: CVE-2026-78659 / GO-2026-6603, CVE-2026-78660 / GO-2026-6610,
+  CVE-2026-78669 / GO-2026-6611, CVE-2026-78663 / GO-2026-6612 and
+  CVE-2026-97032 / GO-2026-6617, covering unbounded `Request.Trailer`
+  memory, malformed framing headers forwarded to HTTP/1 clients,
+  SETTINGS-frame CPU exhaustion, double flow-control refunds and a concurrent
+  HPACK encoder crash.
+- `golang.org/x/crypto` 0.55.0 -> 0.57.0, which fixes CVE-2026-78662 /
+  GO-2026-6354 and CVE-2026-56855 / GO-2026-6355: a malicious peer could
+  deadlock an `x/crypto/ssh` connection via channel messages before or after
+  the channel was established. Both modules come in transitively via
+  `tailscale.com`; `govulncheck` reports no vulnerabilities for the binary.
+
+### Changed
+
+- `tailscale.com` 1.102.3 -> 1.104.1, `prometheus/client_golang` 1.24.1 ->
+  1.25.0, `golang.org/x/oauth2` 0.36.0 -> 0.37.0, `golang.org/x/time` 0.15.0
+  -> 0.16.0, plus transitive updates.
+- Go toolchain 1.27.0 -> 1.27.2; refreshed `golang:1.27-alpine` and
+  `alpine:3.24` digests, golangci-lint 2.13.2 -> 2.14.0.
+- Local observability stack: `prom/prometheus` 3.14.0 -> 3.15.0, refreshed
+  `grafana/grafana:13.0` digest.
+
+### Fixed
+
+- Go CI lint no longer fails on Go 1.27.2. `staticcheck` 2026.2.1 could not
+  decode the new export data format (`export data version 5 is greater than
+  maximum supported version 4`); the reusable workflows are now pinned to
+  `sbaerlocher/.github@2026-10-13`, which ships `staticcheck` 2026.2.2.
+
 ## [1.3.1] - 2026-08-31
 
 ### Security
@@ -409,7 +443,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
-[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.1.3...v1.2.0
