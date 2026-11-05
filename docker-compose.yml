@@ -22,9 +22,9 @@ services:
       - 'no-new-privileges:true'
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.tsmetrics.rule=Host(`tsmetrics.test`)'
-      - 'traefik.http.routers.tsmetrics.tls=true'
-      - 'traefik.http.services.tsmetrics.loadbalancer.server.port=9100'
+      - 'traefik.http.routers.tsmetrics-test-tsmetrics.rule=Host(`tsmetrics.test`)'
+      - 'traefik.http.routers.tsmetrics-test-tsmetrics.tls=true'
+      - 'traefik.http.services.tsmetrics-test-tsmetrics.loadbalancer.server.port=9100'
     networks:
       default: null
 
@@ -43,9 +43,9 @@ services:
       - 'prometheus_data:/prometheus'
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.tsmetrics-prometheus.rule=Host(`prometheus.tsmetrics.test`)'
-      - 'traefik.http.routers.tsmetrics-prometheus.tls=true'
-      - 'traefik.http.services.tsmetrics-prometheus.loadbalancer.server.port=9090'
+      - 'traefik.http.routers.prometheus-tsmetrics-test-prometheus.rule=Host(`prometheus.tsmetrics.test`)'
+      - 'traefik.http.routers.prometheus-tsmetrics-test-prometheus.tls=true'
+      - 'traefik.http.services.prometheus-tsmetrics-test-prometheus.loadbalancer.server.port=9090'
     healthcheck:
       test:
         - CMD
@@ -78,9 +78,9 @@ services:
       - prometheus
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.tsmetrics-grafana.rule=Host(`grafana.tsmetrics.test`)'
-      - 'traefik.http.routers.tsmetrics-grafana.tls=true'
-      - 'traefik.http.services.tsmetrics-grafana.loadbalancer.server.port=3000'
+      - 'traefik.http.routers.grafana-tsmetrics-test-grafana.rule=Host(`grafana.tsmetrics.test`)'
+      - 'traefik.http.routers.grafana-tsmetrics-test-grafana.tls=true'
+      - 'traefik.http.services.grafana-tsmetrics-test-grafana.loadbalancer.server.port=3000'
     healthcheck:
       test:
         - CMD
