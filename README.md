@@ -886,10 +886,10 @@ Production Docker images are built by CI on release (GoReleaser + `release.yml`)
 
 dde project plugins ([.dde/plugins/](.dde/plugins/), auto-registered):
 
-| Plugin command                        | What it does                                           |
-| ------------------------------------- | ------------------------------------------------------ |
-| `dde project:exec:observability:up`   | start compose profile `observability` (Prom + Grafana) |
-| `dde project:exec:observability:down` | stop the observability stack                           |
+| Plugin command                   | What it does                                           |
+| -------------------------------- | ------------------------------------------------------ |
+| `dde project:observability:up`   | start compose profile `observability` (Prom + Grafana) |
+| `dde project:observability:down` | stop the observability stack                           |
 
 Direct invocations (no wrapper — no value-add):
 

@@ -10,21 +10,34 @@ set -euo pipefail
 # app (and can scrape it) and get routed under the checkout's own hostname.
 # Without this, a git worktree would register the same Traefik routers as the
 # main checkout and both stacks would share the global `dde` network.
-app_cid="$(docker compose ps -q tsmetrics 2>/dev/null | head -n1)"
-if [ -z "$app_cid" ]; then
-    echo "App container is not running. Start it first: dde project:up" >&2
-    exit 1
-fi
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+checkout="$(pwd -P)"
 
-network="$(docker inspect "$app_cid" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' \
-    | grep -m1 '^dde-services-' || true)"
-# shellcheck disable=SC2016 # backticks are literal Traefik rule syntax
-app_host="$(docker inspect "$app_cid" --format '{{json .Config.Labels}}' \
-    | grep -oE 'Host\(`[^`]+`\)' | head -n1 | sed -E 's/Host\(`([^`]+)`\)/\1/')"
-if [ -z "$network" ] || [ -z "$app_host" ]; then
-    echo "Could not detect dde network or hostname of the app container." >&2
+# Match the app container by its checkout directory rather than by compose
+# project name, so a worktree never picks up the main checkout's container.
+mapfile -t app_cids < <(docker ps -q \
+    --filter label=com.docker.compose.service=tsmetrics \
+    --filter "label=com.docker.compose.project.working_dir=${checkout}")
+if [ "${#app_cids[@]}" -ne 1 ]; then
+    echo "Expected one running app container for ${checkout}, found ${#app_cids[@]}." >&2
+    echo "Start it first: dde project:up" >&2
     exit 1
 fi
+app_cid="${app_cids[0]}"
+project="$(docker inspect "$app_cid" --format '{{index .Config.Labels "com.docker.compose.project"}}')"
+
+mapfile -t networks < <(docker inspect "$app_cid" \
+    --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' | grep -v '^$')
+# shellcheck disable=SC2016 # backticks are literal Traefik rule syntax
+mapfile -t app_hosts < <(docker inspect "$app_cid" --format '{{json .Config.Labels}}' \
+    | grep -oE 'Host\(`[^`]+`\)' | sed -E 's/Host\(`([^`]+)`\)/\1/' | sort -u)
+if [ "${#networks[@]}" -ne 1 ] || [ "${#app_hosts[@]}" -ne 1 ]; then
+    echo "Expected one network and one Traefik host on the app container," >&2
+    echo "found networks: ${networks[*]:-none}; hosts: ${app_hosts[*]:-none}." >&2
+    exit 1
+fi
+network="${networks[0]}"
+app_host="${app_hosts[0]}"
 
 override="$(mktemp)"
 trap 'rm -f "$override"' EXIT
@@ -53,7 +66,7 @@ trap 'rm -f "$override"' EXIT
     done
 } > "$override"
 
-docker compose -f docker-compose.yml -f "$override" --profile observability up -d "$@"
+docker compose -p "$project" -f docker-compose.yml -f "$override" --profile observability up -d "$@"
 
 if [ -t 1 ]; then
     blue=$'\033[34m'
