@@ -3,29 +3,57 @@
 # @description Start local observability stack (Prometheus + Grafana)
 set -euo pipefail
 
-# extractTraefikDomains [service ...]
-#   Prints unique Host() domains from running containers' Traefik labels.
-#   Without args: all currently running compose services.
-#   With args:    only the given services.
-extractTraefikDomains() {
-    local services svc cid
-    if [ $# -eq 0 ]; then
-        services="$(docker compose ps --services --filter status=running)"
-    else
-        services="$*"
-    fi
-    for svc in $services; do
-        cid="$(docker compose ps -q "$svc" 2>/dev/null | head -n1)"
-        [ -z "$cid" ] && continue
-        docker inspect "$cid" --format '{{json .Config.Labels}}' \
-            | grep -oE 'Host\(`[^`]+`\)' \
-            | sed -E 's/Host\(`([^`]+)`\)/\1/'
-    done | sort -u
-}
+# dde runs plugins as plain scripts: the runtime overlay that `dde project:up`
+# applies (per-project network, worktree hostnames) is not in effect for a
+# bare `docker compose` call. Derive both from the running app container
+# instead, so Prometheus and Grafana join the same per-project network as the
+# app (and can scrape it) and get routed under the checkout's own hostname.
+# Without this, a git worktree would register the same Traefik routers as the
+# main checkout and both stacks would share the global `dde` network.
+app_cid="$(docker compose ps -q tsmetrics 2>/dev/null | head -n1)"
+if [ -z "$app_cid" ]; then
+    echo "App container is not running. Start it first: dde project:up" >&2
+    exit 1
+fi
 
-docker compose --profile observability up -d "$@"
+network="$(docker inspect "$app_cid" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' \
+    | grep -m1 '^dde-services-' || true)"
+# shellcheck disable=SC2016 # backticks are literal Traefik rule syntax
+app_host="$(docker inspect "$app_cid" --format '{{json .Config.Labels}}' \
+    | grep -oE 'Host\(`[^`]+`\)' | head -n1 | sed -E 's/Host\(`([^`]+)`\)/\1/')"
+if [ -z "$network" ] || [ -z "$app_host" ]; then
+    echo "Could not detect dde network or hostname of the app container." >&2
+    exit 1
+fi
 
-running="$(docker compose --profile observability ps --services --filter status=running)"
+override="$(mktemp)"
+trap 'rm -f "$override"' EXIT
+
+# Router names follow the `<host with dots as dashes>-<service>` convention,
+# identical to the labels in docker-compose.yml for the main checkout.
+{
+    echo "networks:"
+    echo "    ${network}:"
+    echo "        external: true"
+    echo "services:"
+    for entry in prometheus:9090 grafana:3000; do
+        svc="${entry%%:*}"
+        port="${entry##*:}"
+        host="${svc}.${app_host}"
+        router="${host//./-}-${svc}"
+        echo "    ${svc}:"
+        echo "        networks: !override"
+        echo "            ${network}: {}"
+        echo "        labels: !override"
+        echo "            - 'traefik.enable=true'"
+        echo "            - 'traefik.docker.network=${network}'"
+        echo "            - 'traefik.http.routers.${router}.rule=Host(\`${host}\`)'"
+        echo "            - 'traefik.http.routers.${router}.tls=true'"
+        echo "            - 'traefik.http.services.${router}.loadbalancer.server.port=${port}'"
+    done
+} > "$override"
+
+docker compose -f docker-compose.yml -f "$override" --profile observability up -d "$@"
 
 if [ -t 1 ]; then
     blue=$'\033[34m'
@@ -36,16 +64,7 @@ else
 fi
 
 echo ""
-# shellcheck disable=SC2086
-domains="$(extractTraefikDomains $running)"
-if [ -n "$domains" ]; then
-    echo "Available at:"
-    printf '%s\n' "$domains" | sed "s|^|  ${blue}https://|;s|$|${reset}|"
-else
-    # Fallback: running container but no Traefik labels (e.g. stack deployed
-    # without the shared dde proxy). Point at the default published ports
-    # so the stack is not silently "up but unreachable from the CLI hint".
-    echo "Running. Default ports (published by docker compose):"
-    echo "  ${blue}http://localhost:9090${reset}   # Prometheus"
-    echo "  ${blue}http://localhost:3000${reset}   # Grafana"
-fi
+echo "Available at:"
+for svc in "" prometheus. grafana.; do
+    echo "  ${blue}https://${svc}${app_host}${reset}"
+done
