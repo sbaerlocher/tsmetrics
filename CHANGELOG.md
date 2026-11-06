@@ -23,17 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GO-2026-6860 (quadratic complexity when coalescing HTML text nodes) and
   CVE-2026-97045 / GO-2026-6866 (namespace transitions when rendering raw
   text in HTML). The module comes in transitively via `tailscale.com`.
+- `klauspost/compress` 1.20.1 -> 1.20.2, which fixes CVE-2026-116591 /
+  GHSA-fpmh-frq8-7rj8 / GO-2026-6865: zstd `DecodeAll` could panic on
+  specially crafted two-block frames.
+- Go toolchain 1.27.2 -> 1.27.3, which includes security fixes to the
+  `crypto/x509` package. The release binary is built with this toolchain.
 
 ### Changed
 
-- `tailscale.com` 1.104.1 -> 1.104.5, `klauspost/compress` 1.20.1 -> 1.20.2,
-  `golang.org/x/crypto` 0.57.0 -> 0.58.0, plus transitive `golang.org/x`
-  updates.
-- Go toolchain 1.27.2 -> 1.27.3; refreshed `golang:1.27-alpine` and
-  `alpine:3.24` digests, golangci-lint 2.14.0 -> 2.15.0.
+- `tailscale.com` 1.104.1 -> 1.104.5, `golang.org/x/crypto` 0.57.0 -> 0.58.0,
+  plus transitive `golang.org/x` updates.
+- Refreshed `golang:1.27-alpine` and `alpine:3.24` digests, golangci-lint
+  2.14.0 -> 2.15.0.
 - Local observability stack: `prom/prometheus` 3.15.0 -> 3.16.0, refreshed
   `grafana/grafana:13.0` digest.
-- Helm install instructions point to `oci://ghcr.io/sbaerlocher/chart`.
+- Helm install instructions point to
+  `oci://ghcr.io/sbaerlocher/chart/tsmetrics`.
 
 ### Removed
 
