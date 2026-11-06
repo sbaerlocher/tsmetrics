@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -96,6 +97,68 @@ func TestConfigLoadDefaults(t *testing.T) {
 	if cfg.ClientMetricsPort != "5252" {
 		t.Errorf("Expected default ClientMetricsPort '5252', got %s", cfg.ClientMetricsPort)
 	}
+
+	if cfg.ScrapeInterval != 30*time.Second {
+		t.Errorf("Expected default ScrapeInterval 30s, got %v", cfg.ScrapeInterval)
+	}
+}
+
+func TestConfigLoadScrapeInterval(t *testing.T) {
+	tests := []struct {
+		value string
+		want  time.Duration
+	}{
+		{"", 30 * time.Second},
+		{"60s", 60 * time.Second},
+		{" 30s ", 30 * time.Second},
+		{"45", 45 * time.Second},
+		{"abc", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			os.Clearenv()
+			t.Setenv("SCRAPE_INTERVAL", tt.value)
+
+			if got := Load().ScrapeInterval; got != tt.want {
+				t.Errorf("SCRAPE_INTERVAL=%q: got %v, want %v", tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfigValidateScrapeInterval(t *testing.T) {
+	tests := []struct {
+		interval time.Duration
+		wantErr  bool
+	}{
+		{5 * time.Second, false},
+		{4 * time.Second, true},
+		{0, true},
+		{-5 * time.Second, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.interval.String(), func(t *testing.T) {
+			os.Clearenv()
+			cfg := Config{
+				Port:                 "9100",
+				ClientMetricsTimeout: 10 * time.Second,
+				MaxConcurrentScrapes: 10,
+				LogLevel:             "info",
+				LogFormat:            "text",
+				ScrapeInterval:       tt.interval,
+			}
+
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil && !strings.Contains(err.Error(), "SCRAPE_INTERVAL") {
+				t.Errorf("error %q does not mention SCRAPE_INTERVAL", err)
+			}
+		})
+	}
 }
 
 func TestConfigValidate(t *testing.T) {
@@ -110,6 +173,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -121,6 +185,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "invalid",
 				LogFormat:            "text",
@@ -132,6 +197,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "invalid",
@@ -143,6 +209,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -154,6 +221,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 0,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -165,6 +233,7 @@ func TestConfigValidate(t *testing.T) {
 			config: Config{
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 0,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -177,6 +246,7 @@ func TestConfigValidate(t *testing.T) {
 				UseTsnet:             true,
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",
@@ -190,6 +260,7 @@ func TestConfigValidate(t *testing.T) {
 				OAuthSecret:          "test-secret",
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
+				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "info",
 				LogFormat:            "text",

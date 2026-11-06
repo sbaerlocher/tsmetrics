@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// minScrapeInterval is the smallest accepted SCRAPE_INTERVAL.
+const minScrapeInterval = 5 * time.Second
+
 // Config holds all configuration settings for TSMetrics.
 type Config struct {
 	UseTsnet             bool
@@ -23,6 +26,7 @@ type Config struct {
 	OAuthSecret          string //nolint:gosec // G117: not a hardcoded credential, loaded from env
 	TailnetName          string
 	ClientMetricsTimeout time.Duration
+	ScrapeInterval       time.Duration
 	MaxConcurrentScrapes int
 	TsnetOwnTags         []string
 	TsnetScrapeTag       string
@@ -168,6 +172,17 @@ func (cfg *Config) loadMetricsSettings() {
 	if cfg.ClientMetricsTimeout == 0 {
 		cfg.ClientMetricsTimeout = 10 * time.Second
 	}
+
+	// Unparsable values stay 0 so Validate rejects them at startup.
+	cfg.ScrapeInterval = 30 * time.Second
+	if v := strings.TrimSpace(os.Getenv("SCRAPE_INTERVAL")); v != "" {
+		cfg.ScrapeInterval = 0
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.ScrapeInterval = d
+		} else if sec, err := strconv.Atoi(v); err == nil {
+			cfg.ScrapeInterval = time.Duration(sec) * time.Second
+		}
+	}
 }
 
 // Validate checks the configuration for consistency and required values.
@@ -232,6 +247,10 @@ func (cfg Config) validateNetworkSettings() error {
 
 	if cfg.MaxConcurrentScrapes <= 0 {
 		return fmt.Errorf("MAX_CONCURRENT_SCRAPES must be positive")
+	}
+
+	if cfg.ScrapeInterval < minScrapeInterval {
+		return fmt.Errorf("SCRAPE_INTERVAL must be a duration of at least %s (e.g. \"30s\")", minScrapeInterval)
 	}
 	return nil
 }
