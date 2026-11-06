@@ -169,7 +169,7 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 
 - `PORT` — HTTP listen port (default: 9100)
 - `ENV` — `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1
-- `SCRAPE_INTERVAL` — Device discovery interval (default: 30s)
+- `SCRAPE_INTERVAL` — Device discovery interval (default: 30s, minimum 5s; cycle timeout is 2× the interval)
 - `METRICS_TOKEN` — Bearer token to protect all non-health endpoints (optional; omit to allow unauthenticated access)
 - `RATE_LIMIT_RPS` — Rate limit requests per second (default: 10)
 - `RATE_LIMIT_BURST` — Rate limit burst size (default: 20)
@@ -187,7 +187,7 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 - `TSNET_HOSTNAME` — Hostname in Tailnet (default: tsmetrics)
 - `TSNET_STATE_DIR` — Persistent state directory (default: /tmp/tsnet-tsmetrics)
 - `TSNET_TAGS` — Comma-separated tags for tsnet device
-- `REQUIRE_EXPORTER_TAG` — Enforce "exporter" tag requirement
+- `SCRAPE_TAG` — Only scrape devices carrying this tag (default: exporter)
 
 ### Scraping Configuration
 
@@ -243,7 +243,7 @@ curl https://tsmetrics.test/debug     # -> JSON debug info
 USE_TSNET=true
 TSNET_HOSTNAME=tsmetrics-dev
 TSNET_TAGS=exporter
-REQUIRE_EXPORTER_TAG=true
+SCRAPE_TAG=exporter
 ```
 
 State persists in the `tsnet_state` named volume. Start with `just dev`, then:

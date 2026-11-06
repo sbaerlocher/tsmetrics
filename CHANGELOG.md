@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `SCRAPE_INTERVAL` is now read: it sets the background scrape interval
+  (default `30s`, minimum `5s`, plain seconds accepted), the scrape cycle
+  timeout follows as twice the interval, and an invalid value fails startup.
+  Before, the variable was documented and set by the Helm chart and Kustomize
+  base but had no effect.
+- Removed the `REQUIRE_EXPORTER_TAG` variable from the documentation; it was
+  never read. `SCRAPE_TAG` (default `exporter`) selects the scrape targets.
+
 ## [1.3.2] - 2026-10-13
 
 ### Security
