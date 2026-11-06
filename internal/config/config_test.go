@@ -113,6 +113,7 @@ func TestConfigLoadScrapeInterval(t *testing.T) {
 		{" 30s ", 30 * time.Second},
 		{"45", 45 * time.Second},
 		{"abc", 0},
+		{"10000000000", 0},
 	}
 
 	for _, tt := range tests {
@@ -136,6 +137,9 @@ func TestConfigValidateScrapeInterval(t *testing.T) {
 		{4 * time.Second, true},
 		{0, true},
 		{-5 * time.Second, true},
+		{24 * time.Hour, false},
+		{24*time.Hour + time.Second, true},
+		{1500000 * time.Hour, true},
 	}
 
 	for _, tt := range tests {

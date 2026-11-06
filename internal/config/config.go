@@ -10,8 +10,11 @@ import (
 	"time"
 )
 
-// minScrapeInterval is the smallest accepted SCRAPE_INTERVAL.
-const minScrapeInterval = 5 * time.Second
+// Accepted SCRAPE_INTERVAL range.
+const (
+	minScrapeInterval = 5 * time.Second
+	maxScrapeInterval = 24 * time.Hour
+)
 
 // Config holds all configuration settings for TSMetrics.
 type Config struct {
@@ -161,12 +164,27 @@ func (cfg *Config) loadLoggingSettings() {
 	}
 }
 
+// parseDurationOrSeconds parses a Go duration ("30s") or plain seconds ("30").
+// It reports false for unparsable input and for seconds that overflow time.Duration.
+func parseDurationOrSeconds(v string) (time.Duration, bool) {
+	if d, err := time.ParseDuration(v); err == nil {
+		return d, true
+	}
+	sec, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
+	}
+	d := time.Duration(sec) * time.Second
+	if d/time.Second != time.Duration(sec) {
+		return 0, false
+	}
+	return d, true
+}
+
 func (cfg *Config) loadMetricsSettings() {
 	if v := os.Getenv("CLIENT_METRICS_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
+		if d, ok := parseDurationOrSeconds(v); ok {
 			cfg.ClientMetricsTimeout = d
-		} else if sec, err := strconv.Atoi(v); err == nil {
-			cfg.ClientMetricsTimeout = time.Duration(sec) * time.Second
 		}
 	}
 	if cfg.ClientMetricsTimeout == 0 {
@@ -176,12 +194,7 @@ func (cfg *Config) loadMetricsSettings() {
 	// Unparsable values stay 0 so Validate rejects them at startup.
 	cfg.ScrapeInterval = 30 * time.Second
 	if v := strings.TrimSpace(os.Getenv("SCRAPE_INTERVAL")); v != "" {
-		cfg.ScrapeInterval = 0
-		if d, err := time.ParseDuration(v); err == nil {
-			cfg.ScrapeInterval = d
-		} else if sec, err := strconv.Atoi(v); err == nil {
-			cfg.ScrapeInterval = time.Duration(sec) * time.Second
-		}
+		cfg.ScrapeInterval, _ = parseDurationOrSeconds(v)
 	}
 }
 
@@ -249,8 +262,8 @@ func (cfg Config) validateNetworkSettings() error {
 		return fmt.Errorf("MAX_CONCURRENT_SCRAPES must be positive")
 	}
 
-	if cfg.ScrapeInterval < minScrapeInterval {
-		return fmt.Errorf("SCRAPE_INTERVAL must be a duration of at least %s (e.g. \"30s\")", minScrapeInterval)
+	if cfg.ScrapeInterval < minScrapeInterval || cfg.ScrapeInterval > maxScrapeInterval {
+		return fmt.Errorf("SCRAPE_INTERVAL must be a duration between %s and %s (e.g. \"30s\")", minScrapeInterval, maxScrapeInterval)
 	}
 	return nil
 }

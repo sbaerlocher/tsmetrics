@@ -201,11 +201,11 @@ The `TSNET_TAGS` variable is used for validation only.
 
 ### Performance Tuning
 
-| Environment Variable     | Description                                                               | Default |
-| ------------------------ | ------------------------------------------------------------------------- | ------- |
-| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout                                                    | `10s`   |
-| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes                                                   | `10`    |
-| `SCRAPE_INTERVAL`        | Device discovery interval; minimum `5s`, cycle timeout is 2× the interval | `30s`   |
+| Environment Variable     | Description                                                                              | Default |
+| ------------------------ | ---------------------------------------------------------------------------------------- | ------- |
+| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout                                                                   | `10s`   |
+| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes                                                                  | `10`    |
+| `SCRAPE_INTERVAL`        | Device discovery interval, `5s` to `24h`; cycle timeout is 2× the interval, at least 60s | `30s`   |
 
 ### Advanced Configuration
 
@@ -1069,7 +1069,7 @@ docker stats tsmetrics
 # Reduce concurrent scrapes
 export MAX_CONCURRENT_SCRAPES=5
 
-# Increase cleanup frequency
+# Scrape less often (default 30s)
 export SCRAPE_INTERVAL=60s
 ```
 

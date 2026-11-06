@@ -169,7 +169,7 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 
 - `PORT` — HTTP listen port (default: 9100)
 - `ENV` — `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1
-- `SCRAPE_INTERVAL` — Device discovery interval (default: 30s, minimum 5s; cycle timeout is 2× the interval)
+- `SCRAPE_INTERVAL` — Device discovery interval (default: 30s, range 5s–24h; cycle timeout is 2× the interval, at least 60s)
 - `METRICS_TOKEN` — Bearer token to protect all non-health endpoints (optional; omit to allow unauthenticated access)
 - `RATE_LIMIT_RPS` — Rate limit requests per second (default: 10)
 - `RATE_LIMIT_BURST` — Rate limit burst size (default: 20)

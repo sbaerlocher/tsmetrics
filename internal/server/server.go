@@ -180,12 +180,17 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 			}
 		}
 
-		// The cycle timeout is 2x cfg.ScrapeInterval so it always stays >= the
+		interval := cfg.ScrapeInterval
+		if interval <= 0 { // Config built without Load+Validate; NewTicker would panic.
+			interval = 30 * time.Second
+		}
+		// The cycle timeout is 2x the interval so it always stays >= the
 		// interval: the ticker fires every interval, but time.Ticker silently
 		// drops ticks while runCycle is still executing, so a slow cycle turns
-		// into backpressure rather than overlapping runs.
-		cycleTimeout := 2 * cfg.ScrapeInterval
-		ticker := time.NewTicker(cfg.ScrapeInterval)
+		// into backpressure rather than overlapping runs. The 60s floor keeps
+		// short intervals from cutting off the 30s API timeout plus device scrapes.
+		cycleTimeout := max(2*interval, 60*time.Second)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
 		runCycle := func(label string) {
