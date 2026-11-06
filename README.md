@@ -857,7 +857,8 @@ container) end up root-owned on the host and break host git and lefthook with
   files under `/app` (and, in a git worktree, the main clone's `.git`) back to
   the host user before the stack stops.
 
-Both are best effort and only warn. The chown needs the running `tsmetrics`
+Both hooks need `jq` on the host (`brew install jq`); without it they warn and
+Docker creates `tmp/` as root again. Both are best effort and only warn. The chown needs the running `tsmetrics`
 container; after a crash or a plain `docker stop`, run
 `dde project:up && dde project:down` once.
 

@@ -31,7 +31,7 @@ if ! mountpoints=$(docker compose config --format json | jq -r --arg root "$proj
 	| select($t | startswith($b + "/"))
 	| (.source + "/" + ($t | ltrimstr($b + "/")))
 	| select(startswith($root + "/")) | ltrimstr($root + "/")' | sort -u); then
-	echo "warn: could not derive anonymous volume mountpoints from docker compose config" >&2
+	echo "warn: could not derive anonymous volume mountpoints from docker compose config (needs jq)" >&2
 	exit 0
 fi
 
@@ -42,5 +42,5 @@ while IFS= read -r dir; do
 		echo "  docker run --rm -v \"$project_dir/$dir:/w\" alpine chown -R $(id -u):$(id -g) /w" >&2
 		continue
 	fi
-	mkdir -p -- "$dir"
+	mkdir -p -- "$dir" || echo "warn: could not create mountpoint $dir" >&2
 done <<<"$mountpoints"

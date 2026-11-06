@@ -37,27 +37,29 @@ if ! in_app test -d /app >/dev/null 2>&1; then
 fi
 
 paths=(/app)
-if common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+if common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) &&
+	common_dir=$(CDPATH='' cd -- "$common_dir" && pwd -P); then
 	case "$common_dir" in
 	"$project_dir"/*) ;;
 	*) in_app test -d "$common_dir" >/dev/null 2>&1 && paths+=("$common_dir") ;;
 	esac
 fi
 
-# Same derivation as project.up.pre/10-volume-mountpoints.sh, mapped into /app.
+# Container paths of the anonymous volumes nested in the repo bind mount at
+# /app; same selection as project.up.pre/10-volume-mountpoints.sh.
 prune=()
-if mountpoints=$(docker compose config --format json 2>/dev/null | jq -r --arg root "$project_dir" '
+if mountpoints=$(docker compose config --format json | jq -r --arg root "$project_dir" '
 	.services[] | (.volumes // []) as $vols
 	| $vols[] | select(.type == "volume" and ((.source // "") == "")) | .target as $t
-	| $vols[] | select(.type == "bind") | .target as $b
-	| select($t | startswith($b + "/"))
-	| (.source + "/" + ($t | ltrimstr($b + "/")))
-	| select(startswith($root + "/")) | ltrimstr($root + "/")' | sort -u); then
+	| $vols[] | select(.type == "bind" and .source == $root and .target == "/app")
+	| select($t | startswith("/app/")) | $t' | sort -u); then
 	while IFS= read -r dir; do
 		[ -n "$dir" ] || continue
 		[ ${#prune[@]} -eq 0 ] || prune+=(-o)
-		prune+=(-path "/app/$dir")
+		prune+=(-path "$dir")
 	done <<<"$mountpoints"
+else
+	echo "warn: could not derive anonymous volume mountpoints (needs docker compose and jq); /app/tmp is not pruned" >&2
 fi
 
 match=(-user 0)
@@ -73,5 +75,5 @@ in_app find "${paths[@]}" "${match[@]}" -exec chown -h "$(id -u):$(id -g)" {} + 
 leftover=$(in_app find "${paths[@]}" "${match[@]}" -print 2>/dev/null || true)
 if [ -n "$leftover" ]; then
 	echo "warn: root-owned files remain in the bind mount; $retry_hint" >&2
-	printf '%s\n' "$leftover" | head -n 10 >&2
+	printf '%s\n' "$leftover" | head -n 10 >&2 || true
 fi
