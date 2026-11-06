@@ -194,7 +194,6 @@ tsmetrics/
 | `TSNET_STATE_DIR`      | Persistent state directory                           | `/tmp/tsnet-tsmetrics` |
 | `TSNET_TAGS`           | Comma-separated device tags                          | -                      |
 | `TS_AUTHKEY`           | Auth key for automatic device registration with tags | -                      |
-| `REQUIRE_EXPORTER_TAG` | Enforce "exporter" tag requirement                   | `false`                |
 
 **Note**: To automatically assign tags to the tsnet device, create an auth key in
 the Tailscale admin console with the desired tags and set `TS_AUTHKEY`.
@@ -202,11 +201,11 @@ The `TSNET_TAGS` variable is used for validation only.
 
 ### Performance Tuning
 
-| Environment Variable     | Description               | Default |
-| ------------------------ | ------------------------- | ------- |
-| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout    | `10s`   |
-| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes   | `10`    |
-| `SCRAPE_INTERVAL`        | Device discovery interval | `30s`   |
+| Environment Variable     | Description                                                                              | Default |
+| ------------------------ | ---------------------------------------------------------------------------------------- | ------- |
+| `CLIENT_METRICS_TIMEOUT` | Device metrics timeout                                                                   | `10s`   |
+| `MAX_CONCURRENT_SCRAPES` | Parallel device scrapes                                                                  | `10`    |
+| `SCRAPE_INTERVAL`        | Device discovery interval, `5s` to `24h`; cycle timeout is 2× the interval, at least 60s | `30s`   |
 
 ### Advanced Configuration
 
@@ -223,8 +222,8 @@ LOG_FORMAT=text
 #### Security
 
 ```bash
-# Enforce exporter tag requirement
-REQUIRE_EXPORTER_TAG=true
+# Only scrape devices carrying this tag
+SCRAPE_TAG=exporter
 
 # Custom metrics port for devices
 CLIENT_METRICS_PORT=5252
@@ -275,8 +274,7 @@ TARGET_DEVICES=production-gateway,backup-server
 | `TSNET_STATE_DIR`      | `/tmp/tsnet-tsmetrics` | Persistent state directory                                            |
 | `TSNET_TAGS`           | -                      | Comma-separated device tags                                           |
 | `TS_AUTHKEY`           | -                      | Auth key for automatic registration                                   |
-| `SCRAPE_TAG`           | -                      | Only scrape devices carrying this tag                                 |
-| `REQUIRE_EXPORTER_TAG` | `false`                | Enforce "exporter" tag requirement                                    |
+| `SCRAPE_TAG`           | `exporter`             | Only scrape devices carrying this tag                                 |
 | `LOG_LEVEL`            | `info`                 | Logging level                                                         |
 | `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                                         |
 | `METRICS_TOKEN`        | -                      | Bearer token for `/metrics` and `/debug`; startup fails on weak token |
@@ -1071,7 +1069,7 @@ docker stats tsmetrics
 # Reduce concurrent scrapes
 export MAX_CONCURRENT_SCRAPES=5
 
-# Increase cleanup frequency
+# Scrape less often (default 30s)
 export SCRAPE_INTERVAL=60s
 ```
 
