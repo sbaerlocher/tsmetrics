@@ -483,7 +483,9 @@ func (e *Exporter) scrapeClientMetrics(devices []Device) error {
 - **SSRF:** `validateDeviceMetricsURL` (`internal/metrics/scraper.go`) rejects `localhost` and literal IPs in
   `0.0.0.0/8`, `127.0.0.0/8`, `::1/128`, `169.254.0.0/16`, `fe80::/10`. RFC1918, `100.64.0.0/10` and
   `fc00::/7` (Tailscale IPv6 `fd7a:115c:a1e0::/48`) are intentionally allowed — tailnet devices live there.
-  Do not weaken the blocklist, and do not add those ranges to it
+  Do not weaken the blocklist, and do not add those ranges to it. Known gap: only the initial URL's literal
+  host is checked — redirects (scrape clients set no `CheckRedirect`) and DNS names resolving into blocked
+  ranges are not
 - **Rate Limiting:** `getClientID` uses `RemoteAddr` only — never trust X-Forwarded-For/X-Real-IP (forgeable)
 - **Timing Attacks:** `SecureValidateToken` must never `break` early — always iterate all tokens
 - **DevSkim:** Add `// DevSkim: ignore DS162092` on lines that intentionally reference private IPs in security validators
