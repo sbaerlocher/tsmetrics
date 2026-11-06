@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -49,80 +48,6 @@ func (iv *InputValidator) ValidateString(input string, fieldName string) error {
 		if char < 32 && char != 9 && char != 10 && char != 13 { // Allow tab, LF, CR
 			return fmt.Errorf("field %s contains invalid control characters", fieldName)
 		}
-	}
-
-	return nil
-}
-
-// privateIPNets contains all private, loopback, and link-local IP ranges.
-var privateIPNets []*net.IPNet
-
-func init() {
-	for _, cidr := range []string{
-		"0.0.0.0/8",      // current network (RFC 1122)
-		"127.0.0.0/8",    // IPv4 loopback
-		"::1/128",        // IPv6 loopback
-		"10.0.0.0/8",     // RFC1918
-		"172.16.0.0/12",  // RFC1918
-		"192.168.0.0/16", // RFC1918
-		"100.64.0.0/10",  // CGNAT / Tailscale device IPs (RFC 6598)
-		"169.254.0.0/16", // link-local (AWS metadata, etc.)
-		"fc00::/7",       // IPv6 unique local
-		"fe80::/10",      // IPv6 link-local
-	} {
-		_, network, _ := net.ParseCIDR(cidr)
-		privateIPNets = append(privateIPNets, network)
-	}
-}
-
-func isPrivateHost(hostname string) bool {
-	if strings.EqualFold(hostname, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(hostname)
-	if ip == nil {
-		// hostname is a DNS name, not an IP literal — we cannot check it here.
-		// DNS-rebinding (a name resolving to a private IP at request time) is
-		// documented as out-of-scope; callers that need full protection must use
-		// a custom dialer with post-DNS IP validation.
-		// In this project, device hostnames originate exclusively from the
-		// authenticated Tailscale API, so they are treated as trusted input.
-		return false
-	}
-	// Normalize IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) to plain IPv4
-	// so it matches the 4-byte IPv4 ranges in privateIPNets.
-	if v4 := ip.To4(); v4 != nil {
-		ip = v4
-	}
-	for _, network := range privateIPNets {
-		if network.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-func (iv *InputValidator) ValidateURL(input string, fieldName string) error {
-	if err := iv.ValidateString(input, fieldName); err != nil {
-		return err
-	}
-
-	parsedURL, err := url.Parse(input)
-	if err != nil {
-		return fmt.Errorf("field %s is not a valid URL: %w", fieldName, err)
-	}
-
-	// Only allow HTTP and HTTPS schemes
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("field %s must use http or https scheme", fieldName)
-	}
-
-	// Prevent access to localhost and all private/reserved IP ranges (SSRF protection).
-	// NOTE: This checks the literal hostname only — DNS rebinding is not prevented here.
-	// A hostname that resolves to a private IP at request time would bypass this check.
-	// Callers that need full SSRF protection must use a custom dialer with post-DNS IP validation.
-	if isPrivateHost(parsedURL.Hostname()) { // DevSkim: ignore DS162092 - Security validation intentionally blocks private hosts
-		return fmt.Errorf("field %s cannot reference private or reserved addresses", fieldName)
 	}
 
 	return nil

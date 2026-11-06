@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Unused `InputValidator.ValidateURL`. Its blocklist (RFC1918, CGNAT
+  `100.64.0.0/10`) contradicted the device-metrics scraper, which intentionally
+  allows those ranges; the scraper's SSRF guard is `validateDeviceMetricsURL`.
+
 ### Fixed
 
 - `SCRAPE_INTERVAL` is now read: it sets the background scrape interval

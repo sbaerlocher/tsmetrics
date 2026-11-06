@@ -59,56 +59,6 @@ func TestInputValidator_ValidateString(t *testing.T) {
 	}
 }
 
-func TestInputValidator_ValidateURL(t *testing.T) {
-	validator := NewInputValidator()
-
-	tests := []struct {
-		name        string
-		input       string
-		expectError bool
-	}{
-		{
-			name:        "valid HTTPS URL",
-			input:       "https://api.tailscale.com/v2/device",
-			expectError: false,
-		},
-		{
-			name:        "valid HTTPS URL for testing",
-			input:       "https://example.com", // Test URL
-			expectError: false,
-		},
-		{
-			name:        "invalid scheme",
-			input:       "ftp://example.com",
-			expectError: true,
-		},
-		{
-			name:        "localhost URL",
-			input:       "http://localhost:8080", // DevSkim: ignore DS162092 - Test case for localhost validation
-			expectError: true,
-		},
-		{
-			name:        "malformed URL",
-			input:       "not-a-url",
-			expectError: true,
-		},
-		{
-			name:        "empty URL",
-			input:       "",
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateURL(tt.input, "test_url")
-			if (err != nil) != tt.expectError {
-				t.Errorf("ValidateURL() error = %v, expectError %v", err, tt.expectError)
-			}
-		})
-	}
-}
-
 func TestInputValidator_ValidateToken(t *testing.T) {
 	validator := NewInputValidator()
 
