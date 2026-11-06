@@ -168,7 +168,7 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 ### Core Configuration
 
 - `PORT` — HTTP listen port (default: 9100)
-- `ENV` — `production`/`prod` binds 0.0.0.0, otherwise 127.0.0.1
+- `BIND_HOST` — Listen interface; auto-detected when unset (container → 0.0.0.0, host → 127.0.0.1)
 - `SCRAPE_INTERVAL` — Device discovery interval (default: 30s, range 5s–24h; cycle timeout is 2× the interval, at least 60s)
 - `METRICS_TOKEN` — Bearer token to protect all non-health endpoints (optional; omit to allow unauthenticated access)
 - `RATE_LIMIT_RPS` — Rate limit requests per second (default: 10)
@@ -219,7 +219,6 @@ dde project:exec sh -c "go mod tidy && go mod download"
 Configure `.env` with mock values:
 
 ```env
-ENV=development
 PORT=9100
 OAUTH_CLIENT_ID=mock_client_id
 OAUTH_CLIENT_SECRET=mock_client_secret
@@ -248,7 +247,7 @@ SCRAPE_TAG=exporter
 
 State persists in the `tsnet_state` named volume. Start with `just dev`, then:
 
-1. Check tsnet startup logs: `just logs`
+1. Check tsnet startup logs: `dde project:logs`
 2. Verify listener on Tailscale IP
 3. Confirm device appears in `tailscale status`
 4. Test HTTP endpoints over Tailnet
@@ -481,7 +480,9 @@ func (e *Exporter) scrapeClientMetrics(devices []Device) error {
 - **OAuth Token Security:** Use OAuth2 client credentials flow, handle token refresh
 - **tsnet State:** Secure state directory permissions in production
 - **Network Access:** Restrict scraping to devices with appropriate tags
-- **SSRF:** `ValidateURL` blocks all private/loopback/link-local ranges (not just localhost) — do not weaken this
+- **SSRF:** `validateDeviceMetricsURL` (`internal/metrics/scraper.go`) rejects `localhost` and literal IPs in
+  `0.0.0.0/8`, `127.0.0.0/8`, `::1/128`, `169.254.0.0/16`, `fe80::/10`. RFC1918 and `100.64.0.0/10` are
+  intentionally allowed — tailnet devices live there. Do not weaken the blocklist, and do not add those ranges to it
 - **Rate Limiting:** `getClientID` uses `RemoteAddr` only — never trust X-Forwarded-For/X-Real-IP (forgeable)
 - **Timing Attacks:** `SecureValidateToken` must never `break` early — always iterate all tokens
 - **DevSkim:** Add `// DevSkim: ignore DS162092` on lines that intentionally reference private IPs in security validators
