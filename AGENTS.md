@@ -138,8 +138,8 @@ just recipes (`just` to list):
 
 dde project plugins (`.dde/plugins/*.sh`, auto-registered):
 
-- `dde project:exec:observability:up` — start local Prometheus + Grafana (compose profile `observability`)
-- `dde project:exec:observability:down` — stop local observability stack
+- `dde project:observability:up` — start local Prometheus + Grafana (profile `observability`; needs `dde project:up`)
+- `dde project:observability:down` — stop local observability stack
 
 Direct invocations (no just wrapper):
 
@@ -539,7 +539,7 @@ just build               # Build binary in container
 just lint                # Run golangci-lint in container
 
 # Optional local Prometheus + Grafana (compose profile "observability")
-dde project:exec:observability:up
+dde project:observability:up
 
 # Production image is built by CI on release (GoReleaser + release.yml)
 

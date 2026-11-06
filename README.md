@@ -859,13 +859,16 @@ just test
 just build
 
 # Optional: local Prometheus + Grafana stack (compose profile "observability")
-dde project:exec:observability:up
+# (requires the app container from `dde project:up`; joins its dde network)
+dde project:observability:up
 # → https://tsmetrics.test   (app)
 # → https://prometheus.tsmetrics.test
 # → https://grafana.tsmetrics.test   (anonymous admin, dashboards auto-provisioned)
+# In a git worktree the hosts get the worktree prefix,
+# e.g. https://prometheus.<suffix>.tsmetrics.test
 
 # Stop the observability stack
-dde project:exec:observability:down
+dde project:observability:down
 ```
 
 ### Task Runner (`just`) and Direct Commands
@@ -883,10 +886,10 @@ Production Docker images are built by CI on release (GoReleaser + `release.yml`)
 
 dde project plugins ([.dde/plugins/](.dde/plugins/), auto-registered):
 
-| Plugin command                        | What it does                                           |
-| ------------------------------------- | ------------------------------------------------------ |
-| `dde project:exec:observability:up`   | start compose profile `observability` (Prom + Grafana) |
-| `dde project:exec:observability:down` | stop the observability stack                           |
+| Plugin command                   | What it does                                           |
+| -------------------------------- | ------------------------------------------------------ |
+| `dde project:observability:up`   | start compose profile `observability` (Prom + Grafana) |
+| `dde project:observability:down` | stop the observability stack                           |
 
 Direct invocations (no wrapper — no value-add):
 
@@ -935,7 +938,8 @@ tsmetrics operates in two phases:
 - **Connection Pooling**: Reuses HTTP connections for efficiency
 - **Concurrent Scraping**: Parallel device metrics collection
 - **Memory Management**: Automatic cleanup of stale device metrics
-- **API Resilience**: Retry with exponential backoff + jitter, request timeouts, and graceful fallback to the configured device list on Tailscale API failure
+- **API Resilience**: Retry with exponential backoff + jitter, request timeouts, and graceful fallback
+  to the configured device list on Tailscale API failure
 
 ### High Availability
 
