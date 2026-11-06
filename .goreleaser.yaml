@@ -91,7 +91,7 @@ release:
 
     **Helm Chart:**
     ```bash
-    helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics --version {{.Tag}}
+    helm install tsmetrics oci://ghcr.io/sbaerlocher/chart/tsmetrics --version {{.Version}}
     ```
 
   footer: |

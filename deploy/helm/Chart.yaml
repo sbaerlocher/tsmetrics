@@ -37,7 +37,7 @@ annotations:
 
     ## Quick Start
     ```bash
-    helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics \
+    helm install tsmetrics oci://ghcr.io/sbaerlocher/chart/tsmetrics \
       --set tailscale.oauthClientId=your-id \
       --set tailscale.oauthClientSecret=your-secret \
       --set tailscale.tailnetName=your-company
