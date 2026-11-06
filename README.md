@@ -914,7 +914,7 @@ dde project plugins ([.dde/plugins/](.dde/plugins/), auto-registered):
 Direct invocations (no wrapper — no value-add):
 
 - Container lifecycle: `dde project:up|down|restart|logs|exec ...`
-- Helm: `helm install|upgrade|template|lint tsmetrics deploy/helm/tsmetrics`
+- Helm: `helm install|upgrade|template|lint tsmetrics deploy/helm`
 - Kustomize: `kubectl apply -k deploy/kustomize/overlays/{development,production}`
 
 ### Environment Management

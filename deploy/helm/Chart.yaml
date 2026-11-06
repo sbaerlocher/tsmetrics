@@ -46,6 +46,6 @@ annotations:
     - Fix read-only filesystem crash by setting HOME=/tmp for nonroot distroless
   artifacthub.io/links: |
     - name: Chart Source
-      url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm/tsmetrics
+      url: https://github.com/sbaerlocher/tsmetrics/tree/main/deploy/helm
     - name: Application Source
       url: https://github.com/sbaerlocher/tsmetrics
