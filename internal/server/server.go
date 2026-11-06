@@ -169,16 +169,6 @@ func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Co
 	return srv.Shutdown(shutdownCtx)
 }
 
-// scrapeInterval and scrapeCycleTimeout bound the background scrape loop.
-// scrapeCycleTimeout must stay >= scrapeInterval: the ticker fires every
-// scrapeInterval, but time.Ticker silently drops ticks while runCycle is
-// still executing, so a slow cycle turns into backpressure rather than
-// overlapping runs.
-const (
-	scrapeInterval     = 30 * time.Second
-	scrapeCycleTimeout = 60 * time.Second
-)
-
 func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *metrics.Collector) {
 	go func() {
 		if cfg.UseTsnet {
@@ -190,11 +180,16 @@ func StartBackgroundScraper(cfg config.Config, ctx context.Context, collector *m
 			}
 		}
 
-		ticker := time.NewTicker(scrapeInterval)
+		// The cycle timeout is 2x cfg.ScrapeInterval so it always stays >= the
+		// interval: the ticker fires every interval, but time.Ticker silently
+		// drops ticks while runCycle is still executing, so a slow cycle turns
+		// into backpressure rather than overlapping runs.
+		cycleTimeout := 2 * cfg.ScrapeInterval
+		ticker := time.NewTicker(cfg.ScrapeInterval)
 		defer ticker.Stop()
 
 		runCycle := func(label string) {
-			cycleCtx, cancel := context.WithTimeout(ctx, scrapeCycleTimeout)
+			cycleCtx, cancel := context.WithTimeout(ctx, cycleTimeout)
 			defer cancel()
 			if err := collector.UpdateMetrics(cycleCtx, "tailscale"); err != nil {
 				if cfg.UseTsnet && metrics.CountTsnetStartupErrors(err) > 0 {
