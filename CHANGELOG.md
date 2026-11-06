@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-06
+
 ### Security
 
 - The client-metrics scraper no longer follows redirects, and both the
@@ -17,6 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata, zoned IPv6 link-local addresses (`fe80::1%eth0`) and IPv4 embedded
   in IPv6 (NAT64, IPv4-compatible). Rejected targets are counted as
   `error_type="forbidden_target"` and not retried.
+- `golang.org/x/net` 0.60.0 -> 0.62.0, which fixes CVE-2026-78661 /
+  GO-2026-6860 (quadratic complexity when coalescing HTML text nodes) and
+  CVE-2026-97045 / GO-2026-6866 (namespace transitions when rendering raw
+  text in HTML). The module comes in transitively via `tailscale.com`.
+- `klauspost/compress` 1.20.1 -> 1.20.2, which fixes CVE-2026-116591 /
+  GHSA-fpmh-frq8-7rj8 / GO-2026-6865: zstd `DecodeAll` could panic on
+  specially crafted two-block frames.
+- Go toolchain 1.27.2 -> 1.27.3, which includes security fixes to the
+  `crypto/x509` package. The release binary is built with this toolchain.
+
+### Changed
+
+- `tailscale.com` 1.104.1 -> 1.104.5, `golang.org/x/crypto` 0.57.0 -> 0.58.0,
+  plus transitive `golang.org/x` updates.
+- Refreshed `golang:1.27-alpine` and `alpine:3.24` digests, golangci-lint
+  2.14.0 -> 2.15.0.
+- Local observability stack: `prom/prometheus` 3.15.0 -> 3.16.0, refreshed
+  `grafana/grafana:13.0` digest.
+- Helm install instructions point to
+  `oci://ghcr.io/sbaerlocher/chart/tsmetrics`.
 
 ### Removed
 
@@ -37,6 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standalone mode ignored `CLIENT_METRICS_TIMEOUT` and `MAX_CONCURRENT_SCRAPES`
   for client scrapes (no request timeout), and each scrape cycle built a new
   HTTP client, so keep-alive connections were never reused and leaked.
+- Dev environment: dde worktree checkouts run in parallel with the main
+  checkout (Traefik routers are named after their host), and the bind mount
+  stays owned by the host user, so host git and lefthook no longer fail with
+  `EACCES` on root-owned `bin/`, `tmp/` and `.git` files.
 
 ## [1.3.2] - 2026-10-13
 
@@ -474,7 +500,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kustomize overlays for environment-specific configurations
 - Comprehensive health checks and monitoring endpoints
 
-[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/sbaerlocher/tsmetrics/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/sbaerlocher/tsmetrics/compare/v1.2.0...v1.3.0
