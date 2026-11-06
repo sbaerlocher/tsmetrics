@@ -144,7 +144,7 @@ dde project plugins (`.dde/plugins/*.sh`, auto-registered):
 Direct invocations (no just wrapper):
 
 - `dde project:up|down|restart|logs|exec ...` — container lifecycle
-- `helm install|upgrade|uninstall|template|lint tsmetrics deploy/helm/tsmetrics` — Helm
+- `helm install|upgrade|uninstall|template|lint tsmetrics deploy/helm` — Helm
 - `kubectl apply -k deploy/kustomize/overlays/{development,production}` — Kustomize
 
 Git staging note: `.gitignore` rule `tsmetrics` matches `cmd/tsmetrics/` —
@@ -544,7 +544,7 @@ dde project:observability:up
 # Production image is built by CI on release (GoReleaser + release.yml)
 
 # Kubernetes deployment (host, direct tooling)
-helm install tsmetrics deploy/helm/tsmetrics
+helm install tsmetrics deploy/helm
 kubectl apply -k deploy/kustomize/overlays/production
 ```
 

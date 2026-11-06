@@ -492,19 +492,19 @@ Template-based deployment with full lifecycle management:
 
 ```bash
 # Install from OCI registry (recommended)
-helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics
+helm install tsmetrics oci://ghcr.io/sbaerlocher/chart/tsmetrics
 
 # Or install from local chart
 helm install tsmetrics deploy/helm
 
 # Install with custom values
-helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics \
+helm install tsmetrics oci://ghcr.io/sbaerlocher/chart/tsmetrics \
   --set tailscale.oauthClientId=your-client-id \
   --set tailscale.oauthClientSecret=your-client-secret \
   --set tailscale.tailnetName=your-company
 
 # Or use a values file
-helm install tsmetrics oci://ghcr.io/sbaerlocher/charts/tsmetrics -f my-values.yaml
+helm install tsmetrics oci://ghcr.io/sbaerlocher/chart/tsmetrics -f my-values.yaml
 ```
 
 **Example values.yaml:**
@@ -912,7 +912,7 @@ dde project plugins ([.dde/plugins/](.dde/plugins/), auto-registered):
 Direct invocations (no wrapper — no value-add):
 
 - Container lifecycle: `dde project:up|down|restart|logs|exec ...`
-- Helm: `helm install|upgrade|template|lint tsmetrics deploy/helm/tsmetrics`
+- Helm: `helm install|upgrade|template|lint tsmetrics deploy/helm`
 - Kustomize: `kubectl apply -k deploy/kustomize/overlays/{development,production}`
 
 ### Environment Management

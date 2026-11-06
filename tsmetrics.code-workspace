@@ -25,8 +25,6 @@
       "**/templates/*.yml": "helm",
       "**/helm/**/templates/*.yaml": "helm",
       "**/helm/**/templates/*.yml": "helm",
-      "deploy/helm/tsmetrics/templates/*.yaml": "helm",
-      "deploy/helm/tsmetrics/templates/*.yml": "helm",
       "Chart.yaml": "yaml",
       "values.yaml": "yaml",
       "values-*.yaml": "yaml",
