@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidateDeviceMetricsURL(t *testing.T) {
@@ -21,6 +22,9 @@ func TestValidateDeviceMetricsURL(t *testing.T) {
 		{"reject IPv6 loopback", "http://[::1]:5252/metrics", "forbidden range"},
 		{"reject IPv6 link-local", "http://[fe80::1]:5252/metrics", "forbidden range"},
 		{"reject IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]:5252/metrics", "forbidden range"},
+		{"reject IPv6 unspecified", "http://[::]:5252/metrics", "forbidden range"},
+		{"reject zoned IPv6 link-local", "http://[fe80::1%25eth0]:5252/metrics", "forbidden range"},
+		{"reject AWS IPv6 metadata", "http://[fd00:ec2::254]:5252/metrics", "forbidden range"},
 		{"reject localhost string", "http://localhost:5252/metrics", "not a permitted scrape target"},
 		{"reject localhost string case-insensitive", "http://LocalHost:5252/metrics", "not a permitted scrape target"},
 
@@ -87,5 +91,22 @@ func TestScrapeClientSSRFGuards(t *testing.T) {
 	_, err = safeDialer.DialContext(context.Background(), "tcp", srv.Listener.Addr().String())
 	if err == nil || !strings.Contains(err.Error(), "forbidden range") {
 		t.Fatalf("dial to loopback: want forbidden range error, got %v", err)
+	}
+
+	// tsnet path: post-connect check on the established peer address.
+	if err := checkBlockedRemote(srv.Listener.Addr()); err == nil || !strings.Contains(err.Error(), "forbidden range") {
+		t.Fatalf("remote loopback: want forbidden range error, got %v", err)
+	}
+
+	// The production clients must carry both guards.
+	c := NewStandardHTTPClientProvider(time.Second, 1).GetClient()
+	if c.CheckRedirect == nil || c.Timeout != time.Second {
+		t.Fatalf("standard client: CheckRedirect/Timeout not wired: %+v", c)
+	}
+	if tr, ok := c.Transport.(*http.Transport); !ok || tr.DialContext == nil {
+		t.Fatal("standard client: safeDialer not wired")
+	}
+	if (&TsnetHTTPClientProvider{}).GetClient().CheckRedirect == nil {
+		t.Fatal("tsnet client: CheckRedirect not wired")
 	}
 }

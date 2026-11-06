@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -34,6 +35,12 @@ type StandardHTTPClientProvider struct {
 	maxConcurrent int
 }
 
+// NewStandardHTTPClientProvider returns a provider whose clients honour the
+// configured client-metrics timeout and scrape concurrency.
+func NewStandardHTTPClientProvider(timeout time.Duration, maxConcurrent int) *StandardHTTPClientProvider {
+	return &StandardHTTPClientProvider{timeout: timeout, maxConcurrent: maxConcurrent}
+}
+
 func (p *StandardHTTPClientProvider) GetClient() *http.Client {
 	return &http.Client{
 		Timeout:       p.timeout,
@@ -53,17 +60,39 @@ type TsnetHTTPClientProvider struct {
 }
 
 func (p *TsnetHTTPClientProvider) GetClient() *http.Client {
-	// ponytail: tsnet resolves and dials inside its netstack, so no dial-time
-	// IP check here — only redirect hops are re-validated.
+	// tsnet resolves names itself and dials non-tailnet IPs over the host
+	// network (tsdial.SystemDial), so a Control hook is not available here.
+	// The resolved peer is checked right after connect instead, before any
+	// request bytes are written.
 	return &http.Client{
 		Timeout:       p.Timeout,
 		CheckRedirect: checkRedirect,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return p.Server.Dial(ctx, network, addr)
+				conn, err := p.Server.Dial(ctx, network, addr)
+				if err != nil {
+					return nil, err
+				}
+				if err := checkBlockedRemote(conn.RemoteAddr()); err != nil {
+					_ = conn.Close()
+					return nil, err
+				}
+				return conn, nil
 			},
 		},
 	}
+}
+
+// checkBlockedRemote applies checkBlockedIP to an established connection's peer.
+func checkBlockedRemote(remote net.Addr) error {
+	if remote == nil {
+		return nil
+	}
+	host, _, err := net.SplitHostPort(remote.String())
+	if err != nil {
+		return err
+	}
+	return checkBlockedIP(host)
 }
 
 var httpClientProvider HTTPClientProvider
@@ -89,21 +118,14 @@ func ScrapeClientMetrics(ctx context.Context, devices []device.Device, cfg confi
 	var errs []error
 	var scrapedCount int
 
-	var client *http.Client
-	if httpClientProvider != nil {
-		client = httpClientProvider.GetClient()
-	} else {
-		client = &http.Client{
-			Timeout:       cfg.ClientMetricsTimeout,
-			CheckRedirect: checkRedirect,
-			Transport: &http.Transport{
-				DialContext:         safeDialer.DialContext,
-				MaxIdleConns:        cfg.MaxConcurrentScrapes,
-				IdleConnTimeout:     cfg.ClientMetricsTimeout,
-				MaxIdleConnsPerHost: 2,
-			},
-		}
+	provider := httpClientProvider
+	if provider == nil {
+		provider = NewStandardHTTPClientProvider(cfg.ClientMetricsTimeout, cfg.MaxConcurrentScrapes)
 	}
+	// Each cycle builds a fresh Transport; release its keep-alive connections
+	// so they do not accumulate across scrape cycles.
+	client := provider.GetClient()
+	defer client.CloseIdleConnections()
 
 	for _, d := range devices {
 		if cfg.TsnetScrapeTag != "" && !hasTag(d, cfg.TsnetScrapeTag) {
@@ -425,11 +447,13 @@ var scraperBlockedIPNets []*net.IPNet
 
 func init() {
 	for _, cidr := range []string{
-		"0.0.0.0/8",      // current network (RFC 1122) — never a valid destination
-		"127.0.0.0/8",    // IPv4 loopback — prevents hitting the exporter itself
-		"::1/128",        // IPv6 loopback
-		"169.254.0.0/16", // IPv4 link-local (AWS/GCP/Azure instance metadata)
-		"fe80::/10",      // IPv6 link-local
+		"0.0.0.0/8",         // current network (RFC 1122) — never a valid destination
+		"127.0.0.0/8",       // IPv4 loopback — prevents hitting the exporter itself
+		"::1/128",           // IPv6 loopback
+		"::/128",            // IPv6 unspecified — dialing [::] reaches local listeners
+		"169.254.0.0/16",    // IPv4 link-local (AWS/GCP/Azure instance metadata)
+		"fe80::/10",         // IPv6 link-local
+		"fd00:ec2::254/128", // AWS IPv6 instance metadata (rest of fc00::/7 stays allowed)
 	} {
 		_, network, err := net.ParseCIDR(cidr)
 		if err != nil {
@@ -459,19 +483,23 @@ var safeDialer = &net.Dialer{
 		if err != nil {
 			return err
 		}
+		// Control always receives a resolved literal; anything else fails closed.
+		if _, err := netip.ParseAddr(host); err != nil {
+			return fmt.Errorf("dial address %q is not an IP: %w", host, err)
+		}
 		return checkBlockedIP(host)
 	},
 }
 
 // checkBlockedIP returns an error if host is an IP literal in scraperBlockedIPNets.
+// IPv6 zones ("fe80::1%eth0") are stripped first; net.ParseIP rejects them,
+// which would otherwise let zoned link-local addresses through.
 func checkBlockedIP(host string) error {
-	ip := net.ParseIP(host)
-	if ip == nil {
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
 		return nil
 	}
-	if v4 := ip.To4(); v4 != nil {
-		ip = v4
-	}
+	ip := net.IP(addr.WithZone("").Unmap().AsSlice())
 	for _, network := range scraperBlockedIPNets { // DevSkim: ignore DS162092 - intentionally enumerates loopback/link-local for SSRF validation
 		if network.Contains(ip) {
 			return fmt.Errorf("host %q is in a forbidden range %s", host, network.String())

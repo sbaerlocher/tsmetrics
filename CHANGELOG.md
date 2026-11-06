@@ -10,10 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - The client-metrics scraper re-validates every redirect hop against the SSRF
-  blocklist, and the standard (non-tsnet) clients check the resolved IP at
-  connect time. Before, a tailnet device could redirect the scraper to
+  blocklist, and both the standard and the tsnet client check the resolved
+  IP at connect time. Before, a tailnet device could redirect the scraper to
   loopback or `169.254.169.254`, and DNS names resolving into blocked ranges
-  were not checked.
+  were not checked. The blocklist now also covers `::` and zoned IPv6
+  link-local addresses (`fe80::1%eth0`).
 
 ### Removed
 
@@ -31,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   base but had no effect.
 - Removed the `REQUIRE_EXPORTER_TAG` variable from the documentation; it was
   never read. `SCRAPE_TAG` (default `exporter`) selects the scrape targets.
+- Standalone mode ignored `CLIENT_METRICS_TIMEOUT` and `MAX_CONCURRENT_SCRAPES`
+  for client scrapes (no request timeout), and each scrape cycle leaked its
+  idle keep-alive connections.
 
 ## [1.3.2] - 2026-10-13
 

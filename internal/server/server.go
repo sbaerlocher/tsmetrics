@@ -142,7 +142,7 @@ func (s *simpleHealthChecker) CheckHealth(ctx context.Context) error {
 func RunStandalone(cfg config.Config, ctx context.Context, collector *metrics.Collector) error {
 	addr := fmt.Sprintf("%s:%s", cfg.BindHost, cfg.Port)
 
-	metrics.SetHTTPClientProvider(&metrics.StandardHTTPClientProvider{})
+	metrics.SetHTTPClientProvider(metrics.NewStandardHTTPClientProvider(cfg.ClientMetricsTimeout, cfg.MaxConcurrentScrapes))
 	slog.Info("HTTP client configured", "network", "standard")
 
 	mux := SetupRoutes()
