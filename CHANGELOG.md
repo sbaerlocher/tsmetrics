@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The client-metrics scraper re-validates every redirect hop against the SSRF
+  blocklist, and the standard (non-tsnet) clients check the resolved IP at
+  connect time. Before, a tailnet device could redirect the scraper to
+  loopback or `169.254.169.254`, and DNS names resolving into blocked ranges
+  were not checked.
+
 ### Removed
 
 - Unused `InputValidator.ValidateURL`. Its blocklist (RFC1918, CGNAT

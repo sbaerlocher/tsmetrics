@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"tailscale.com/tsnet"
@@ -35,8 +36,10 @@ type StandardHTTPClientProvider struct {
 
 func (p *StandardHTTPClientProvider) GetClient() *http.Client {
 	return &http.Client{
-		Timeout: p.timeout,
+		Timeout:       p.timeout,
+		CheckRedirect: checkRedirect,
 		Transport: &http.Transport{
+			DialContext:         safeDialer.DialContext,
 			MaxIdleConns:        p.maxConcurrent,
 			IdleConnTimeout:     p.timeout,
 			MaxIdleConnsPerHost: 2,
@@ -50,8 +53,11 @@ type TsnetHTTPClientProvider struct {
 }
 
 func (p *TsnetHTTPClientProvider) GetClient() *http.Client {
+	// ponytail: tsnet resolves and dials inside its netstack, so no dial-time
+	// IP check here — only redirect hops are re-validated.
 	return &http.Client{
-		Timeout: p.Timeout,
+		Timeout:       p.Timeout,
+		CheckRedirect: checkRedirect,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return p.Server.Dial(ctx, network, addr)
@@ -88,8 +94,10 @@ func ScrapeClientMetrics(ctx context.Context, devices []device.Device, cfg confi
 		client = httpClientProvider.GetClient()
 	} else {
 		client = &http.Client{
-			Timeout: cfg.ClientMetricsTimeout,
+			Timeout:       cfg.ClientMetricsTimeout,
+			CheckRedirect: checkRedirect,
 			Transport: &http.Transport{
+				DialContext:         safeDialer.DialContext,
 				MaxIdleConns:        cfg.MaxConcurrentScrapes,
 				IdleConnTimeout:     cfg.ClientMetricsTimeout,
 				MaxIdleConnsPerHost: 2,
@@ -431,10 +439,50 @@ func init() {
 	}
 }
 
+// checkRedirect re-applies validateDeviceMetricsURL to every redirect hop, so a
+// tailnet device cannot bounce the scraper to loopback or cloud metadata.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	return validateDeviceMetricsURL(req.URL.String())
+}
+
+// safeDialer rejects connections whose resolved IP is in scraperBlockedIPNets.
+// Control runs after DNS resolution, so it also catches DNS names (initial or
+// redirected) that resolve into a blocked range.
+var safeDialer = &net.Dialer{
+	Timeout:   30 * time.Second,
+	KeepAlive: 30 * time.Second,
+	Control: func(_, address string, _ syscall.RawConn) error {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return err
+		}
+		return checkBlockedIP(host)
+	},
+}
+
+// checkBlockedIP returns an error if host is an IP literal in scraperBlockedIPNets.
+func checkBlockedIP(host string) error {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil
+	}
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	for _, network := range scraperBlockedIPNets { // DevSkim: ignore DS162092 - intentionally enumerates loopback/link-local for SSRF validation
+		if network.Contains(ip) {
+			return fmt.Errorf("host %q is in a forbidden range %s", host, network.String())
+		}
+	}
+	return nil
+}
+
 // validateDeviceMetricsURL parses a device metrics URL and rejects it if the
-// host resolves to a forbidden literal IP (loopback, link-local, current-net).
-// DNS names are accepted; DNS rebinding is out of scope because device hostnames
-// originate from the authenticated Tailscale API.
+// host is a forbidden literal IP (loopback, link-local, current-net). DNS names
+// pass here; safeDialer checks their resolved IP at connect time.
 func validateDeviceMetricsURL(urlStr string) error {
 	u, err := url.Parse(urlStr)
 	if err != nil {
@@ -450,18 +498,5 @@ func validateDeviceMetricsURL(urlStr string) error {
 	if strings.EqualFold(host, "localhost") {
 		return fmt.Errorf("host %q is not a permitted scrape target", host)
 	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		// DNS name — trust the Tailscale API as the source of truth.
-		return nil
-	}
-	if v4 := ip.To4(); v4 != nil {
-		ip = v4
-	}
-	for _, network := range scraperBlockedIPNets { // DevSkim: ignore DS162092 - intentionally enumerates loopback/link-local for SSRF validation
-		if network.Contains(ip) {
-			return fmt.Errorf("host %q is in a forbidden range %s", host, network.String())
-		}
-	}
-	return nil
+	return checkBlockedIP(host)
 }

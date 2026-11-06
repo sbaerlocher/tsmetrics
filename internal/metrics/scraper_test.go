@@ -1,6 +1,9 @@
 package metrics
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -56,5 +59,33 @@ func TestValidateDeviceMetricsURL(t *testing.T) {
 				t.Errorf("validateDeviceMetricsURL(%q) error = %v; want substring %q", tt.url, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// A device answering with a redirect to a blocked target must not be followed,
+// and a connection to a blocked resolved IP must be refused at dial time.
+func TestScrapeClientSSRFGuards(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://169.254.169.254/latest/meta-data/", http.StatusFound) // DevSkim: ignore DS162092
+	}))
+	defer srv.Close()
+
+	// Default transport: httptest listens on loopback, which safeDialer would refuse.
+	client := &http.Client{CheckRedirect: checkRedirect}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "forbidden range") {
+		t.Fatalf("redirect to link-local: want forbidden range error, got %v", err)
+	}
+
+	_, err = safeDialer.DialContext(context.Background(), "tcp", srv.Listener.Addr().String())
+	if err == nil || !strings.Contains(err.Error(), "forbidden range") {
+		t.Fatalf("dial to loopback: want forbidden range error, got %v", err)
 	}
 }
