@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The client-metrics scraper no longer follows redirects, and both the
+  standard and the tsnet client check the resolved IP at connect time. Before,
+  a tailnet device could redirect the scraper to loopback,
+  `169.254.169.254` or any internal host, and DNS names resolving into blocked
+  ranges were not checked. The blocklist now also covers `::`, AWS IPv6
+  metadata, zoned IPv6 link-local addresses (`fe80::1%eth0`) and IPv4 embedded
+  in IPv6 (NAT64, IPv4-compatible). Rejected targets are counted as
+  `error_type="forbidden_target"` and not retried.
+
 ### Removed
 
 - Unused `InputValidator.ValidateURL`. Its blocklist (RFC1918, CGNAT
@@ -23,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   base but had no effect.
 - Removed the `REQUIRE_EXPORTER_TAG` variable from the documentation; it was
   never read. `SCRAPE_TAG` (default `exporter`) selects the scrape targets.
+- Standalone mode ignored `CLIENT_METRICS_TIMEOUT` and `MAX_CONCURRENT_SCRAPES`
+  for client scrapes (no request timeout), and each scrape cycle built a new
+  HTTP client, so keep-alive connections were never reused and leaked.
 
 ## [1.3.2] - 2026-10-13
 

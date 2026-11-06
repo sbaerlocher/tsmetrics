@@ -481,11 +481,14 @@ func (e *Exporter) scrapeClientMetrics(devices []Device) error {
 - **tsnet State:** Secure state directory permissions in production
 - **Network Access:** Restrict scraping to devices with appropriate tags
 - **SSRF:** `validateDeviceMetricsURL` (`internal/metrics/scraper.go`) rejects `localhost` and literal IPs in
-  `0.0.0.0/8`, `127.0.0.0/8`, `::1/128`, `169.254.0.0/16`, `fe80::/10`. RFC1918, `100.64.0.0/10` and
+  `0.0.0.0/8`, `127.0.0.0/8`, `::1/128`, `::/128`, `169.254.0.0/16`, `fe80::/10`, `fd00:ec2::254/128`
+  (IPv6 zones stripped). RFC1918, `100.64.0.0/10` and
   `fc00::/7` (Tailscale IPv6 `fd7a:115c:a1e0::/48`) are intentionally allowed — tailnet devices live there.
-  Do not weaken the blocklist, and do not add those ranges to it. Known gap: only the initial URL's literal
-  host is checked — redirects (scrape clients set no `CheckRedirect`) and DNS names resolving into blocked
-  ranges are not
+  Do not weaken the blocklist, and do not add those ranges to it. IPv4 embedded in IPv6 (mapped, NAT64
+  `64:ff9b::/96`, IPv4-compatible) is checked as IPv4. `checkRedirect` refuses all redirects; `safeDialer`
+  checks the resolved IP before connect (standard clients); `guardedDial` checks the peer right after connect
+  (tsnet, which dials non-tailnet IPs over the host network). Rejections wrap `errForbiddenTarget` and are
+  counted as `error_type="forbidden_target"`, non-retryable
 - **Rate Limiting:** `getClientID` uses `RemoteAddr` only — never trust X-Forwarded-For/X-Real-IP (forgeable)
 - **Timing Attacks:** `SecureValidateToken` must never `break` early — always iterate all tokens
 - **DevSkim:** Add `// DevSkim: ignore DS162092` on lines that intentionally reference private IPs in security validators
