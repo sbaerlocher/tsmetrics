@@ -842,6 +842,26 @@ dde project:shell       # interactive shell in the main container
 Project config lives in [.dde/config.yml](.dde/config.yml). The compose stack is defined
 in [docker-compose.yml](docker-compose.yml) (app + optional `observability` profile).
 
+#### Root-owned files in the bind mount
+
+dde starts the `tsmetrics` container as root, so files written into the bind
+mount as root (Air's `bin/tsmetrics`, `dde project:exec --root`, git inside the
+container) end up root-owned on the host and break host git and lefthook with
+`EACCES`. Two dde hooks keep the working tree user-owned:
+
+- `.dde/hooks/project.up.pre/10-volume-mountpoints.sh` pre-creates the
+  anonymous-volume mountpoints (`tmp/`, derived from `docker compose config`)
+  as the host user, so Docker does not create them as root. An empty
+  root-owned mountpoint is recreated; a non-empty one gets a one-time fix hint.
+- `.dde/hooks/project.down.pre/10-chown-bind-mount.sh` chowns root-owned
+  files under `/app` (and, in a git worktree, the main clone's `.git`) back to
+  the host user before the stack stops.
+
+Both hooks need `jq` on the host (`brew install jq`); without it they warn and
+Docker creates `tmp/` as root again. Both are best effort and only warn. The chown needs the running `tsmetrics`
+container; after a crash or a plain `docker stop`, run
+`dde project:up && dde project:down` once.
+
 ### Development Workflow
 
 ```bash
