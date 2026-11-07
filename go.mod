@@ -7,6 +7,7 @@ require (
 	github.com/prometheus/client_model v0.6.3
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/time v0.16.0
+	gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72
 	tailscale.com v1.104.5
 )
 
@@ -57,5 +58,4 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v1.0.1 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	gvisor.dev/gvisor v0.0.0-20260915211658-a6f909f08a72 // indirect
 )
