@@ -4,9 +4,9 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"sync"
 	"time"
 
@@ -263,9 +263,7 @@ func (dc *DynamicConfig) updateConfig(newConfig Config) {
 }
 
 func (dc *DynamicConfig) configsEqual(a, b Config) bool {
-	aJSON, _ := json.Marshal(a)
-	bJSON, _ := json.Marshal(b)
-	return string(aJSON) == string(bJSON)
+	return reflect.DeepEqual(a, b)
 }
 
 func (dc *DynamicConfig) isReloadInProgress() bool {

@@ -111,8 +111,8 @@ func TestScrapeHost(t *testing.T) {
 		devHost  string
 		expected string
 	}{
-		{"FQDN preferred when both set", "device.tail1234.ts.net", "device", "device.tail1234.ts.net"},
-		{"falls back to Host when Name empty", "", "device", "device"},
+		{"FQDN preferred when both set", "device.tail1234.ts.net", shortHost, "device.tail1234.ts.net"},
+		{"falls back to Host when Name empty", "", shortHost, shortHost},
 		{"returns empty when both empty", "", "", ""},
 	}
 

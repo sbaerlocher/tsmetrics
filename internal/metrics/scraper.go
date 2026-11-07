@@ -380,16 +380,16 @@ func updateDeviceMetric(dev device.Device, name string, labels map[string]string
 
 	switch name {
 	case "tailscaled_inbound_bytes_total":
-		path := labels["path"]
+		path := labels[labelPath]
 		InboundBytes.WithLabelValues(deviceID, deviceName, path).Set(val)
 	case "tailscaled_outbound_bytes_total":
-		path := labels["path"]
+		path := labels[labelPath]
 		OutboundBytes.WithLabelValues(deviceID, deviceName, path).Set(val)
 	case "tailscaled_inbound_packets_total":
-		path := labels["path"]
+		path := labels[labelPath]
 		InboundPackets.WithLabelValues(deviceID, deviceName, path).Set(val)
 	case "tailscaled_outbound_packets_total":
-		path := labels["path"]
+		path := labels[labelPath]
 		OutboundPackets.WithLabelValues(deviceID, deviceName, path).Set(val)
 	case "tailscaled_inbound_dropped_packets_total":
 		InboundDroppedPackets.WithLabelValues(deviceID, deviceName).Set(val)

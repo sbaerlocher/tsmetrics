@@ -7,6 +7,10 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/types"
 )
 
+const (
+	testHost = "example.com"
+)
+
 func TestDeviceValidate(t *testing.T) {
 	validDeviceID, _ := types.NewDeviceID("device123")
 	validDeviceName, _ := types.NewDeviceName("test-device")
@@ -22,7 +26,7 @@ func TestDeviceValidate(t *testing.T) {
 			device: Device{
 				ID:   validDeviceID,
 				Name: validDeviceName,
-				Host: "example.com",
+				Host: testHost,
 				Tags: []types.TagName{validTag},
 			},
 			wantErr: false,
@@ -32,7 +36,7 @@ func TestDeviceValidate(t *testing.T) {
 			device: Device{
 				ID:   types.DeviceID(""),
 				Name: validDeviceName,
-				Host: "example.com",
+				Host: testHost,
 				Tags: []types.TagName{validTag},
 			},
 			wantErr: true,
@@ -42,7 +46,7 @@ func TestDeviceValidate(t *testing.T) {
 			device: Device{
 				ID:   validDeviceID,
 				Name: types.DeviceName(""),
-				Host: "example.com",
+				Host: testHost,
 				Tags: []types.TagName{validTag},
 			},
 			wantErr: true,
@@ -62,7 +66,7 @@ func TestDeviceValidate(t *testing.T) {
 			device: Device{
 				ID:   validDeviceID,
 				Name: validDeviceName,
-				Host: "example.com",
+				Host: testHost,
 				Tags: []types.TagName{types.TagName("")},
 			},
 			wantErr: true,
@@ -98,7 +102,7 @@ func TestDeviceCreation(t *testing.T) {
 	device := Device{
 		ID:                deviceID,
 		Name:              deviceName,
-		Host:              "example.com",
+		Host:              testHost,
 		Tags:              []types.TagName{tag},
 		Online:            true,
 		Authorized:        true,

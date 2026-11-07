@@ -113,7 +113,7 @@ func TestBasicConfigValidator_ValidateConfig(t *testing.T) {
 func TestLoggingConfigHandler_HandleConfigChange(t *testing.T) {
 	handler := NewLoggingConfigHandler()
 
-	oldConfig := Config{LogLevel: "info"}
+	oldConfig := Config{LogLevel: logLevelInfo}
 	newConfig := Config{LogLevel: "debug"}
 
 	err := handler.HandleConfigChange(oldConfig, newConfig)
@@ -234,5 +234,29 @@ func TestDynamicConfig_Stop(t *testing.T) {
 		// Expected
 	case <-time.After(2 * time.Second):
 		t.Error("Stop() took too long")
+	}
+}
+
+func TestConfigsEqual(t *testing.T) {
+	dc := NewDynamicConfig(Config{}, time.Minute)
+	base := Config{OAuthSecret: "s", ScrapeInterval: 30 * time.Second, TsnetOwnTags: []string{"a"}}
+
+	tests := []struct {
+		name string
+		a, b Config
+		want bool
+	}{
+		{"identical", base, Config{OAuthSecret: "s", ScrapeInterval: 30 * time.Second, TsnetOwnTags: []string{"a"}}, true},
+		{"secret differs", Config{OAuthSecret: "a"}, Config{OAuthSecret: "b"}, false},
+		{"interval differs", Config{ScrapeInterval: 30 * time.Second}, Config{ScrapeInterval: 60 * time.Second}, false},
+		{"nil vs empty tags", Config{TsnetOwnTags: nil}, Config{TsnetOwnTags: []string{}}, false},
+		{"tag order differs", Config{TsnetOwnTags: []string{"a", "b"}}, Config{TsnetOwnTags: []string{"b", "a"}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dc.configsEqual(tt.a, tt.b); got != tt.want {
+				t.Errorf("configsEqual() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

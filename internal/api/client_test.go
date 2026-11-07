@@ -13,6 +13,20 @@ import (
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
+const (
+	testBaseURL         = "https://api.tailscale.com/api/v2/tailnet/test-tailnet"
+	keyDevices          = "devices"
+	keyAdvertisedRoutes = "advertisedRoutes"
+	keyEnabledRoutes    = "enabledRoutes"
+	testSubnet          = "192.168.1.0/24"
+	tagGateway          = "tag:gateway"
+	exporterName        = "exporter"
+	testUserEmail       = "test@example.com"
+	defaultRoute        = "0.0.0.0/0"
+	defaultRouteV6      = "::/0"
+	gatewayName         = "gateway"
+)
+
 type mockTransport struct {
 	responses map[string]*http.Response
 	requests  []*http.Request
@@ -56,7 +70,7 @@ func TestNewClient(t *testing.T) {
 		t.Fatal("Expected client to be created")
 	}
 
-	if client.baseURL != "https://api.tailscale.com/api/v2/tailnet/test-tailnet" {
+	if client.baseURL != testBaseURL {
 		t.Errorf("Expected baseURL to contain tailnet, got %s", client.baseURL)
 	}
 }
@@ -68,7 +82,7 @@ func TestNewClientWithToken(t *testing.T) {
 		t.Fatal("Expected client to be created")
 	}
 
-	if client.baseURL != "https://api.tailscale.com/api/v2/tailnet/test-tailnet" {
+	if client.baseURL != testBaseURL {
 		t.Errorf("Expected baseURL to contain tailnet, got %s", client.baseURL)
 	}
 }
@@ -92,7 +106,7 @@ func TestClientFetchDevices(t *testing.T) {
 	}
 
 	responseBody := map[string]interface{}{
-		"devices": mockDevices,
+		keyDevices: mockDevices,
 	}
 
 	mockTransport := &mockTransport{
@@ -106,12 +120,12 @@ func TestClientFetchDevices(t *testing.T) {
 
 	// Add mock responses for route API calls
 	routesResponse1 := map[string][]string{
-		"advertisedRoutes": {},
-		"enabledRoutes":    {},
+		keyAdvertisedRoutes: {},
+		keyEnabledRoutes:    {},
 	}
 	routesResponse2 := map[string][]string{
-		"advertisedRoutes": {"192.168.1.0/24"},
-		"enabledRoutes":    {"192.168.1.0/24"},
+		keyAdvertisedRoutes: {testSubnet},
+		keyEnabledRoutes:    {testSubnet},
 	}
 	routesResp1 := createMockResponse(200, routesResponse1)
 	t.Cleanup(func() { _ = routesResp1.Body.Close() })
@@ -125,7 +139,7 @@ func TestClientFetchDevices(t *testing.T) {
 			Transport: mockTransport,
 			Timeout:   30 * time.Second,
 		},
-		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
+		baseURL: testBaseURL,
 	}
 
 	devices, err := client.FetchDevices(context.Background())
@@ -171,7 +185,7 @@ func TestClientFetchDevicesError(t *testing.T) {
 			Transport: mockTransport,
 			Timeout:   30 * time.Second,
 		},
-		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
+		baseURL: testBaseURL,
 	}
 
 	devices, err := client.FetchDevices(context.Background())
@@ -188,7 +202,7 @@ func TestClientWithRealServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/devices" {
 			response := map[string]interface{}{
-				"devices": []device.Device{
+				keyDevices: []device.Device{
 					{
 						ID:   "test-device",
 						Name: "test",
@@ -251,18 +265,18 @@ func TestParseTags(t *testing.T) {
 	}{
 		{
 			name:     "tags with prefix",
-			input:    []string{"tag:exporter", "tag:gateway"},
-			expected: []string{"exporter", "gateway"},
+			input:    []string{"tag:exporter", tagGateway},
+			expected: []string{exporterName, gatewayName},
 		},
 		{
 			name:     "tags without prefix",
-			input:    []string{"exporter", "gateway"},
-			expected: []string{"exporter", "gateway"},
+			input:    []string{exporterName, gatewayName},
+			expected: []string{exporterName, gatewayName},
 		},
 		{
 			name:     "mixed tags",
-			input:    []string{"tag:exporter", "production", "tag:gateway"},
-			expected: []string{"exporter", "production", "gateway"},
+			input:    []string{"tag:exporter", "production", tagGateway},
+			expected: []string{exporterName, "production", gatewayName},
 		},
 		{
 			name:     "empty tags",
@@ -301,26 +315,27 @@ func TestClientExitNodeDetection(t *testing.T) {
 	}
 
 	// Mock devices response
+	//nolint:goconst // JSON keys mirror the Tailscale API payload; literals keep the fixture readable
 	devices := []map[string]interface{}{
 		{
 			"id":         "exit-node-device",
 			"name":       "exit-node.example.com",
 			"hostname":   "exit-node",
 			"addresses":  []string{"100.64.0.1"},
-			"tags":       []string{"tag:gateway"},
+			"tags":       []string{tagGateway},
 			"authorized": true,
 			"lastSeen":   time.Now().Add(-5 * time.Minute).Format(time.RFC3339),
-			"user":       "test@example.com",
+			"user":       testUserEmail,
 		},
 		{
 			"id":         "subnet-router-device",
 			"name":       "subnet-router.example.com",
 			"hostname":   "subnet-router",
 			"addresses":  []string{"100.64.0.2"},
-			"tags":       []string{"tag:gateway"},
+			"tags":       []string{tagGateway},
 			"authorized": true,
 			"lastSeen":   time.Now().Add(-3 * time.Minute).Format(time.RFC3339),
-			"user":       "test@example.com",
+			"user":       testUserEmail,
 		},
 		{
 			"id":         "regular-device",
@@ -330,12 +345,12 @@ func TestClientExitNodeDetection(t *testing.T) {
 			"tags":       []string{},
 			"authorized": true,
 			"lastSeen":   time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
-			"user":       "test@example.com",
+			"user":       testUserEmail,
 		},
 	}
 
 	responseBody := map[string]interface{}{
-		"devices": devices,
+		keyDevices: devices,
 	}
 
 	devResp := createMockResponse(200, responseBody)
@@ -344,16 +359,16 @@ func TestClientExitNodeDetection(t *testing.T) {
 
 	// Mock route responses for different device types
 	exitNodeRoutes := map[string][]string{
-		"advertisedRoutes": {"0.0.0.0/0", "::/0"},
-		"enabledRoutes":    {"0.0.0.0/0", "::/0"},
+		keyAdvertisedRoutes: {defaultRoute, defaultRouteV6},
+		keyEnabledRoutes:    {defaultRoute, defaultRouteV6},
 	}
 	subnetRouterRoutes := map[string][]string{
-		"advertisedRoutes": {"0.0.0.0/0", "::/0", "192.168.1.0/24"},
-		"enabledRoutes":    {"0.0.0.0/0", "::/0", "192.168.1.0/24"},
+		keyAdvertisedRoutes: {defaultRoute, defaultRouteV6, testSubnet},
+		keyEnabledRoutes:    {defaultRoute, defaultRouteV6, testSubnet},
 	}
 	regularDeviceRoutes := map[string][]string{
-		"advertisedRoutes": {},
-		"enabledRoutes":    {},
+		keyAdvertisedRoutes: {},
+		keyEnabledRoutes:    {},
 	}
 
 	exitResp := createMockResponse(200, exitNodeRoutes)
@@ -371,7 +386,7 @@ func TestClientExitNodeDetection(t *testing.T) {
 			Transport: mockTransport,
 			Timeout:   30 * time.Second,
 		},
-		baseURL: "https://api.tailscale.com/api/v2/tailnet/test-tailnet",
+		baseURL: testBaseURL,
 	}
 
 	devicesResult, err := client.FetchDevices(context.Background())

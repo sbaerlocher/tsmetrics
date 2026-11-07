@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	fieldDeviceName = "device_name"
+	pathAPIDevices  = "/api/devices"
+)
+
 func TestInputValidator_ValidateString(t *testing.T) {
 	validator := NewInputValidator()
 
@@ -20,31 +25,31 @@ func TestInputValidator_ValidateString(t *testing.T) {
 		{
 			name:        "valid string",
 			input:       "test-device-123",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: false,
 		},
 		{
 			name:        "empty string",
 			input:       "",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: true,
 		},
 		{
 			name:        "too long string",
 			input:       strings.Repeat("a", 1001),
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: true,
 		},
 		{
 			name:        "control characters",
 			input:       "test\x00device",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: true,
 		},
 		{
 			name:        "allowed tabs and newlines",
 			input:       "test\tdevice\n",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: false,
 		},
 	}
@@ -200,7 +205,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		},
 		{
 			name: "cache headers for API endpoint",
-			path: "/api/devices",
+			path: pathAPIDevices,
 			expectedHeaders: map[string]string{
 				"Cache-Control": "no-store, no-cache, must-revalidate, private",
 				"Pragma":        "no-cache",
@@ -210,7 +215,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequestWithContext(t.Context(), "GET", tt.path, nil)
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, req)
@@ -233,7 +238,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	}))
 
 	// First request should succeed
-	req1 := httptest.NewRequest("GET", "/test", nil)
+	req1 := httptest.NewRequestWithContext(t.Context(), "GET", "/test", nil)
 	req1.RemoteAddr = "192.168.1.1:12345"
 	w1 := httptest.NewRecorder()
 	handler.ServeHTTP(w1, req1)
@@ -243,7 +248,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	}
 
 	// Second immediate request should be rate limited
-	req2 := httptest.NewRequest("GET", "/test", nil)
+	req2 := httptest.NewRequestWithContext(t.Context(), "GET", "/test", nil)
 	req2.RemoteAddr = "192.168.1.1:12346" // Same IP, different port
 	w2 := httptest.NewRecorder()
 	handler.ServeHTTP(w2, req2)
@@ -299,25 +304,25 @@ func TestAuthenticationMiddleware(t *testing.T) {
 		},
 		{
 			name:           "valid token",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "Bearer " + token,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "missing auth header",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "",
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:           "invalid token format",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "Token " + token,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:           "invalid token",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "Bearer invalid-token",
 			expectedStatus: http.StatusUnauthorized,
 		},
@@ -325,7 +330,7 @@ func TestAuthenticationMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", tt.path, nil)
+			req := httptest.NewRequestWithContext(t.Context(), "GET", tt.path, nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
@@ -373,7 +378,7 @@ func TestRequestSizeLimitMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(strings.Repeat("a", tt.bodySize))
-			req := httptest.NewRequest("POST", "/test", body)
+			req := httptest.NewRequestWithContext(t.Context(), "POST", "/test", body)
 			req.ContentLength = int64(tt.bodySize)
 			w := httptest.NewRecorder()
 
@@ -417,7 +422,7 @@ func TestGetClientID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/test", nil)
 			req.RemoteAddr = tt.remoteAddr
 			if tt.xForwardedFor != "" {
 				req.Header.Set("X-Forwarded-For", tt.xForwardedFor)

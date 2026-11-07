@@ -13,6 +13,9 @@ import (
 	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
+// statusKey is the JSON key carrying the status in health responses.
+const statusKey = "status"
+
 var (
 	version       = "dev"
 	buildTime     = "unknown"
@@ -53,7 +56,7 @@ func SetAPIClient(c *api.Client) {
 func EnhancedHealthHandler(w http.ResponseWriter, _ *http.Request) {
 	lastScrape := getLastScrapeTime()
 	status := map[string]interface{}{
-		"status":                "ok",
+		statusKey:               "ok",
 		"timestamp":             time.Now().Unix(),
 		"first_scrape_complete": lastScrape != 0,
 		"uptime_seconds":        getUptimeSeconds(),
@@ -97,7 +100,7 @@ func healthProbeHandler(w http.ResponseWriter, r *http.Request, timeout time.Dur
 	if healthChecker == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": nullStatus}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]string{statusKey: nullStatus}); err != nil {
 			slog.Error("failed to write health response", "error", err)
 		}
 		return
@@ -110,7 +113,7 @@ func healthProbeHandler(w http.ResponseWriter, r *http.Request, timeout time.Dur
 		slog.Warn("health probe check failed", "probe", errStatus, "error", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		if encErr := json.NewEncoder(w).Encode(map[string]string{"status": errStatus}); encErr != nil {
+		if encErr := json.NewEncoder(w).Encode(map[string]string{statusKey: errStatus}); encErr != nil {
 			slog.Error("failed to write health error response", "error", encErr)
 		}
 		return
@@ -118,7 +121,7 @@ func healthProbeHandler(w http.ResponseWriter, r *http.Request, timeout time.Dur
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": okStatus}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]string{statusKey: okStatus}); err != nil {
 		slog.Error("failed to write health ok response", "error", err)
 	}
 }
@@ -149,7 +152,7 @@ func StartupHandler(w http.ResponseWriter, r *http.Request) {
 func DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if healthChecker == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, err := w.Write([]byte(`{"status":"not configured"}`)); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]string{statusKey: "not configured"}); err != nil {
 			slog.Error("failed to write detailed health not configured response", "error", err)
 		}
 		return

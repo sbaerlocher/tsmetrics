@@ -15,6 +15,10 @@ import (
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
+const (
+	testComponent = "test"
+)
+
 func TestHealthChecker_NewHealthChecker(t *testing.T) {
 	hc := NewHealthChecker()
 
@@ -90,7 +94,7 @@ func TestHealthChecker_StartupCheck(t *testing.T) {
 
 			// Add a failing component for the readiness check
 			hc.RegisterComponent(&mockComponentChecker{
-				name:      "test",
+				name:      testComponent,
 				shouldErr: true,
 			})
 
@@ -263,8 +267,8 @@ func TestWriteHealthResponse(t *testing.T) {
 	status := HealthStatus{
 		Overall: StatusHealthy,
 		Checks: map[string]CheckResult{
-			"test": {
-				Component: "test",
+			testComponent: {
+				Component: testComponent,
 				Status:    StatusHealthy,
 				Message:   "OK",
 				Duration:  100 * time.Millisecond,
@@ -318,12 +322,12 @@ func TestDetermineHTTPStatus(t *testing.T) {
 
 func TestHealthChecker_RegisterComponent(t *testing.T) {
 	hc := NewHealthChecker()
-	comp := &mockComponentChecker{name: "test", shouldErr: false}
+	comp := &mockComponentChecker{name: testComponent, shouldErr: false}
 
 	hc.RegisterComponent(comp)
 
 	hc.mu.RLock()
-	if _, exists := hc.components["test"]; !exists {
+	if _, exists := hc.components[testComponent]; !exists {
 		t.Error("Component should be registered")
 	}
 	hc.mu.RUnlock()
