@@ -583,7 +583,7 @@ kubectl kustomize deploy/kustomize/overlays/production
 **Secret setup (required for Kustomize):**
 
 ```bash
-kubectl create secret generic tsmetrics-secrets \
+kubectl create secret generic tsmetrics-secrets -n tsmetrics \
   --from-literal=OAUTH_CLIENT_ID=your-client-id \
   --from-literal=OAUTH_CLIENT_SECRET=your-client-secret \
   --from-literal=TAILNET_NAME=your-company
