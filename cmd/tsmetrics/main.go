@@ -8,7 +8,9 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime/debug"
@@ -65,12 +67,13 @@ func performHealthCheck() error {
 	if host == "" {
 		host = "127.0.0.1" // DevSkim: ignore DS162092 - Localhost is appropriate for health checks
 	}
-	healthURL := fmt.Sprintf("http://%s:%s/livez", host, cfg.Port)
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, healthURL, nil) //nolint:gosec // G704: URL from local config (HEALTH_CHECK_HOST/PORT), not user input
+	healthURL := url.URL{Scheme: "http", Host: net.JoinHostPort(host, cfg.Port), Path: "/livez"}
+	// #nosec G704 -- URL from local config (HEALTH_CHECK_HOST, PORT), not user input
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, healthURL.String(), nil)
 	if reqErr != nil {
 		return fmt.Errorf("health check request failed: %w", reqErr)
 	}
-	resp, err := client.Do(req) //nolint:gosec // URL constructed from local config, not user input
+	resp, err := client.Do(req) // #nosec G704 -- same local health URL as above
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}

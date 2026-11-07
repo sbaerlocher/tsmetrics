@@ -404,7 +404,7 @@ func (c *Collector) CollectDeviceMetrics(ctx context.Context, device device.Devi
 
 	// Implementation details would depend on the specific metric collection logic
 	// For now, this is a placeholder that would integrate with the existing collection code
-	slog.Debug("collecting metrics for device", labelDeviceID, device.ID.String(), labelDeviceName, device.Name.String())
+	slog.Debug("collecting metrics for device", "device_id", device.ID.String(), "device_name", device.Name.String())
 
 	// In a real implementation, this would call the appropriate scraping functions
 	// and handle the metric collection logic for a single device

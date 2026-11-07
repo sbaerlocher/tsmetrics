@@ -152,7 +152,7 @@ func StartupHandler(w http.ResponseWriter, r *http.Request) {
 func DetailedHealthHandler(w http.ResponseWriter, r *http.Request) {
 	if healthChecker == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		if _, err := w.Write([]byte(`{"status":"not configured"}`)); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]string{statusKey: "not configured"}); err != nil {
 			slog.Error("failed to write detailed health not configured response", "error", err)
 		}
 		return
