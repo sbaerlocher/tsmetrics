@@ -545,7 +545,15 @@ externalSecret:
 serviceMonitor:
   enabled: true
   interval: 30s
+  # Send METRICS_TOKEN from the external secret as a Bearer token. Only set
+  # this when the secret actually contains METRICS_TOKEN.
+  bearerTokenAuth: true
 ```
+
+With the chart-managed Secret (`externalSecret.enabled: false`) the
+ServiceMonitor sends the token automatically as soon as
+`tailscale.metricsToken` is set; `serviceMonitor.bearerTokenAuth` is only
+consulted together with `externalSecret.enabled: true`.
 
 **Helm Features:**
 
@@ -580,6 +588,46 @@ kubectl create secret generic tsmetrics-secrets \
   --from-literal=OAUTH_CLIENT_SECRET=your-client-secret \
   --from-literal=TAILNET_NAME=your-company
 ```
+
+**Protecting `/metrics` with `METRICS_TOKEN`:**
+
+The production overlay ships a ServiceMonitor without bearer-token auth. If
+you add `METRICS_TOKEN` to `tsmetrics-secrets`, `/metrics` requires that
+token and the stock ServiceMonitor gets `401` on every scrape. Create the
+secret in the overlay's namespace and wrap the overlay in your own
+kustomization that patches the ServiceMonitor:
+
+```bash
+kubectl create secret generic tsmetrics-secrets -n tsmetrics \
+  --from-literal=OAUTH_CLIENT_ID=your-client-id \
+  --from-literal=OAUTH_CLIENT_SECRET=your-client-secret \
+  --from-literal=TAILNET_NAME=your-company \
+  --from-literal=METRICS_TOKEN=your-metrics-token
+```
+
+```yaml
+# my-overlay/kustomization.yaml
+namespace: tsmetrics
+resources:
+  - <path-to-repo>/deploy/kustomize/overlays/production
+patches:
+  - target:
+      kind: ServiceMonitor
+      name: tsmetrics
+    patch: |-
+      - op: add
+        path: /spec/endpoints/0/authorization
+        value:
+          type: Bearer
+          credentials:
+            name: tsmetrics-secrets
+            key: METRICS_TOKEN
+```
+
+`namespace: tsmetrics` keeps the ServiceMonitor in the same namespace as the
+secret it references; Prometheus Operator only resolves `credentials` within
+the ServiceMonitor's own namespace. The JSON patch is required because
+`endpoints` is a list without a merge key.
 
 **Kustomize Structure:**
 

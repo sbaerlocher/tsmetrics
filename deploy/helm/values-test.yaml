@@ -1,0 +1,8 @@
+---
+# Dummy values for the CI chart render. Not a deployable configuration:
+# exercises the ServiceMonitor bearer-token path. Excluded from the packaged
+# chart via .helmignore.
+serviceMonitor:
+  enabled: true
+tailscale:
+  metricsToken: "xxxxxxxxxxxxxxxxxxxxxxxx"

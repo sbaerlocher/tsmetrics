@@ -68,6 +68,12 @@ serviceMonitor:
   scrapeTimeout: 30s
   labels: {}
   annotations: {}
+  # Send METRICS_TOKEN as a Bearer token when scraping. Only consulted with
+  # externalSecret.enabled: true — set to true when the external secret
+  # contains METRICS_TOKEN, otherwise Prometheus Operator drops the target.
+  # With the chart-managed Secret the token is sent automatically whenever
+  # tailscale.metricsToken is set.
+  bearerTokenAuth: false
 
 # External secret management
 externalSecret:
