@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The Helm ServiceMonitor now sends `METRICS_TOKEN` as a Bearer token when
+  `tailscale.metricsToken` is set. Before, enabling the token together with
+  `serviceMonitor.enabled` made every Prometheus scrape fail with `401`. For
+  the ExternalSecret path the new value `serviceMonitor.bearerTokenAuth`
+  opts in. The README documents the equivalent Kustomize overlay patch.
+
 ## [1.3.3] - 2026-11-06
 
 ### Security
