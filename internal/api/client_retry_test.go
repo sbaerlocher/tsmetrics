@@ -148,8 +148,11 @@ func TestDoWithRetry_ContextCancellationInterrupts(t *testing.T) {
 
 	c := retryTestClient(srv)
 	start := time.Now()
-	_, err := c.doWithRetry(ctx, srv.URL+"/x", "test")
+	resp, err := c.doWithRetry(ctx, srv.URL+"/x", "test")
 	elapsed := time.Since(start)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 	if err == nil {
 		t.Fatal("expected context error, got nil")
 	}
