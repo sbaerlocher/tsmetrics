@@ -582,12 +582,16 @@ kubectl kustomize deploy/kustomize/overlays/production
 
 **Secret setup (required for Kustomize):**
 
+Create the secret in the namespace the overlay deploys to: `tsmetrics` for production, `default` for development.
+
 ```bash
 kubectl create secret generic tsmetrics-secrets -n tsmetrics \
   --from-literal=OAUTH_CLIENT_ID=your-client-id \
   --from-literal=OAUTH_CLIENT_SECRET=your-client-secret \
   --from-literal=TAILNET_NAME=your-company
 ```
+
+For the development overlay, use `-n default` instead of `-n tsmetrics`.
 
 **Protecting `/metrics` with `METRICS_TOKEN`:**
 
