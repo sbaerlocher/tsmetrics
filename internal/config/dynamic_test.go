@@ -113,7 +113,7 @@ func TestBasicConfigValidator_ValidateConfig(t *testing.T) {
 func TestLoggingConfigHandler_HandleConfigChange(t *testing.T) {
 	handler := NewLoggingConfigHandler()
 
-	oldConfig := Config{LogLevel: "info"}
+	oldConfig := Config{LogLevel: logLevelInfo}
 	newConfig := Config{LogLevel: "debug"}
 
 	err := handler.HandleConfigChange(oldConfig, newConfig)

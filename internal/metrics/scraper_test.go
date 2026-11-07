@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+const (
+	msgForbiddenRange = "forbidden range"
+	msgNotPermitted   = "not a permitted scrape target"
+	shortHost         = "device"
+)
+
 func TestValidateDeviceMetricsURL(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -18,22 +24,22 @@ func TestValidateDeviceMetricsURL(t *testing.T) {
 		wantErr string // substring; "" means no error
 	}{
 		// --- blocked literals ---
-		{"reject IPv4 loopback", "http://127.0.0.1:5252/metrics", "forbidden range"},
-		{"reject current-network zero", "http://0.0.0.0:5252/metrics", "forbidden range"},
-		{"reject IPv4 link-local (cloud metadata)", "http://169.254.169.254:5252/metrics", "forbidden range"},
-		{"reject IPv6 loopback", "http://[::1]:5252/metrics", "forbidden range"},
-		{"reject IPv6 link-local", "http://[fe80::1]:5252/metrics", "forbidden range"},
-		{"reject IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]:5252/metrics", "forbidden range"},
-		{"reject IPv6 unspecified", "http://[::]:5252/metrics", "forbidden range"},
-		{"reject zoned IPv6 link-local", "http://[fe80::1%25eth0]:5252/metrics", "forbidden range"},
-		{"reject AWS IPv6 metadata", "http://[fd00:ec2::254]:5252/metrics", "forbidden range"},
-		{"reject NAT64 link-local", "http://[64:ff9b::a9fe:a9fe]:5252/metrics", "forbidden range"},
-		{"reject IPv4-compatible loopback", "http://[::7f00:1]:5252/metrics", "forbidden range"},
-		{"reject localhost with trailing dot", "http://localhost.:5252/metrics", "not a permitted scrape target"},
-		{"reject localhost subdomain", "http://foo.localhost:5252/metrics", "not a permitted scrape target"},
+		{"reject IPv4 loopback", "http://127.0.0.1:5252/metrics", msgForbiddenRange},
+		{"reject current-network zero", "http://0.0.0.0:5252/metrics", msgForbiddenRange},
+		{"reject IPv4 link-local (cloud metadata)", "http://169.254.169.254:5252/metrics", msgForbiddenRange},
+		{"reject IPv6 loopback", "http://[::1]:5252/metrics", msgForbiddenRange},
+		{"reject IPv6 link-local", "http://[fe80::1]:5252/metrics", msgForbiddenRange},
+		{"reject IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]:5252/metrics", msgForbiddenRange},
+		{"reject IPv6 unspecified", "http://[::]:5252/metrics", msgForbiddenRange},
+		{"reject zoned IPv6 link-local", "http://[fe80::1%25eth0]:5252/metrics", msgForbiddenRange},
+		{"reject AWS IPv6 metadata", "http://[fd00:ec2::254]:5252/metrics", msgForbiddenRange},
+		{"reject NAT64 link-local", "http://[64:ff9b::a9fe:a9fe]:5252/metrics", msgForbiddenRange},
+		{"reject IPv4-compatible loopback", "http://[::7f00:1]:5252/metrics", msgForbiddenRange},
+		{"reject localhost with trailing dot", "http://localhost.:5252/metrics", msgNotPermitted},
+		{"reject localhost subdomain", "http://foo.localhost:5252/metrics", msgNotPermitted},
 		{"allow NAT64 public", "http://[64:ff9b::808:808]:5252/metrics", ""},
-		{"reject localhost string", "http://localhost:5252/metrics", "not a permitted scrape target"},
-		{"reject localhost string case-insensitive", "http://LocalHost:5252/metrics", "not a permitted scrape target"},
+		{"reject localhost string", "http://localhost:5252/metrics", msgNotPermitted},
+		{"reject localhost string case-insensitive", "http://LocalHost:5252/metrics", msgNotPermitted},
 
 		// --- allowed literals (tailnet / homelab ranges) ---
 		{"allow RFC1918 10/8", "http://10.0.0.1:5252/metrics", ""},
@@ -96,7 +102,7 @@ func TestScrapeClientSSRFGuards(t *testing.T) {
 	}
 
 	_, err = safeDialer.DialContext(context.Background(), "tcp", srv.Listener.Addr().String())
-	if err == nil || !strings.Contains(err.Error(), "forbidden range") {
+	if err == nil || !strings.Contains(err.Error(), msgForbiddenRange) {
 		t.Fatalf("dial to loopback: want forbidden range error, got %v", err)
 	}
 

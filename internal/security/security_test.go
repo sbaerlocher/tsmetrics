@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	fieldDeviceName = "device_name"
+	pathAPIDevices  = "/api/devices"
+)
+
 func TestInputValidator_ValidateString(t *testing.T) {
 	validator := NewInputValidator()
 
@@ -20,31 +25,31 @@ func TestInputValidator_ValidateString(t *testing.T) {
 		{
 			name:        "valid string",
 			input:       "test-device-123",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: false,
 		},
 		{
 			name:        "empty string",
 			input:       "",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: true,
 		},
 		{
 			name:        "too long string",
 			input:       strings.Repeat("a", 1001),
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: true,
 		},
 		{
 			name:        "control characters",
 			input:       "test\x00device",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: true,
 		},
 		{
 			name:        "allowed tabs and newlines",
 			input:       "test\tdevice\n",
-			fieldName:   "device_name",
+			fieldName:   fieldDeviceName,
 			expectError: false,
 		},
 	}
@@ -200,7 +205,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		},
 		{
 			name: "cache headers for API endpoint",
-			path: "/api/devices",
+			path: pathAPIDevices,
 			expectedHeaders: map[string]string{
 				"Cache-Control": "no-store, no-cache, must-revalidate, private",
 				"Pragma":        "no-cache",
@@ -299,25 +304,25 @@ func TestAuthenticationMiddleware(t *testing.T) {
 		},
 		{
 			name:           "valid token",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "Bearer " + token,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "missing auth header",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "",
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:           "invalid token format",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "Token " + token,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:           "invalid token",
-			path:           "/api/devices",
+			path:           pathAPIDevices,
 			authHeader:     "Bearer invalid-token",
 			expectedStatus: http.StatusUnauthorized,
 		},

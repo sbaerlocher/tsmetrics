@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	logLevelInfo  = "info"
+	logFormatText = "text"
+)
+
 func TestConfigLoad(t *testing.T) {
 	os.Clearenv()
 
@@ -86,11 +91,11 @@ func TestConfigLoadDefaults(t *testing.T) {
 		t.Errorf("Expected default MaxConcurrentScrapes 10, got %d", cfg.MaxConcurrentScrapes)
 	}
 
-	if cfg.LogLevel != "info" {
+	if cfg.LogLevel != logLevelInfo {
 		t.Errorf("Expected default LogLevel 'info', got %s", cfg.LogLevel)
 	}
 
-	if cfg.LogFormat != "text" {
+	if cfg.LogFormat != logFormatText {
 		t.Errorf("Expected default LogFormat 'text', got %s", cfg.LogFormat)
 	}
 
@@ -149,8 +154,8 @@ func TestConfigValidateScrapeInterval(t *testing.T) {
 				Port:                 "9100",
 				ClientMetricsTimeout: 10 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 				ScrapeInterval:       tt.interval,
 			}
 
@@ -179,8 +184,8 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 10 * time.Second,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 			},
 			wantErr: false,
 		},
@@ -192,7 +197,7 @@ func TestConfigValidate(t *testing.T) {
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
 				LogLevel:             "invalid",
-				LogFormat:            "text",
+				LogFormat:            logFormatText,
 			},
 			wantErr: true,
 		},
@@ -203,7 +208,7 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 10 * time.Second,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
+				LogLevel:             logLevelInfo,
 				LogFormat:            "invalid",
 			},
 			wantErr: true,
@@ -215,8 +220,8 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 10 * time.Second,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 			},
 			wantErr: true,
 		},
@@ -227,8 +232,8 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 0,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 			},
 			wantErr: true,
 		},
@@ -239,8 +244,8 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 10 * time.Second,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 0,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 			},
 			wantErr: true,
 		},
@@ -252,8 +257,8 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 10 * time.Second,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 			},
 			wantErr: true,
 		},
@@ -266,8 +271,8 @@ func TestConfigValidate(t *testing.T) {
 				ClientMetricsTimeout: 10 * time.Second,
 				ScrapeInterval:       30 * time.Second,
 				MaxConcurrentScrapes: 10,
-				LogLevel:             "info",
-				LogFormat:            "text",
+				LogLevel:             logLevelInfo,
+				LogFormat:            logFormatText,
 			},
 			envVars: map[string]string{
 				"OAUTH_TOKEN": "test-token",

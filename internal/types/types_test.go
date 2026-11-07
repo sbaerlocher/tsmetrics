@@ -4,6 +4,11 @@ import (
 	"testing"
 )
 
+const (
+	caseEmptyName = "empty name"
+	sanitizedName = "device-name"
+)
+
 func TestDeviceID(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -37,7 +42,7 @@ func TestDeviceName(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid name", "device-01", false},
-		{"empty name", "", true},
+		{caseEmptyName, "", true},
 		{"too long name", string(make([]byte, 254)), true},
 		{"invalid characters", "device@host", true},
 		{"valid with dots", "device.example.com", false},
@@ -64,11 +69,11 @@ func TestDeviceNameSanitize(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"spaces to dashes", "device name", "device-name"},
-		{"multiple special chars", "device@#$name", "device-name"},
-		{"consecutive dashes", "device---name", "device-name"},
-		{"leading/trailing dashes", "-device-name-", "device-name"},
-		{"uppercase to lowercase", "DEVICE-NAME", "device-name"},
+		{"spaces to dashes", "device name", sanitizedName},
+		{"multiple special chars", "device@#$name", sanitizedName},
+		{"consecutive dashes", "device---name", sanitizedName},
+		{"leading/trailing dashes", "-device-name-", sanitizedName},
+		{"uppercase to lowercase", "DEVICE-NAME", sanitizedName},
 	}
 
 	for _, tt := range tests {
@@ -92,7 +97,7 @@ func TestMetricName(t *testing.T) {
 		{"starts with letter", "requests_total", false},
 		{"starts with underscore", "_requests", false},
 		{"starts with number", "1requests", true},
-		{"empty name", "", true},
+		{caseEmptyName, "", true},
 		{"contains special chars", "http-requests", true},
 		{"valid with numbers", "requests_2xx", false},
 	}
@@ -123,7 +128,7 @@ func TestTagName(t *testing.T) {
 		{"starts with underscore", "_internal", false},
 		{"starts with colon", ":invalid", true},
 		{"starts with number", "1invalid", true},
-		{"empty name", "", true},
+		{caseEmptyName, "", true},
 		{"valid with dash", "multi-word", false},
 		{"valid with underscore", "multi_word", false},
 		{"valid complex", "multi-word_123", false},
