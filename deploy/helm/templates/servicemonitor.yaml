@@ -22,4 +22,13 @@ spec:
       path: {{ .Values.serviceMonitor.path }}
       interval: {{ .Values.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+      {{- $chartSecret := and (not .Values.externalSecret.enabled) .Values.tailscale.metricsToken }}
+      {{- $extSecret := and .Values.externalSecret.enabled .Values.serviceMonitor.bearerTokenAuth }}
+      {{- if or $chartSecret $extSecret }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ if $extSecret }}{{ .Values.externalSecret.secretName }}{{ else }}{{ include "tsmetrics.fullname" . }}-secrets{{ end }}
+          key: METRICS_TOKEN
+      {{- end }}
 {{- end }}
