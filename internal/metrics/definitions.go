@@ -8,6 +8,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Label keys shared across metric definitions and lookups.
+const (
+	labelDeviceID   = "device_id"
+	labelDeviceName = "device_name"
+	labelErrorType  = "error_type"
+	labelPath       = "path"
+	labelStrategy   = "strategy"
+)
+
 var (
 	// ScrapeDuration tracks the time spent scraping metrics from targets.
 	ScrapeDuration = promauto.NewHistogramVec(
@@ -24,7 +33,7 @@ var (
 			Name: "tsmetrics_scrape_errors_total",
 			Help: "Scrape errors by target",
 		},
-		[]string{"target", "error_type"},
+		[]string{"target", labelErrorType},
 	)
 
 	// APICallDuration tracks the duration of API calls by endpoint and status.
@@ -42,7 +51,7 @@ var (
 			Name: "tsmetrics_device_errors_total",
 			Help: "Device errors by type and device",
 		},
-		[]string{"device_id", "device_name", "error_type", "retryable"},
+		[]string{labelDeviceID, labelDeviceName, labelErrorType, "retryable"},
 	)
 
 	RetryAttempts = promauto.NewCounterVec(
@@ -50,7 +59,7 @@ var (
 			Name: "tsmetrics_retry_attempts_total",
 			Help: "Number of retry attempts",
 		},
-		[]string{"device_id", "device_name", "reason"},
+		[]string{labelDeviceID, labelDeviceName, "reason"},
 	)
 
 	MemoryUsage = promauto.NewGauge(
@@ -95,7 +104,7 @@ var (
 			Name: "tailscale_device_info",
 			Help: "Static info about devices (value=1 always present)",
 		},
-		[]string{"device_id", "device_name", "os", "version"},
+		[]string{labelDeviceID, labelDeviceName, "os", "version"},
 	)
 
 	// DeviceOnline indicates if a device is currently online (1=online, 0=offline).
@@ -104,44 +113,44 @@ var (
 			Name: "tailscale_device_online",
 			Help: "Device online status (1=online, 0=offline)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	InboundBytes = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_inbound_bytes_total", Help: "Current inbound bytes from device (reflects remote counter)"},
-		[]string{"device_id", "device_name", "path"},
+		[]string{labelDeviceID, labelDeviceName, labelPath},
 	)
 	OutboundBytes = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_outbound_bytes_total", Help: "Current outbound bytes from device (reflects remote counter)"},
-		[]string{"device_id", "device_name", "path"},
+		[]string{labelDeviceID, labelDeviceName, labelPath},
 	)
 	InboundPackets = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_inbound_packets_total", Help: "Current inbound packets from device (reflects remote counter)"},
-		[]string{"device_id", "device_name", "path"},
+		[]string{labelDeviceID, labelDeviceName, labelPath},
 	)
 	OutboundPackets = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_outbound_packets_total", Help: "Current outbound packets from device (reflects remote counter)"},
-		[]string{"device_id", "device_name", "path"},
+		[]string{labelDeviceID, labelDeviceName, labelPath},
 	)
 	InboundDroppedPackets = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_inbound_dropped_packets_total", Help: "Current dropped inbound packets from device (reflects remote counter)"},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 	OutboundDroppedPackets = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_outbound_dropped_packets_total", Help: "Current dropped outbound packets from device (reflects remote counter)"},
-		[]string{"device_id", "device_name", "reason"},
+		[]string{labelDeviceID, labelDeviceName, "reason"},
 	)
 	HealthMessages = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_health_messages", Help: "Health message count from device"},
-		[]string{"device_id", "device_name", "type"},
+		[]string{labelDeviceID, labelDeviceName, "type"},
 	)
 	AdvertisedRoutes = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_advertised_routes", Help: "Number of advertised network routes by device"},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 	ApprovedRoutes = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{Name: "tailscaled_approved_routes", Help: "Number of approved network routes by device"},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceAuthorized = promauto.NewGaugeVec(
@@ -149,7 +158,7 @@ var (
 			Name: "tailscale_device_authorized",
 			Help: "Device authorization status (1=authorized, 0=unauthorized)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceLastSeen = promauto.NewGaugeVec(
@@ -157,7 +166,7 @@ var (
 			Name: "tailscale_device_last_seen_timestamp",
 			Help: "Timestamp when device was last seen (Unix seconds)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceUser = promauto.NewGaugeVec(
@@ -165,7 +174,7 @@ var (
 			Name: "tailscale_device_user",
 			Help: "User assignment for device (value=1)",
 		},
-		[]string{"device_id", "device_name", "user_email"},
+		[]string{labelDeviceID, labelDeviceName, "user_email"},
 	)
 
 	DeviceMachineKeyExpiry = promauto.NewGaugeVec(
@@ -173,7 +182,7 @@ var (
 			Name: "tailscale_device_machine_key_expiry",
 			Help: "Machine key expiry timestamp (Unix seconds, 0=disabled)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceRoutesAdvertised = promauto.NewGaugeVec(
@@ -181,7 +190,7 @@ var (
 			Name: "tailscale_device_routes_advertised",
 			Help: "Advertised routes by device (value=1)",
 		},
-		[]string{"device_id", "device_name", "route"},
+		[]string{labelDeviceID, labelDeviceName, "route"},
 	)
 
 	DeviceRoutesEnabled = promauto.NewGaugeVec(
@@ -189,7 +198,7 @@ var (
 			Name: "tailscale_device_routes_enabled",
 			Help: "Enabled routes by device (value=1)",
 		},
-		[]string{"device_id", "device_name", "route"},
+		[]string{labelDeviceID, labelDeviceName, "route"},
 	)
 
 	DeviceExitNode = promauto.NewGaugeVec(
@@ -197,7 +206,7 @@ var (
 			Name: "tailscale_device_exit_node",
 			Help: "Device exit node status (1=is exit node, 0=not exit node)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceExitNodeOption = promauto.NewGaugeVec(
@@ -205,7 +214,7 @@ var (
 			Name: "tailscale_device_exit_node_option",
 			Help: "Device exit node option available (1=available as exit node, 0=not available)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceSubnetRouter = promauto.NewGaugeVec(
@@ -213,7 +222,7 @@ var (
 			Name: "tailscale_device_subnet_router",
 			Help: "Device subnet router status (1=advertises routes, 0=no routes)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	// New metrics for additional API fields
@@ -222,7 +231,7 @@ var (
 			Name: "tailscale_device_update_available",
 			Help: "Device update available status (1=update available, 0=up to date)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceCreated = promauto.NewGaugeVec(
@@ -230,7 +239,7 @@ var (
 			Name: "tailscale_device_created_timestamp",
 			Help: "Device creation timestamp (Unix seconds)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceExternal = promauto.NewGaugeVec(
@@ -238,7 +247,7 @@ var (
 			Name: "tailscale_device_external",
 			Help: "Device external status (1=external, 0=internal)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceBlocksIncoming = promauto.NewGaugeVec(
@@ -246,7 +255,7 @@ var (
 			Name: "tailscale_device_blocks_incoming_connections",
 			Help: "Device blocks incoming connections (1=blocks, 0=allows)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceEphemeral = promauto.NewGaugeVec(
@@ -254,7 +263,7 @@ var (
 			Name: "tailscale_device_ephemeral",
 			Help: "Device ephemeral status (1=ephemeral, 0=persistent)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceMultipleConnections = promauto.NewGaugeVec(
@@ -262,7 +271,7 @@ var (
 			Name: "tailscale_device_multiple_connections",
 			Help: "Device multiple connections status (1=supports, 0=single connection)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceLatency = promauto.NewGaugeVec(
@@ -270,7 +279,7 @@ var (
 			Name: "tailscale_device_latency_ms",
 			Help: "Device latency to DERP regions in milliseconds",
 		},
-		[]string{"device_id", "device_name", "derp_region", "preferred"},
+		[]string{labelDeviceID, labelDeviceName, "derp_region", "preferred"},
 	)
 
 	DeviceEndpoints = promauto.NewGaugeVec(
@@ -278,7 +287,7 @@ var (
 			Name: "tailscale_device_endpoints_total",
 			Help: "Number of connectivity endpoints for device",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DeviceClientSupports = promauto.NewGaugeVec(
@@ -286,7 +295,7 @@ var (
 			Name: "tailscale_device_client_supports",
 			Help: "Device client feature support (1=supported, 0=not supported)",
 		},
-		[]string{"device_id", "device_name", "feature"},
+		[]string{labelDeviceID, labelDeviceName, "feature"},
 	)
 
 	DeviceTailnetLockError = promauto.NewGaugeVec(
@@ -294,7 +303,7 @@ var (
 			Name: "tailscale_device_tailnet_lock_error",
 			Help: "Device tailnet lock error status (1=has error, 0=no error)",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 
 	DevicePostureSerialNumbers = promauto.NewGaugeVec(
@@ -302,7 +311,7 @@ var (
 			Name: "tailscale_device_posture_serial_numbers_total",
 			Help: "Number of posture identity serial numbers for device",
 		},
-		[]string{"device_id", "device_name"},
+		[]string{labelDeviceID, labelDeviceName},
 	)
 )
 
@@ -326,38 +335,38 @@ func GetOnlineDevicesCount() int {
 
 // CleanupDeviceMetrics removes all metrics associated with a specific device.
 func CleanupDeviceMetrics(deviceID string) {
-	InboundBytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	OutboundBytes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	InboundPackets.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	OutboundPackets.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	InboundDroppedPackets.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	OutboundDroppedPackets.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	HealthMessages.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	AdvertisedRoutes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	ApprovedRoutes.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	InboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	OutboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	InboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	OutboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	InboundDroppedPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	OutboundDroppedPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	HealthMessages.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	AdvertisedRoutes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	ApprovedRoutes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 
-	DeviceInfo.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceOnline.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceAuthorized.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceLastSeen.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceUser.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceMachineKeyExpiry.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceExitNode.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceExitNodeOption.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceSubnetRouter.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	DeviceInfo.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceOnline.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceAuthorized.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceLastSeen.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceUser.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceMachineKeyExpiry.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceExitNode.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceExitNodeOption.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceSubnetRouter.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 
 	// Clean up new metrics
-	DeviceUpdateAvailable.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceCreated.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceExternal.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceBlocksIncoming.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceEphemeral.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceMultipleConnections.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceLatency.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceEndpoints.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceClientSupports.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DeviceTailnetLockError.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
-	DevicePostureSerialNumbers.DeletePartialMatch(prometheus.Labels{"device_id": deviceID})
+	DeviceUpdateAvailable.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceCreated.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceExternal.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceBlocksIncoming.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceEphemeral.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceMultipleConnections.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceLatency.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceEndpoints.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceClientSupports.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DeviceTailnetLockError.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	DevicePostureSerialNumbers.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 }

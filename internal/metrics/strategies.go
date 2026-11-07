@@ -24,7 +24,7 @@ var (
 			Help:    "Time spent executing scraping strategies",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"strategy", "status"},
+		[]string{labelStrategy, "status"},
 	)
 
 	scrapingStrategyDevicesProcessed = promauto.NewCounterVec(
@@ -32,7 +32,7 @@ var (
 			Name: "tsmetrics_scraping_strategy_devices_processed_total",
 			Help: "Number of devices processed by scraping strategies",
 		},
-		[]string{"strategy"},
+		[]string{labelStrategy},
 	)
 
 	scrapingStrategyErrors = promauto.NewCounterVec(
@@ -40,7 +40,7 @@ var (
 			Name: "tsmetrics_scraping_strategy_errors_total",
 			Help: "Number of errors in scraping strategies",
 		},
-		[]string{"strategy", "error_type"},
+		[]string{labelStrategy, labelErrorType},
 	)
 )
 
