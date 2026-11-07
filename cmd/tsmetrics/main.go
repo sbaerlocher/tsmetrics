@@ -66,7 +66,7 @@ func performHealthCheck() error {
 		host = "127.0.0.1" // DevSkim: ignore DS162092 - Localhost is appropriate for health checks
 	}
 	healthURL := fmt.Sprintf("http://%s:%s/livez", host, cfg.Port)
-	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, healthURL, nil)
+	req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, healthURL, nil) //nolint:gosec // G704: URL from local config (HEALTH_CHECK_HOST/PORT), not user input
 	if reqErr != nil {
 		return fmt.Errorf("health check request failed: %w", reqErr)
 	}
