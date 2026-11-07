@@ -187,7 +187,8 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 - `USE_TSNET` (true|false) — Enable Tailscale tsnet integration
 - `TSNET_HOSTNAME` — Hostname in Tailnet (default: tsmetrics)
 - `TSNET_STATE_DIR` — Persistent state directory (default: /tmp/tsnet-tsmetrics)
-- `TSNET_STATE_SECRET` — Kubernetes Secret for tsnet state (kube: store); overrides `TSNET_STATE_DIR` (optional)
+- `TSNET_STATE_SECRET` — Kubernetes Secret for tsnet state (`kube:` store); overrides `TSNET_STATE_DIR`
+  (optional; needs RBAC on Secrets — Helm `serviceaccount.yaml` / Kustomize `role.yaml`)
 - `TSNET_TAGS` — Comma-separated tags for tsnet device
 - `SCRAPE_TAG` — Only scrape devices carrying this tag (default: exporter)
 
@@ -347,8 +348,19 @@ in a Kubernetes Secret (`TSNET_STATE_SECRET`), so it survives pod restarts. Kust
 `deploy/kustomize/overlays/{development,production}`.
 
 ```bash
-helm install tsmetrics deploy/helm
+# Helm — credentials default to empty, pass them explicitly
+helm install tsmetrics deploy/helm \
+  --set tailscale.oauthClientId=your-client-id \
+  --set tailscale.oauthClientSecret=your-client-secret \
+  --set tailscale.tailnetName=your-tailnet
+
+# Kustomize — the base expects the Secret tsmetrics-secrets in the namespace
+# (production: tsmetrics, development: default); the pod starts once it exists
 kubectl apply -k deploy/kustomize/overlays/production
+kubectl -n tsmetrics create secret generic tsmetrics-secrets \
+  --from-literal=OAUTH_CLIENT_ID=your-client-id \
+  --from-literal=OAUTH_CLIENT_SECRET=your-client-secret \
+  --from-literal=TAILNET_NAME=your-tailnet
 ```
 
 ### Prometheus Configuration
