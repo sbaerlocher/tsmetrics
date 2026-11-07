@@ -176,16 +176,16 @@ func (c *Client) FetchDevices(ctx context.Context) ([]device.Device, error) {
 
 func (c *Client) makeDevicesRequest(ctx context.Context) (*http.Response, error) {
 	apiURL := fmt.Sprintf("%s/devices?fields=all", c.baseURL)
-	return c.doWithRetry(ctx, http.MethodGet, apiURL, "devices")
+	return c.doWithRetry(ctx, apiURL, "devices")
 }
 
-// doWithRetry performs an HTTP request with exponential backoff for transient
+// doWithRetry performs a GET request with exponential backoff for transient
 // failures (network errors, 429, 5xx). The response body of failed attempts
 // is always drained and closed before the next retry so that connections
 // can be reused from the pool. Jitter (±25%) is added to the base backoff to
 // avoid multiple instances synchronising on a recovering upstream, and the
 // server's Retry-After header is honoured when present on 429 responses.
-func (c *Client) doWithRetry(ctx context.Context, method, url, endpoint string) (*http.Response, error) {
+func (c *Client) doWithRetry(ctx context.Context, url, endpoint string) (*http.Response, error) {
 	retryCfg := tserrors.DefaultRetryConfig()
 
 	var lastErr error
@@ -204,7 +204,7 @@ func (c *Client) doWithRetry(ctx context.Context, method, url, endpoint string) 
 			}
 		}
 
-		req, err := http.NewRequestWithContext(ctx, method, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
@@ -542,7 +542,7 @@ func (c *Client) fetchDeviceRoutes(ctx context.Context, deviceID string) (*devic
 		apiBase = deriveAPIBase(c.baseURL)
 	}
 	apiURL := fmt.Sprintf("%s/device/%s/routes?fields=all", apiBase, deviceID)
-	resp, err := c.doWithRetry(ctx, http.MethodGet, apiURL, "device_routes")
+	resp, err := c.doWithRetry(ctx, apiURL, "device_routes")
 	if err != nil {
 		return nil, fmt.Errorf("routes request failed: %w", err)
 	}

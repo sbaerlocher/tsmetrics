@@ -46,11 +46,16 @@ func statusSequenceHandler(statuses []int, headers ...http.Header) (http.Handler
 
 func TestDoWithRetry_Retries5xxThenSucceeds(t *testing.T) {
 	handler, calls := statusSequenceHandler([]int{500, 500, 200})
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		handler(w, r)
+	}))
 	defer srv.Close()
 
 	c := retryTestClient(srv)
-	resp, err := c.doWithRetry(context.Background(), http.MethodGet, srv.URL+"/x", "test")
+	resp, err := c.doWithRetry(context.Background(), srv.URL+"/x", "test")
 	if err != nil {
 		t.Fatalf("expected success after retries, got %v", err)
 	}
@@ -70,7 +75,7 @@ func TestDoWithRetry_Retries429ThenSucceeds(t *testing.T) {
 	defer srv.Close()
 
 	c := retryTestClient(srv)
-	resp, err := c.doWithRetry(context.Background(), http.MethodGet, srv.URL+"/x", "test")
+	resp, err := c.doWithRetry(context.Background(), srv.URL+"/x", "test")
 	if err != nil {
 		t.Fatalf("expected success after retry, got %v", err)
 	}
@@ -90,7 +95,7 @@ func TestDoWithRetry_ExhaustedReturnsError(t *testing.T) {
 	defer srv.Close()
 
 	c := retryTestClient(srv)
-	resp, err := c.doWithRetry(context.Background(), http.MethodGet, srv.URL+"/x", "test")
+	resp, err := c.doWithRetry(context.Background(), srv.URL+"/x", "test")
 	if err == nil {
 		_ = resp.Body.Close()
 		t.Fatal("expected error after exhausting attempts, got nil")
@@ -119,7 +124,7 @@ func TestDoWithRetry_RespectsRetryAfterHeader(t *testing.T) {
 
 	c := retryTestClient(srv)
 	start := time.Now()
-	resp, err := c.doWithRetry(context.Background(), http.MethodGet, srv.URL+"/x", "test")
+	resp, err := c.doWithRetry(context.Background(), srv.URL+"/x", "test")
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
@@ -143,7 +148,7 @@ func TestDoWithRetry_ContextCancellationInterrupts(t *testing.T) {
 
 	c := retryTestClient(srv)
 	start := time.Now()
-	_, err := c.doWithRetry(ctx, http.MethodGet, srv.URL+"/x", "test")
+	_, err := c.doWithRetry(ctx, srv.URL+"/x", "test")
 	elapsed := time.Since(start)
 	if err == nil {
 		t.Fatal("expected context error, got nil")
