@@ -169,7 +169,8 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 
 - `PORT` — HTTP listen port (default: 9100)
 - `BIND_HOST` — Listen interface; auto-detected when unset (container → 0.0.0.0, host → 127.0.0.1)
-- `SCRAPE_INTERVAL` — Device discovery interval (default: 30s, range 5s–24h; cycle timeout is 2× the interval, at least 60s)
+- `SCRAPE_INTERVAL` — Device discovery interval (default: 30s, range 5s–24h;
+  cycle timeout is 2× the interval, at least 60s)
 - `METRICS_TOKEN` — Bearer token to protect all non-health endpoints (optional; omit to allow unauthenticated access)
 - `RATE_LIMIT_RPS` — Rate limit requests per second (default: 10)
 - `RATE_LIMIT_BURST` — Rate limit burst size (default: 20)
@@ -186,6 +187,8 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 - `USE_TSNET` (true|false) — Enable Tailscale tsnet integration
 - `TSNET_HOSTNAME` — Hostname in Tailnet (default: tsmetrics)
 - `TSNET_STATE_DIR` — Persistent state directory (default: /tmp/tsnet-tsmetrics)
+- `TSNET_STATE_SECRET` — Kubernetes Secret for tsnet state (`kube:` store); overrides `TSNET_STATE_DIR`
+  (optional; needs RBAC on Secrets — Helm `serviceaccount.yaml` / Kustomize `role.yaml`)
 - `TSNET_TAGS` — Comma-separated tags for tsnet device
 - `SCRAPE_TAG` — Only scrape devices carrying this tag (default: exporter)
 
@@ -334,84 +337,30 @@ docker run -d \
   -e OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID} \
   -e OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET} \
   -e TAILNET_NAME=${TAILNET_NAME} \
-  -v tsnet-state:/tmp/tsnet-state \
+  -v tsnet-state:/tmp/tsnet-tsmetrics \
   ghcr.io/sbaerlocher/tsmetrics:latest
 ```
 
 ### Kubernetes
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: tailscale-oauth
-type: Opaque
-stringData:
-  client-id: "your-oauth-client-id"
-  client-secret: "your-oauth-client-secret"
-  tailnet-name: "your-tailnet"
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: tsmetrics
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: tsmetrics
-  template:
-    metadata:
-      labels:
-        app: tsmetrics
-    spec:
-      containers:
-        - name: tsmetrics
-          image: ghcr.io/sbaerlocher/tsmetrics:latest
-          ports:
-            - containerPort: 9100
-          env:
-            - name: USE_TSNET
-              value: "true"
-            - name: TSNET_HOSTNAME
-              value: "tsmetrics"
-            - name: TSNET_TAGS
-              value: "exporter"
-            - name: OAUTH_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: tailscale-oauth
-                  key: client-id
-            - name: OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: tailscale-oauth
-                  key: client-secret
-            - name: TAILNET_NAME
-              valueFrom:
-                secretKeyRef:
-                  name: tailscale-oauth
-                  key: tailnet-name
-          volumeMounts:
-            - name: tsnet-state
-              mountPath: /tmp/tsnet-state
-      volumes:
-        - name: tsnet-state
-          emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: tsmetrics
-  labels:
-    app: tsmetrics
-spec:
-  ports:
-    - port: 9100
-      targetPort: 9100
-      name: metrics
-  selector:
-    app: tsmetrics
+Use the Helm chart in `deploy/helm` — its default `storage.type: k8s-secret` keeps the tsnet state
+in a Kubernetes Secret (`TSNET_STATE_SECRET`), so it survives pod restarts. Kustomize overlays live in
+`deploy/kustomize/overlays/{development,production}`.
+
+```bash
+# Helm — credentials default to empty, pass them explicitly
+helm install tsmetrics deploy/helm \
+  --set tailscale.oauthClientId=your-client-id \
+  --set tailscale.oauthClientSecret=your-client-secret \
+  --set tailscale.tailnetName=your-tailnet
+
+# Kustomize — the base expects the Secret tsmetrics-secrets in the namespace
+# (production: tsmetrics, development: default); the pod starts once it exists
+kubectl apply -k deploy/kustomize/overlays/production
+kubectl -n tsmetrics create secret generic tsmetrics-secrets \
+  --from-literal=OAUTH_CLIENT_ID=your-client-id \
+  --from-literal=OAUTH_CLIENT_SECRET=your-client-secret \
+  --from-literal=TAILNET_NAME=your-tailnet
 ```
 
 ### Prometheus Configuration

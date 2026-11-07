@@ -192,6 +192,7 @@ tsmetrics/
 | `USE_TSNET`            | Enable Tailscale tsnet integration                   | `false`                |
 | `TSNET_HOSTNAME`       | Hostname in Tailnet                                  | `tsmetrics`            |
 | `TSNET_STATE_DIR`      | Persistent state directory                           | `/tmp/tsnet-tsmetrics` |
+| `TSNET_STATE_SECRET`   | Kubernetes Secret for tsnet state (overrides dir)    | -                      |
 | `TSNET_TAGS`           | Comma-separated device tags                          | -                      |
 | `TS_AUTHKEY`           | Auth key for automatic device registration with tags | -                      |
 
@@ -272,6 +273,7 @@ TARGET_DEVICES=production-gateway,backup-server
 | `USE_TSNET`            | `false`                | Enable tsnet integration                                              |
 | `TSNET_HOSTNAME`       | `tsmetrics`            | Hostname in tailnet                                                   |
 | `TSNET_STATE_DIR`      | `/tmp/tsnet-tsmetrics` | Persistent state directory                                            |
+| `TSNET_STATE_SECRET`   | -                      | Kubernetes Secret for tsnet state (`kube:` store), overrides dir      |
 | `TSNET_TAGS`           | -                      | Comma-separated device tags                                           |
 | `TS_AUTHKEY`           | -                      | Auth key for automatic registration                                   |
 | `SCRAPE_TAG`           | `exporter`             | Only scrape devices carrying this tag                                 |
