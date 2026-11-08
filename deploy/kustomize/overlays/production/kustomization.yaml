@@ -5,6 +5,8 @@ kind: Kustomization
 metadata:
   name: tsmetrics-production
 
+namespace: tsmetrics
+
 resources:
   - ../../base
   - servicemonitor.yaml
