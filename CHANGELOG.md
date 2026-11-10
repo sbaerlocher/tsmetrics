@@ -32,8 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in place. Before, a client update, OS change, rename, new owner, removed
   route or dropped connectivity data left the old `tailscale_device_*` series
   at their last value until the exporter restarted, so `tailscale_device_info`
-  counted updated devices twice. A rename now also drops the device's old
-  `tailscaled_*` and `tsmetrics_device_errors_total` series.
+  counted updated devices twice. A rename now also drops the device's old-name
+  `tailscaled_*` and `tsmetrics_device_errors_total` series once the new-name
+  client series are written. `tsmetrics_scrape_errors_total`, keyed by target
+  name rather than device ID, is not affected.
 
 ## [1.3.3] - 2026-11-06
 

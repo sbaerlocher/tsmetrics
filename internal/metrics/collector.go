@@ -85,6 +85,19 @@ func deviceLabelFingerprint(d device.Device) string {
 	return strings.Join(parts, "\x00")
 }
 
+// dropRenamedDeviceSeries removes the client and error series that still carry
+// a renamed device's previous name. Call it after the client scrape has written
+// the new-name series.
+func dropRenamedDeviceSeries(renamed map[string]string) {
+	for id, oldName := range renamed {
+		old := prometheus.Labels{labelDeviceID: id, labelDeviceName: oldName}
+		for _, vec := range clientDeviceVecs() {
+			vec.DeletePartialMatch(old)
+		}
+		DeviceErrors.DeletePartialMatch(old)
+	}
+}
+
 func sortedJoin(values []string) string {
 	sorted := slices.Clone(values)
 	slices.Sort(sorted)
@@ -225,7 +238,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	DeviceCount.Set(float64(len(devices)))
 
-	seen := c.updateAPIMetrics(devices)
+	seen, renamed := c.updateAPIMetrics(devices)
 
 	if err := ScrapeClientMetrics(ctx, devices, c.cfg); err != nil {
 		if errCount := CountTsnetStartupErrors(err); errCount > 0 {
@@ -236,15 +249,22 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 		ScrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
 	}
 
+	// Only now, with the new-name client series written, drop the old-name
+	// ones, so a concurrent /metrics scrape never sees the device without any.
+	dropRenamedDeviceSeries(renamed)
+
 	c.tracker.CleanupRemovedDevices(seen)
 	LastScrapeTime.Set(float64(time.Now().Unix()))
 	return nil
 }
 
-// updateAPIMetrics sets the Tailscale API derived series for every device
-// and returns the devices seen in this cycle, device ID to device name.
-func (c *Collector) updateAPIMetrics(devices []device.Device) map[string]string {
-	seen := map[string]string{}
+// updateAPIMetrics sets the Tailscale API derived series for every device.
+// It returns the devices seen in this cycle, device ID to device name, and,
+// for devices renamed since the last cycle, their previous name (see
+// dropRenamedDeviceSeries).
+func (c *Collector) updateAPIMetrics(devices []device.Device) (seen, renamed map[string]string) {
+	seen = map[string]string{}
+	renamed = map[string]string{}
 	next := make(map[string]deviceLabelState, len(devices))
 
 	onlineCount := 0
@@ -255,8 +275,7 @@ func (c *Collector) updateAPIMetrics(devices []device.Device) map[string]string 
 			slog.Debug("device labels changed, dropping old series", "device_id", id)
 			cleanupAPIDeviceMetrics(id)
 			if prev.name != state.name {
-				cleanupClientDeviceMetrics(id)
-				DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: id})
+				renamed[id] = prev.name
 			}
 		}
 		next[id] = state
@@ -400,7 +419,7 @@ func (c *Collector) updateAPIMetrics(devices []device.Device) map[string]string 
 	OnlineDevicesCount.Set(float64(onlineCount))
 	c.labelState = next
 
-	return seen
+	return seen, renamed
 }
 
 // CountTsnetStartupErrors counts common tsnet startup errors in error messages

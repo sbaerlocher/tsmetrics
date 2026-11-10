@@ -429,7 +429,7 @@ func TestUpdateAPIMetricsSetsSeries(t *testing.T) {
 	d.OS = "linux"
 	d.ClientVersion = testVersionOld
 
-	seen := c.updateAPIMetrics([]device.Device{d})
+	seen, _ := c.updateAPIMetrics([]device.Device{d})
 
 	if _, ok := seen["label-dev-1"]; !ok {
 		t.Error("expected device in seen set")
@@ -508,24 +508,34 @@ func TestUpdateAPIMetricsConnectivityDropped(t *testing.T) {
 }
 
 func TestUpdateAPIMetricsRename(t *testing.T) {
+	const renameID, renameOld, renameNew = "label-dev-rename", "label-old", "label-new"
 	c := NewCollector(config.Config{})
-	d := testDevice(t, "label-dev-rename", "label-old")
+	d := testDevice(t, renameID, renameOld)
 	c.updateAPIMetrics([]device.Device{d})
-	InboundBytes.WithLabelValues("label-dev-rename", "label-old", "direct").Set(1)
-	DeviceErrors.WithLabelValues("label-dev-rename", "label-old", "timeout", "true").Inc()
+	InboundBytes.WithLabelValues(renameID, renameOld, "direct").Set(1)
+	DeviceErrors.WithLabelValues(renameID, renameOld, "timeout", "true").Inc()
 
-	newName, _ := types.NewDeviceName("label-new")
+	newName, _ := types.NewDeviceName(renameNew)
 	d.Name = newName
-	c.updateAPIMetrics([]device.Device{d})
+	_, renamed := c.updateAPIMetrics([]device.Device{d})
+	if !hasSeries(t, "tailscaled_inbound_bytes_total", map[string]string{labelDeviceID: renameID, labelDeviceName: renameOld}) {
+		t.Error("old-name client series dropped before the client scrape wrote new ones")
+	}
+	InboundBytes.WithLabelValues(renameID, renameNew, "direct").Set(2)
+	dropRenamedDeviceSeries(renamed)
 
-	old := map[string]string{labelDeviceID: "label-dev-rename", labelDeviceName: "label-old"}
+	old := map[string]string{labelDeviceID: renameID, labelDeviceName: renameOld}
 	for _, metric := range []string{"tailscale_device_info", "tailscaled_inbound_bytes_total", "tsmetrics_device_errors_total"} {
 		if hasSeries(t, metric, old) {
 			t.Errorf("%s still has series with old device name", metric)
 		}
 	}
-	if !hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-rename", labelDeviceName: "label-new"}) {
+	newLabels := map[string]string{labelDeviceID: renameID, labelDeviceName: renameNew}
+	if !hasSeries(t, "tailscale_device_info", newLabels) {
 		t.Error("tailscale_device_info missing for new device name")
+	}
+	if !hasSeries(t, "tailscaled_inbound_bytes_total", newLabels) {
+		t.Error("new-name client series removed")
 	}
 }
 
