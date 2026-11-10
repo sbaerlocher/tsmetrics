@@ -364,6 +364,15 @@ func TestUpdateMetricsKeepsSeriesOnAPIFailure(t *testing.T) {
 	}
 }
 
+const (
+	labelVersion     = "version"
+	testVersionOld   = "1.0.0"
+	testVersionNew   = "1.2.0"
+	testRouteKept    = "10.0.0.0/24"
+	testRouteDropped = "10.1.0.0/24"
+	testDERPRegion   = "zrh"
+)
+
 // hasSeries reports whether the default registry exposes a series of metric
 // whose labels include every pair in labels.
 func hasSeries(t *testing.T, metric string, labels map[string]string) bool {
@@ -418,14 +427,157 @@ func TestUpdateAPIMetricsSetsSeries(t *testing.T) {
 	c := NewCollector(config.Config{})
 	d := testDevice(t, "label-dev-1", "label-dev-1")
 	d.OS = "linux"
-	d.ClientVersion = "1.0.0"
+	d.ClientVersion = testVersionOld
 
 	seen := c.updateAPIMetrics([]device.Device{d})
 
 	if _, ok := seen["label-dev-1"]; !ok {
 		t.Error("expected device in seen set")
 	}
-	if !hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-1", "os": "linux", "version": "1.0.0"}) {
+	if !hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-1", "os": "linux", labelVersion: testVersionOld}) {
 		t.Error("expected tailscale_device_info series")
+	}
+}
+
+func TestUpdateAPIMetricsVersionChange(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-version", "label-dev-version")
+	d.ClientVersion = testVersionOld
+	c.updateAPIMetrics([]device.Device{d})
+
+	d.ClientVersion = testVersionNew
+	c.updateAPIMetrics([]device.Device{d})
+
+	if hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-version", labelVersion: testVersionOld}) {
+		t.Error("old version series still present")
+	}
+	if !hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-version", labelVersion: testVersionNew}) {
+		t.Error("new version series missing")
+	}
+}
+
+func TestUpdateAPIMetricsRouteRemoved(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-route", "label-dev-route")
+	d.AdvertisedRoutes = []string{testRouteKept, testRouteDropped}
+	c.updateAPIMetrics([]device.Device{d})
+
+	d.AdvertisedRoutes = []string{testRouteKept}
+	c.updateAPIMetrics([]device.Device{d})
+
+	if hasSeries(t, "tailscale_device_routes_advertised", map[string]string{labelDeviceID: "label-dev-route", "route": testRouteDropped}) {
+		t.Error("removed route series still present")
+	}
+	if !hasSeries(t, "tailscale_device_routes_advertised", map[string]string{labelDeviceID: "label-dev-route", "route": testRouteKept}) {
+		t.Error("remaining route series missing")
+	}
+}
+
+func TestUpdateAPIMetricsUserCleared(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-user", "label-dev-user")
+	d.User = "a@example.com"
+	c.updateAPIMetrics([]device.Device{d})
+
+	d.User = ""
+	c.updateAPIMetrics([]device.Device{d})
+
+	if hasSeries(t, "tailscale_device_user", map[string]string{labelDeviceID: "label-dev-user"}) {
+		t.Error("user series still present after user was cleared")
+	}
+}
+
+func TestUpdateAPIMetricsConnectivityDropped(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-conn", "label-dev-conn")
+	d.ClientConnectivity = &device.ClientConnectivity{
+		Latency: map[string]device.LatencyInfo{testDERPRegion: {LatencyMs: 5, Preferred: true}},
+	}
+	c.updateAPIMetrics([]device.Device{d})
+
+	d.ClientConnectivity = nil
+	c.updateAPIMetrics([]device.Device{d})
+
+	labels := map[string]string{labelDeviceID: "label-dev-conn"}
+	if hasSeries(t, "tailscale_device_latency_ms", labels) {
+		t.Error("latency series still present after connectivity dropped")
+	}
+	if hasSeries(t, "tailscale_device_client_supports", labels) {
+		t.Error("client supports series still present after connectivity dropped")
+	}
+}
+
+func TestUpdateAPIMetricsRename(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-rename", "label-old")
+	c.updateAPIMetrics([]device.Device{d})
+	InboundBytes.WithLabelValues("label-dev-rename", "label-old", "direct").Set(1)
+	DeviceErrors.WithLabelValues("label-dev-rename", "label-old", "timeout", "true").Inc()
+
+	newName, _ := types.NewDeviceName("label-new")
+	d.Name = newName
+	c.updateAPIMetrics([]device.Device{d})
+
+	old := map[string]string{labelDeviceID: "label-dev-rename", labelDeviceName: "label-old"}
+	for _, metric := range []string{"tailscale_device_info", "tailscaled_inbound_bytes_total", "tsmetrics_device_errors_total"} {
+		if hasSeries(t, metric, old) {
+			t.Errorf("%s still has series with old device name", metric)
+		}
+	}
+	if !hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-rename", labelDeviceName: "label-new"}) {
+		t.Error("tailscale_device_info missing for new device name")
+	}
+}
+
+func TestUpdateAPIMetricsUnchangedKeepsSeries(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-same", "label-dev-same")
+	d.ClientVersion = testVersionOld
+	c.updateAPIMetrics([]device.Device{d})
+	InboundBytes.WithLabelValues("label-dev-same", "label-dev-same", "direct").Set(1)
+	DeviceErrors.WithLabelValues("label-dev-same", "label-dev-same", "timeout", "true").Inc()
+
+	c.updateAPIMetrics([]device.Device{d})
+
+	labels := map[string]string{labelDeviceID: "label-dev-same"}
+	if !hasSeries(t, "tailscaled_inbound_bytes_total", labels) {
+		t.Error("client series removed for unchanged device")
+	}
+	if !hasSeries(t, "tsmetrics_device_errors_total", labels) {
+		t.Error("device error series removed for unchanged device")
+	}
+}
+
+func TestDeviceLabelFingerprintIgnoresOrderAndValues(t *testing.T) {
+	id, _ := types.NewDeviceID("fp-dev")
+	name, _ := types.NewDeviceName("fp-dev")
+	base := func() device.Device {
+		return device.Device{
+			ID:               id,
+			Name:             name,
+			ClientVersion:    testVersionOld,
+			AdvertisedRoutes: []string{testRouteKept, testRouteDropped},
+			LastSeen:         time.Unix(1000, 0),
+			ClientConnectivity: &device.ClientConnectivity{
+				Latency: map[string]device.LatencyInfo{testDERPRegion: {LatencyMs: 5, Preferred: true}},
+			},
+		}
+	}
+
+	a := base()
+	b := base()
+	b.AdvertisedRoutes = []string{testRouteDropped, testRouteKept}
+	b.LastSeen = time.Unix(2000, 0)
+	b.ClientConnectivity = &device.ClientConnectivity{
+		Latency: map[string]device.LatencyInfo{testDERPRegion: {LatencyMs: 50, Preferred: true}},
+	}
+	if deviceLabelFingerprint(a) != deviceLabelFingerprint(b) {
+		t.Error("fingerprint changed for route order, latency value or last seen time")
+	}
+
+	c := base()
+	c.ClientVersion = testVersionNew
+	if deviceLabelFingerprint(a) == deviceLabelFingerprint(c) {
+		t.Error("fingerprint unchanged for version change")
 	}
 }

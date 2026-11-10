@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
@@ -44,6 +47,48 @@ type Collector struct {
 	cfg       config.Config
 	apiClient *api.Client
 	tracker   *DeviceMetricsTracker
+
+	// labelState holds each device's label fingerprint from the previous
+	// cycle. Only runCycle calls UpdateMetrics, sequentially, so no lock.
+	labelState map[string]deviceLabelState
+}
+
+// deviceLabelState is what a device's series were labelled with last cycle.
+type deviceLabelState struct {
+	name        string
+	fingerprint string
+}
+
+// deviceLabelFingerprint covers every input that decides which label sets a
+// device's API series carry. A change means some old series would linger, so
+// they must be deleted before the new ones are set. Values that only feed
+// gauge values (latency, timestamps) and the order of routes are left out.
+func deviceLabelFingerprint(d device.Device) string {
+	parts := []string{
+		d.Name.String(),
+		d.OS,
+		d.ClientVersion,
+		d.User,
+		sortedJoin(d.AdvertisedRoutes),
+		sortedJoin(d.EnabledRoutes),
+		strconv.FormatBool(d.LastSeen.IsZero()),
+		strconv.FormatBool(d.Created.IsZero()),
+		strconv.FormatBool(d.ClientConnectivity != nil),
+	}
+	if d.ClientConnectivity != nil {
+		regions := make([]string, 0, len(d.ClientConnectivity.Latency))
+		for region, info := range d.ClientConnectivity.Latency {
+			regions = append(regions, region+"="+strconv.FormatBool(info.Preferred))
+		}
+		parts = append(parts, sortedJoin(regions))
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func sortedJoin(values []string) string {
+	sorted := slices.Clone(values)
+	slices.Sort(sorted)
+	return strings.Join(sorted, "\x1f")
 }
 
 // APIClient returns the underlying Tailscale API client, or nil if the
@@ -200,9 +245,22 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 // and returns the devices seen in this cycle, device ID to device name.
 func (c *Collector) updateAPIMetrics(devices []device.Device) map[string]string {
 	seen := map[string]string{}
+	next := make(map[string]deviceLabelState, len(devices))
 
 	onlineCount := 0
 	for _, d := range devices {
+		id := d.ID.String()
+		state := deviceLabelState{name: d.Name.String(), fingerprint: deviceLabelFingerprint(d)}
+		if prev, ok := c.labelState[id]; ok && prev.fingerprint != state.fingerprint {
+			slog.Debug("device labels changed, dropping old series", "device_id", id)
+			cleanupAPIDeviceMetrics(id)
+			if prev.name != state.name {
+				cleanupClientDeviceMetrics(id)
+				DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: id})
+			}
+		}
+		next[id] = state
+
 		// Set static device info (always present, no online status in labels)
 		DeviceInfo.WithLabelValues(d.ID.String(), d.Name.String(), truncateLabel(d.OS), truncateLabel(d.ClientVersion)).Set(1)
 
@@ -340,6 +398,7 @@ func (c *Collector) updateAPIMetrics(devices []device.Device) map[string]string 
 	}
 
 	OnlineDevicesCount.Set(float64(onlineCount))
+	c.labelState = next
 
 	return seen
 }
