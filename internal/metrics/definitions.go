@@ -340,6 +340,13 @@ func CleanupDeviceMetrics(deviceID, deviceName string) {
 	ScrapeErrors.DeletePartialMatch(prometheus.Labels{labelTarget: deviceName})
 	DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	RetryAttempts.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	cleanupClientDeviceMetrics(deviceID)
+	cleanupAPIDeviceMetrics(deviceID)
+}
+
+// cleanupClientDeviceMetrics removes the series scraped from the device's
+// client metrics endpoint.
+func cleanupClientDeviceMetrics(deviceID string) {
 	InboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	OutboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	InboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
@@ -349,7 +356,10 @@ func CleanupDeviceMetrics(deviceID, deviceName string) {
 	HealthMessages.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	AdvertisedRoutes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	ApprovedRoutes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+}
 
+// cleanupAPIDeviceMetrics removes the series derived from the Tailscale API.
+func cleanupAPIDeviceMetrics(deviceID string) {
 	DeviceInfo.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	DeviceOnline.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	DeviceAuthorized.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})

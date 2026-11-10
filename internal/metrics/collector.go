@@ -180,6 +180,25 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	DeviceCount.Set(float64(len(devices)))
 
+	seen := c.updateAPIMetrics(devices)
+
+	if err := ScrapeClientMetrics(ctx, devices, c.cfg); err != nil {
+		if errCount := CountTsnetStartupErrors(err); errCount > 0 {
+			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
+		} else {
+			slog.Error("scrapeClientMetrics error", "error", err)
+		}
+		ScrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
+	}
+
+	c.tracker.CleanupRemovedDevices(seen)
+	LastScrapeTime.Set(float64(time.Now().Unix()))
+	return nil
+}
+
+// updateAPIMetrics sets the Tailscale API derived series for every device
+// and returns the devices seen in this cycle, device ID to device name.
+func (c *Collector) updateAPIMetrics(devices []device.Device) map[string]string {
 	seen := map[string]string{}
 
 	onlineCount := 0
@@ -322,18 +341,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	OnlineDevicesCount.Set(float64(onlineCount))
 
-	if err := ScrapeClientMetrics(ctx, devices, c.cfg); err != nil {
-		if errCount := CountTsnetStartupErrors(err); errCount > 0 {
-			slog.Debug("device scraping pending tsnet startup", "tsnet_startup_errors", errCount, "details", err)
-		} else {
-			slog.Error("scrapeClientMetrics error", "error", err)
-		}
-		ScrapeErrors.WithLabelValues(target, "client_scrape_failed").Inc()
-	}
-
-	c.tracker.CleanupRemovedDevices(seen)
-	LastScrapeTime.Set(float64(time.Now().Unix()))
-	return nil
+	return seen
 }
 
 // CountTsnetStartupErrors counts common tsnet startup errors in error messages

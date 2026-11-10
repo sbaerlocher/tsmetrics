@@ -363,3 +363,69 @@ func TestUpdateMetricsKeepsSeriesOnAPIFailure(t *testing.T) {
 		}
 	}
 }
+
+// hasSeries reports whether the default registry exposes a series of metric
+// whose labels include every pair in labels.
+func hasSeries(t *testing.T, metric string, labels map[string]string) bool {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	for _, mf := range families {
+		if mf.GetName() != metric {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			got := map[string]string{}
+			for _, lp := range m.GetLabel() {
+				got[lp.GetName()] = lp.GetValue()
+			}
+			match := true
+			for k, v := range labels {
+				if got[k] != v {
+					match = false
+					break
+				}
+			}
+			if match {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// testDevice builds a device and removes all of its series when the test ends,
+// so tests sharing the global registry stay independent.
+func testDevice(t *testing.T, id, name string) device.Device {
+	t.Helper()
+	deviceID, err := types.NewDeviceID(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deviceName, err := types.NewDeviceName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		CleanupDeviceMetrics(id, name)
+	})
+	return device.Device{ID: deviceID, Name: deviceName}
+}
+
+func TestUpdateAPIMetricsSetsSeries(t *testing.T) {
+	c := NewCollector(config.Config{})
+	d := testDevice(t, "label-dev-1", "label-dev-1")
+	d.OS = "linux"
+	d.ClientVersion = "1.0.0"
+
+	seen := c.updateAPIMetrics([]device.Device{d})
+
+	if _, ok := seen["label-dev-1"]; !ok {
+		t.Error("expected device in seen set")
+	}
+	if !hasSeries(t, "tailscale_device_info", map[string]string{labelDeviceID: "label-dev-1", "os": "linux", "version": "1.0.0"}) {
+		t.Error("expected tailscale_device_info series")
+	}
+}
