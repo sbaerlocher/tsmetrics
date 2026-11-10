@@ -1177,6 +1177,9 @@ docker exec tsmetrics id
 docker run --rm -v tsnet-state:/data alpine chown -R 65532:65532 /data
 ```
 
+The image runs as distroless `nonroot` (65532). This applies to plain Docker;
+the Helm chart and Kustomize manifests run as 65534 and set `fsGroup` instead.
+
 **Resource Constraints:**
 
 ```bash

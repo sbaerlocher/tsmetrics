@@ -52,7 +52,7 @@ RUN apk add --no-cache curl tar ca-certificates && \
     curl -fsSL "https://github.com/sbaerlocher/tsmetrics/releases/download/${VERSION}/tsmetrics_Linux_${ARCH}.tar.gz" -o /tmp/tsmetrics.tar.gz && \
     tar -xzf /tmp/tsmetrics.tar.gz -C /tmp tsmetrics && \
     chmod +x /tmp/tsmetrics && \
-    mkdir -p /tmp/tsnet-tsmetrics
+    mkdir -m 0700 /tmp/tsnet-tsmetrics
 
 # ==============================================================================
 # PRODUCTION STAGE (GitHub Release Binary)
