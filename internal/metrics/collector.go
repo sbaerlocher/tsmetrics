@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
@@ -182,41 +181,6 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 	// Mark all current devices as active in tracker
 	for _, d := range devices {
 		c.tracker.MarkDeviceActive(d.ID.String())
-	}
-
-	// Clean up stale devices and their metrics BEFORE setting new ones
-	// Clean up stale devices first
-	staleDevices := c.tracker.CleanupStaleDevices(5 * time.Minute)
-	if len(staleDevices) > 0 {
-		slog.Info("cleaning up stale device metrics", "count", len(staleDevices), "devices", staleDevices)
-
-		// Delete metrics for stale devices to prevent duplicate entries
-		for _, deviceID := range staleDevices {
-			DeviceInfo.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceOnline.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceAuthorized.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceLastSeen.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceUser.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceMachineKeyExpiry.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceExitNode.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceExitNodeOption.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceSubnetRouter.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-
-			// Clean up new metrics for stale devices
-			DeviceUpdateAvailable.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceCreated.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceExternal.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceBlocksIncoming.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceEphemeral.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceMultipleConnections.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceLatency.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceEndpoints.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceClientSupports.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceTailnetLockError.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DevicePostureSerialNumbers.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-		}
 	}
 
 	seen := map[string]struct{}{}

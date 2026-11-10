@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
@@ -265,23 +266,66 @@ func TestDeviceMetricsTracker(t *testing.T) {
 	deviceID := "test-device"
 	tracker.MarkDeviceActive(deviceID)
 
-	// Test CleanupStaleDevices with no stale devices
-	staleDevices := tracker.CleanupStaleDevices(time.Hour)
-	if len(staleDevices) != 0 {
-		t.Errorf("Expected no stale devices, got %d", len(staleDevices))
-	}
-
-	// Test CleanupStaleDevices with stale devices
-	time.Sleep(10 * time.Millisecond)
-	staleDevices = tracker.CleanupStaleDevices(5 * time.Millisecond)
-	if len(staleDevices) != 1 {
-		t.Errorf("Expected 1 stale device, got %d", len(staleDevices))
-	}
-
 	// Test CleanupRemovedDevices
 	seenDevices := map[string]struct{}{
 		"device1": {},
 		"device2": {},
 	}
 	tracker.CleanupRemovedDevices(seenDevices)
+	if tracker.knownDevices[deviceID] {
+		t.Errorf("Expected %s to be removed", deviceID)
+	}
+	if !tracker.knownDevices["device1"] {
+		t.Error("Expected device1 to be tracked")
+	}
+}
+
+func TestUpdateMetricsCleansUpVanishedDevice(t *testing.T) {
+	for _, key := range []string{
+		"TARGET_DEVICES", "TEST_DEVICES", "TAILNET_NAME",
+		"OAUTH_CLIENT_ID", "OAUTH_CLIENT_SECRET", "OAUTH_TOKEN",
+	} {
+		t.Setenv(key, "")
+	}
+
+	const deviceID = "vanished-device"
+	c := NewCollector(config.Config{ClientMetricsTimeout: time.Second, MaxConcurrentScrapes: 1})
+	c.tracker.knownDevices[deviceID] = true
+	c.tracker.lastSeen[deviceID] = time.Now().Add(-10 * time.Minute)
+	InboundBytes.WithLabelValues(deviceID, deviceID, "direct").Set(1)
+	DeviceErrors.WithLabelValues(deviceID, deviceID, "timeout", "true").Inc()
+	t.Cleanup(func() { CleanupDeviceMetrics(deviceID) })
+
+	deviceSeries := func() map[string]bool {
+		t.Helper()
+		families, err := prometheus.DefaultGatherer.Gather()
+		if err != nil {
+			t.Fatalf("gather metrics: %v", err)
+		}
+		found := make(map[string]bool)
+		for _, family := range families {
+			for _, metric := range family.GetMetric() {
+				for _, label := range metric.GetLabel() {
+					if label.GetName() == labelDeviceID && label.GetValue() == deviceID {
+						found[family.GetName()] = true
+					}
+				}
+			}
+		}
+		return found
+	}
+
+	before := deviceSeries()
+	for _, name := range []string{"tailscaled_inbound_bytes_total", "tsmetrics_device_errors_total"} {
+		if !before[name] {
+			t.Fatalf("expected %s series before cleanup", name)
+		}
+	}
+
+	if err := c.UpdateMetrics(context.Background(), "test"); err != nil {
+		t.Fatalf("update metrics: %v", err)
+	}
+	for name := range deviceSeries() {
+		t.Errorf("series %s still has device_id=%s after cleanup", name, deviceID)
+	}
 }

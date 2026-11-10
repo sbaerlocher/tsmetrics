@@ -335,6 +335,7 @@ func GetOnlineDevicesCount() int {
 
 // CleanupDeviceMetrics removes all metrics associated with a specific device.
 func CleanupDeviceMetrics(deviceID string) {
+	DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	InboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	OutboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	InboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})

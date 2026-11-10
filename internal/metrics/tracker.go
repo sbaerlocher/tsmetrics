@@ -30,25 +30,6 @@ func (d *DeviceMetricsTracker) MarkDeviceActive(deviceID string) {
 	d.lastSeen[deviceID] = time.Now()
 }
 
-// CleanupStaleDevices removes devices that haven't been seen for longer than the specified duration and returns their IDs.
-func (d *DeviceMetricsTracker) CleanupStaleDevices(staleDuration time.Duration) []string {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	var staleDevices []string
-	now := time.Now()
-
-	for deviceID, lastSeen := range d.lastSeen {
-		if now.Sub(lastSeen) > staleDuration {
-			staleDevices = append(staleDevices, deviceID)
-			delete(d.knownDevices, deviceID)
-			delete(d.lastSeen, deviceID)
-		}
-	}
-
-	return staleDevices
-}
-
 // CleanupRemovedDevices removes metrics for devices that are no longer discovered and updates tracking for currently seen devices.
 func (d *DeviceMetricsTracker) CleanupRemovedDevices(seenDevices map[string]struct{}) {
 	d.mu.Lock()

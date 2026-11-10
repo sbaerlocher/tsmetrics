@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Metrics for devices removed from discovery, including client metrics and
+  `tsmetrics_device_errors_total`, are now deleted in the same cleanup pass.
 - The Helm ServiceMonitor now sends `METRICS_TOKEN` as a Bearer token when
   `tailscale.metricsToken` is set. Before, enabling the token together with
   `serviceMonitor.enabled` made every Prometheus scrape fail with `401`. For
