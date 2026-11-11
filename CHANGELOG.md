@@ -18,8 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selects the monitoring namespace via `kubernetes.io/metadata.name`. Before,
   it matched on a `name` label that Kubernetes does not set, so the Kustomize
   base locked Prometheus out as soon as the CNI enforced NetworkPolicies. The
-  `ingress` namespace selector is removed; whoever scrapes through it adds the
-  rule back via values or an overlay patch.
+  `ingress` namespace selector is removed. If you labeled a namespace with a
+  different name `name=monitoring` or `name=ingress` to let it scrape, allow
+  that namespace via `networkPolicy.ingress` (Helm) or an overlay patch
+  (Kustomize, example in the README).
 
 ## [1.3.3] - 2026-11-06
 
