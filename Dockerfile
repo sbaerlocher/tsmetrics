@@ -51,7 +51,8 @@ RUN apk add --no-cache curl tar ca-certificates && \
     esac) && \
     curl -fsSL "https://github.com/sbaerlocher/tsmetrics/releases/download/${VERSION}/tsmetrics_Linux_${ARCH}.tar.gz" -o /tmp/tsmetrics.tar.gz && \
     tar -xzf /tmp/tsmetrics.tar.gz -C /tmp tsmetrics && \
-    chmod +x /tmp/tsmetrics
+    chmod +x /tmp/tsmetrics && \
+    mkdir -m 0700 /tmp/tsnet-tsmetrics
 
 # ==============================================================================
 # PRODUCTION STAGE (GitHub Release Binary)
@@ -64,6 +65,9 @@ LABEL org.opencontainers.image.source="https://github.com/sbaerlocher/tsmetrics"
 LABEL org.opencontainers.image.licenses="MIT"
 
 COPY --from=release-builder --chown=nonroot:nonroot /tmp/tsmetrics /tsmetrics
+# Empty, nonroot-owned tsnet state dir: a fresh named volume mounted here
+# inherits this ownership instead of becoming root-owned.
+COPY --from=release-builder --chown=nonroot:nonroot /tmp/tsnet-tsmetrics /tmp/tsnet-tsmetrics
 
 USER nonroot:nonroot
 
