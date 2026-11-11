@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tailscaled_*` and `tsmetrics_device_errors_total` series once the new-name
   client series are written. `tsmetrics_scrape_errors_total`, keyed by target
   name rather than device ID, is not affected.
+- The README and `AGENTS.md` document `TARGET_DEVICES` instead of the
+  deprecated `TEST_DEVICES`, explain that mock mode needs empty API
+  credentials, and no longer describe wildcard matching, `DEVICE_TAGS` or
+  `EXCLUDE_DEVICES`, which tsmetrics never supported.
 
 ## [1.3.3] - 2026-11-06
 
