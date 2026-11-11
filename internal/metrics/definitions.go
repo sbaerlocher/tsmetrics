@@ -15,6 +15,7 @@ const (
 	labelErrorType  = "error_type"
 	labelPath       = "path"
 	labelStrategy   = "strategy"
+	labelTarget     = "target"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 			Name: "tsmetrics_scrape_duration_seconds",
 			Help: "Time spent scraping target",
 		},
-		[]string{"target"},
+		[]string{labelTarget},
 	)
 
 	// ScrapeErrors tracks the number of scraping errors by type and target
@@ -33,7 +34,7 @@ var (
 			Name: "tsmetrics_scrape_errors_total",
 			Help: "Scrape errors by target",
 		},
-		[]string{"target", labelErrorType},
+		[]string{labelTarget, labelErrorType},
 	)
 
 	// APICallDuration tracks the duration of API calls by endpoint and status.
@@ -334,7 +335,11 @@ func GetOnlineDevicesCount() int {
 }
 
 // CleanupDeviceMetrics removes all metrics associated with a specific device.
-func CleanupDeviceMetrics(deviceID string) {
+// Client scrape errors are labeled by device name through "target".
+func CleanupDeviceMetrics(deviceID, deviceName string) {
+	ScrapeErrors.DeletePartialMatch(prometheus.Labels{labelTarget: deviceName})
+	DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	RetryAttempts.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	InboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	OutboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	InboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})

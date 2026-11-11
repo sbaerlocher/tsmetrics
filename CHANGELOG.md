@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Metrics for devices removed from discovery, including client metrics,
+  `tsmetrics_device_errors_total`, `tsmetrics_retry_attempts_total` and the
+  device's `tsmetrics_scrape_errors_total` series, are now deleted in the same
+  cleanup pass.
+- A failed Tailscale API discovery no longer counts as "no devices", so it keeps
+  the last cycle's device series instead of deleting them all.
 - The Helm ServiceMonitor now sends `METRICS_TOKEN` as a Bearer token when
   `tailscale.metricsToken` is set. Before, enabling the token together with
   `serviceMonitor.enabled` made every Prometheus scrape fail with `401`. For

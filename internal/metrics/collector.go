@@ -4,13 +4,13 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
@@ -113,31 +113,32 @@ func (c *Collector) FetchDevices(ctx context.Context) ([]device.Device, error) {
 		slog.Info("attempting Tailscale API discovery")
 		devices, err := c.apiClient.FetchDevices(ctx)
 		if err != nil {
-			slog.Error("Tailscale API failed", "error", err)
-		} else {
-			if len(targetDevices) > 0 {
-				filtered := make([]device.Device, 0)
-				for _, d := range devices {
-					for _, td := range targetDevices {
-						if strings.EqualFold(d.Name.String(), td) || strings.EqualFold(d.ID.String(), td) || strings.EqualFold(d.Host, td) {
-							filtered = append(filtered, d)
-							break
-						}
+			// Keep the last cycle's series: treating a failed call as "no devices"
+			// would make UpdateMetrics delete every device's metrics.
+			return nil, fmt.Errorf("tailscale API discovery: %w", err)
+		}
+		if len(targetDevices) > 0 {
+			filtered := make([]device.Device, 0)
+			for _, d := range devices {
+				for _, td := range targetDevices {
+					if strings.EqualFold(d.Name.String(), td) || strings.EqualFold(d.ID.String(), td) || strings.EqualFold(d.Host, td) {
+						filtered = append(filtered, d)
+						break
 					}
 				}
-				devices = filtered
 			}
-			slog.Info("Tailscale API discovery successful", "device_count", len(devices))
-			return devices, nil
+			devices = filtered
 		}
-	} else {
-		apiCredentialsWarningMutex.Lock()
-		if !apiCredentialsWarningShown {
-			slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
-			apiCredentialsWarningShown = true
-		}
-		apiCredentialsWarningMutex.Unlock()
+		slog.Info("Tailscale API discovery successful", "device_count", len(devices))
+		return devices, nil
 	}
+
+	apiCredentialsWarningMutex.Lock()
+	if !apiCredentialsWarningShown {
+		slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
+		apiCredentialsWarningShown = true
+	}
+	apiCredentialsWarningMutex.Unlock()
 
 	if len(targetDevices) > 0 {
 		out := make([]device.Device, 0, len(targetDevices))
@@ -179,47 +180,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	DeviceCount.Set(float64(len(devices)))
 
-	// Mark all current devices as active in tracker
-	for _, d := range devices {
-		c.tracker.MarkDeviceActive(d.ID.String())
-	}
-
-	// Clean up stale devices and their metrics BEFORE setting new ones
-	// Clean up stale devices first
-	staleDevices := c.tracker.CleanupStaleDevices(5 * time.Minute)
-	if len(staleDevices) > 0 {
-		slog.Info("cleaning up stale device metrics", "count", len(staleDevices), "devices", staleDevices)
-
-		// Delete metrics for stale devices to prevent duplicate entries
-		for _, deviceID := range staleDevices {
-			DeviceInfo.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceOnline.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceAuthorized.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceLastSeen.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceUser.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceMachineKeyExpiry.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceRoutesAdvertised.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceRoutesEnabled.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceExitNode.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceExitNodeOption.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceSubnetRouter.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-
-			// Clean up new metrics for stale devices
-			DeviceUpdateAvailable.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceCreated.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceExternal.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceBlocksIncoming.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceEphemeral.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceMultipleConnections.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceLatency.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceEndpoints.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceClientSupports.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DeviceTailnetLockError.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-			DevicePostureSerialNumbers.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-		}
-	}
-
-	seen := map[string]struct{}{}
+	seen := map[string]string{}
 
 	onlineCount := 0
 	for _, d := range devices {
@@ -356,7 +317,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 			DevicePostureSerialNumbers.WithLabelValues(d.ID.String(), d.Name.String()).Set(0)
 		}
 
-		seen[d.ID.String()] = struct{}{}
+		seen[d.ID.String()] = d.Name.String()
 	}
 
 	OnlineDevicesCount.Set(float64(onlineCount))
