@@ -247,11 +247,9 @@ RATE_LIMIT_BURST=20
 #### Development/Testing
 
 ```bash
-# Mock devices for testing
-TEST_DEVICES=gateway-1,gateway-2,server-3
-
-# Target specific devices only
-TARGET_DEVICES=production-gateway,backup-server
+# Without API credentials: static mock device list.
+# With API credentials: filter on the devices the API returns.
+TARGET_DEVICES=gateway-1,gateway-2,server-3
 ```
 
 ### Environment Variables Reference
@@ -1008,11 +1006,14 @@ set to override the heuristic.
 
 ### Testing with Mock Devices
 
-For development without real Tailscale credentials, set `TEST_DEVICES` in `.env`:
+For development without real Tailscale credentials, set `TARGET_DEVICES` in `.env`:
 
 ```env
-TEST_DEVICES=gateway-1,gateway-2,server-3
+TARGET_DEVICES=gateway-1,gateway-2,server-3
 ```
+
+Leave `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_TOKEN` and `TAILNET_NAME` empty and set
+`USE_TSNET=false` — `.env.example` fills them with placeholders and `true`, respectively.
 
 Then `just dev` starts with mock targets — no OAuth or tsnet required.
 
@@ -1138,7 +1139,7 @@ export LOG_LEVEL=debug
 dde project:exec -- go run ./cmd/tsmetrics
 
 # Test specific device
-export TEST_DEVICES="specific-device-name"
+export TARGET_DEVICES="specific-device-name"
 dde project:exec -- go run ./cmd/tsmetrics
 ```
 
@@ -1347,14 +1348,11 @@ curl http://localhost:9100/debug
 ### Custom Device Filtering
 
 ```bash
-# Only monitor specific device types
-export TARGET_DEVICES="gateway-*,router-*"
+# Only monitor specific devices (exact name, ID or host; case-insensitive, no wildcards)
+export TARGET_DEVICES="gateway-1,router-1"
 
-# Monitor by tag (requires API support)
-export DEVICE_TAGS="production,critical"
-
-# Exclude specific devices
-export EXCLUDE_DEVICES="test-device,staging-*"
+# Only scrape client metrics from devices carrying this tag (default: exporter)
+export SCRAPE_TAG="production"
 ```
 
 ### Integration Examples
