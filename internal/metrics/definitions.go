@@ -55,14 +55,6 @@ var (
 		[]string{labelDeviceID, labelDeviceName, labelErrorType, "retryable"},
 	)
 
-	RetryAttempts = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "tsmetrics_retry_attempts_total",
-			Help: "Number of retry attempts",
-		},
-		[]string{labelDeviceID, labelDeviceName, "reason"},
-	)
-
 	MemoryUsage = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "tsmetrics_memory_usage_bytes",
@@ -344,7 +336,6 @@ func GetOnlineDevicesCount() int {
 func CleanupDeviceMetrics(deviceID, deviceName string) {
 	ScrapeErrors.DeletePartialMatch(prometheus.Labels{labelTarget: deviceName})
 	DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	RetryAttempts.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	cleanupClientDeviceMetrics(deviceID)
 	cleanupAPIDeviceMetrics(deviceID)
 }
