@@ -4,6 +4,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -112,31 +113,32 @@ func (c *Collector) FetchDevices(ctx context.Context) ([]device.Device, error) {
 		slog.Info("attempting Tailscale API discovery")
 		devices, err := c.apiClient.FetchDevices(ctx)
 		if err != nil {
-			slog.Error("Tailscale API failed", "error", err)
-		} else {
-			if len(targetDevices) > 0 {
-				filtered := make([]device.Device, 0)
-				for _, d := range devices {
-					for _, td := range targetDevices {
-						if strings.EqualFold(d.Name.String(), td) || strings.EqualFold(d.ID.String(), td) || strings.EqualFold(d.Host, td) {
-							filtered = append(filtered, d)
-							break
-						}
+			// Keep the last cycle's series: treating a failed call as "no devices"
+			// would make UpdateMetrics delete every device's metrics.
+			return nil, fmt.Errorf("tailscale API discovery: %w", err)
+		}
+		if len(targetDevices) > 0 {
+			filtered := make([]device.Device, 0)
+			for _, d := range devices {
+				for _, td := range targetDevices {
+					if strings.EqualFold(d.Name.String(), td) || strings.EqualFold(d.ID.String(), td) || strings.EqualFold(d.Host, td) {
+						filtered = append(filtered, d)
+						break
 					}
 				}
-				devices = filtered
 			}
-			slog.Info("Tailscale API discovery successful", "device_count", len(devices))
-			return devices, nil
+			devices = filtered
 		}
-	} else {
-		apiCredentialsWarningMutex.Lock()
-		if !apiCredentialsWarningShown {
-			slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
-			apiCredentialsWarningShown = true
-		}
-		apiCredentialsWarningMutex.Unlock()
+		slog.Info("Tailscale API discovery successful", "device_count", len(devices))
+		return devices, nil
 	}
+
+	apiCredentialsWarningMutex.Lock()
+	if !apiCredentialsWarningShown {
+		slog.Warn("Tailscale API credentials not provided", "required", "TAILNET_NAME/OAUTH_CLIENT_ID+SECRET or OAUTH_TOKEN")
+		apiCredentialsWarningShown = true
+	}
+	apiCredentialsWarningMutex.Unlock()
 
 	if len(targetDevices) > 0 {
 		out := make([]device.Device, 0, len(targetDevices))
@@ -178,12 +180,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	DeviceCount.Set(float64(len(devices)))
 
-	// Mark all current devices as active in tracker
-	for _, d := range devices {
-		c.tracker.MarkDeviceActive(d.ID.String())
-	}
-
-	seen := map[string]struct{}{}
+	seen := map[string]string{}
 
 	onlineCount := 0
 	for _, d := range devices {
@@ -320,7 +317,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 			DevicePostureSerialNumbers.WithLabelValues(d.ID.String(), d.Name.String()).Set(0)
 		}
 
-		seen[d.ID.String()] = struct{}{}
+		seen[d.ID.String()] = d.Name.String()
 	}
 
 	OnlineDevicesCount.Set(float64(onlineCount))

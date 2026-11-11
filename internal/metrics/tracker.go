@@ -4,48 +4,34 @@ package metrics
 import (
 	"log/slog"
 	"sync"
-	"time"
 )
 
-// DeviceMetricsTracker tracks active devices and their last seen timestamps.
+// DeviceMetricsTracker tracks the devices of the last discovery cycle by ID and name.
 type DeviceMetricsTracker struct {
-	mu           sync.RWMutex
-	knownDevices map[string]bool
-	lastSeen     map[string]time.Time
+	mu           sync.Mutex
+	knownDevices map[string]string
 }
 
 // NewDeviceMetricsTracker creates a new instance of DeviceMetricsTracker.
 func NewDeviceMetricsTracker() *DeviceMetricsTracker {
-	return &DeviceMetricsTracker{
-		knownDevices: make(map[string]bool),
-		lastSeen:     make(map[string]time.Time),
-	}
+	return &DeviceMetricsTracker{knownDevices: make(map[string]string)}
 }
 
-// MarkDeviceActive marks a device as active and updates its last seen timestamp.
-func (d *DeviceMetricsTracker) MarkDeviceActive(deviceID string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.knownDevices[deviceID] = true
-	d.lastSeen[deviceID] = time.Now()
-}
-
-// CleanupRemovedDevices removes metrics for devices that are no longer discovered and updates tracking for currently seen devices.
-func (d *DeviceMetricsTracker) CleanupRemovedDevices(seenDevices map[string]struct{}) {
+// CleanupRemovedDevices removes metrics for devices that are no longer discovered and
+// tracks the currently seen devices (device ID to device name) for the next cycle.
+func (d *DeviceMetricsTracker) CleanupRemovedDevices(seenDevices map[string]string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	for deviceID := range d.knownDevices {
+	for deviceID, deviceName := range d.knownDevices {
 		if _, exists := seenDevices[deviceID]; !exists {
 			slog.Info("device no longer discovered, cleaning up metrics", "device_id", deviceID)
-			CleanupDeviceMetrics(deviceID)
+			CleanupDeviceMetrics(deviceID, deviceName)
 			delete(d.knownDevices, deviceID)
-			delete(d.lastSeen, deviceID)
 		}
 	}
 
-	for deviceID := range seenDevices {
-		d.knownDevices[deviceID] = true
-		d.lastSeen[deviceID] = time.Now()
+	for deviceID, deviceName := range seenDevices {
+		d.knownDevices[deviceID] = deviceName
 	}
 }

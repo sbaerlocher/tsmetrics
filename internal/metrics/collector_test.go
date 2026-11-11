@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/config"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
@@ -257,66 +258,76 @@ func TestIsTsnetStartupError(t *testing.T) {
 
 func TestDeviceMetricsTracker(t *testing.T) {
 	tracker := NewDeviceMetricsTracker()
+	tracker.CleanupRemovedDevices(map[string]string{"test-device": "test"})
 
-	if tracker == nil {
-		t.Fatal("Expected tracker to be created")
+	tracker.CleanupRemovedDevices(map[string]string{"device1": "one", "device2": "two"})
+	if _, ok := tracker.knownDevices["test-device"]; ok {
+		t.Error("Expected test-device to be removed")
 	}
-
-	// Test MarkDeviceActive
-	deviceID := "test-device"
-	tracker.MarkDeviceActive(deviceID)
-
-	// Test CleanupRemovedDevices
-	seenDevices := map[string]struct{}{
-		"device1": {},
-		"device2": {},
-	}
-	tracker.CleanupRemovedDevices(seenDevices)
-	if tracker.knownDevices[deviceID] {
-		t.Errorf("Expected %s to be removed", deviceID)
-	}
-	if !tracker.knownDevices["device1"] {
-		t.Error("Expected device1 to be tracked")
+	if tracker.knownDevices["device1"] != "one" {
+		t.Error("Expected device1 to be tracked with its name")
 	}
 }
 
-func TestUpdateMetricsCleansUpVanishedDevice(t *testing.T) {
+// clearDiscoveryEnv makes FetchDevices see no static device list and no credentials.
+func clearDiscoveryEnv(t *testing.T) {
+	t.Helper()
 	for _, key := range []string{
 		"TARGET_DEVICES", "TEST_DEVICES", "TAILNET_NAME",
 		"OAUTH_CLIENT_ID", "OAUTH_CLIENT_SECRET", "OAUTH_TOKEN",
 	} {
 		t.Setenv(key, "")
 	}
+}
 
-	const deviceID = "vanished-device"
-	c := NewCollector(config.Config{ClientMetricsTimeout: time.Second, MaxConcurrentScrapes: 1})
-	c.tracker.knownDevices[deviceID] = true
-	c.tracker.lastSeen[deviceID] = time.Now().Add(-10 * time.Minute)
-	InboundBytes.WithLabelValues(deviceID, deviceID, "direct").Set(1)
-	DeviceErrors.WithLabelValues(deviceID, deviceID, "timeout", "true").Inc()
-	t.Cleanup(func() { CleanupDeviceMetrics(deviceID) })
+// seedDeviceSeries writes one client, one device-error and one scrape-error series
+// for the device and removes them again when the test ends.
+func seedDeviceSeries(t *testing.T, deviceID, deviceName string) {
+	t.Helper()
+	InboundBytes.WithLabelValues(deviceID, deviceName, "direct").Set(1)
+	DeviceErrors.WithLabelValues(deviceID, deviceName, "timeout", "true").Inc()
+	ScrapeErrors.WithLabelValues(deviceName, "client_fetch_failed").Inc()
+	t.Cleanup(func() { CleanupDeviceMetrics(deviceID, deviceName) })
+}
 
-	deviceSeries := func() map[string]bool {
-		t.Helper()
-		families, err := prometheus.DefaultGatherer.Gather()
-		if err != nil {
-			t.Fatalf("gather metrics: %v", err)
-		}
-		found := make(map[string]bool)
-		for _, family := range families {
-			for _, metric := range family.GetMetric() {
-				for _, label := range metric.GetLabel() {
-					if label.GetName() == labelDeviceID && label.GetValue() == deviceID {
-						found[family.GetName()] = true
-					}
+// deviceSeries returns the metric families that still hold a series for the device,
+// matched by device_id or, for scrape errors, by target=<device name>.
+func deviceSeries(t *testing.T, deviceID, deviceName string) map[string]bool {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	found := make(map[string]bool)
+	for _, family := range families {
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if (label.GetName() == labelDeviceID && label.GetValue() == deviceID) ||
+					(label.GetName() == labelTarget && label.GetValue() == deviceName) {
+					found[family.GetName()] = true
 				}
 			}
 		}
-		return found
 	}
+	return found
+}
 
-	before := deviceSeries()
-	for _, name := range []string{"tailscaled_inbound_bytes_total", "tsmetrics_device_errors_total"} {
+var seededFamilies = []string{
+	"tailscaled_inbound_bytes_total",
+	"tsmetrics_device_errors_total",
+	"tsmetrics_scrape_errors_total",
+}
+
+func TestUpdateMetricsCleansUpVanishedDevice(t *testing.T) {
+	clearDiscoveryEnv(t)
+
+	const deviceID, deviceName = "vanished-device", "vanished-name"
+	c := NewCollector(config.Config{ClientMetricsTimeout: time.Second, MaxConcurrentScrapes: 1})
+	c.tracker.knownDevices[deviceID] = deviceName
+	seedDeviceSeries(t, deviceID, deviceName)
+
+	before := deviceSeries(t, deviceID, deviceName)
+	for _, name := range seededFamilies {
 		if !before[name] {
 			t.Fatalf("expected %s series before cleanup", name)
 		}
@@ -325,7 +336,30 @@ func TestUpdateMetricsCleansUpVanishedDevice(t *testing.T) {
 	if err := c.UpdateMetrics(context.Background(), "test"); err != nil {
 		t.Fatalf("update metrics: %v", err)
 	}
-	for name := range deviceSeries() {
-		t.Errorf("series %s still has device_id=%s after cleanup", name, deviceID)
+	for name := range deviceSeries(t, deviceID, deviceName) {
+		t.Errorf("series %s still exists for %s after cleanup", name, deviceID)
+	}
+}
+
+func TestUpdateMetricsKeepsSeriesOnAPIFailure(t *testing.T) {
+	clearDiscoveryEnv(t)
+
+	const deviceID, deviceName = "kept-device", "kept-name"
+	c := NewCollector(config.Config{ClientMetricsTimeout: time.Second, MaxConcurrentScrapes: 1})
+	c.apiClient = api.NewClientWithBaseURL("token", "http://127.0.0.1:1/tailnet/test")
+	c.tracker.knownDevices[deviceID] = deviceName
+	seedDeviceSeries(t, deviceID, deviceName)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := c.UpdateMetrics(ctx, "test"); err == nil {
+		t.Fatal("expected error from failed API discovery")
+	}
+
+	after := deviceSeries(t, deviceID, deviceName)
+	for _, name := range seededFamilies {
+		if !after[name] {
+			t.Errorf("series %s was deleted although discovery failed", name)
+		}
 	}
 }
