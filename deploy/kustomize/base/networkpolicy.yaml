@@ -11,13 +11,12 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Only the monitoring namespace may scrape. kubernetes.io/metadata.name is
+    # set by Kubernetes on every namespace, no custom label needed.
     - from:
         - namespaceSelector:
             matchLabels:
-              name: monitoring
-        - namespaceSelector:
-            matchLabels:
-              name: ingress
+              kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
           port: 9100

@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `serviceMonitor.enabled` made every Prometheus scrape fail with `401`. For
   the ExternalSecret path the new value `serviceMonitor.bearerTokenAuth`
   opts in. The README documents the equivalent Kustomize overlay patch.
+- The NetworkPolicy in the Kustomize base and the Helm chart default now
+  selects the monitoring namespace via `kubernetes.io/metadata.name`. Before,
+  it matched on a `name` label that Kubernetes does not set, so the Kustomize
+  base locked Prometheus out as soon as the CNI enforced NetworkPolicies. The
+  `ingress` namespace selector is removed; whoever scrapes through it adds the
+  rule back via values or an overlay patch.
 
 ## [1.3.3] - 2026-11-06
 

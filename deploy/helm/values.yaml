@@ -213,14 +213,12 @@ networkPolicy:
 
   # Ingress rules
   ingress:
-    # Allow monitoring systems
+    # Allow the monitoring namespace. kubernetes.io/metadata.name is set by
+    # Kubernetes on every namespace, no custom label needed.
     - from:
         - namespaceSelector:
             matchLabels:
-              name: monitoring
-        - namespaceSelector:
-            matchLabels:
-              name: ingress
+              kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
           port: 9100
