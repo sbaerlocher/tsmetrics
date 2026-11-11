@@ -633,6 +633,36 @@ secret it references; Prometheus Operator only resolves `credentials` within
 the ServiceMonitor's own namespace. The JSON patch is required because
 `endpoints` is a list without a merge key.
 
+**NetworkPolicy and the scraping namespace:**
+
+The base NetworkPolicy allows port 9100 only from the namespace named
+`monitoring` (selected via `kubernetes.io/metadata.name`, which Kubernetes
+sets on every namespace). If Prometheus runs in another namespace, patch the
+selector in your own overlay; otherwise every scrape times out once your CNI
+enforces NetworkPolicies:
+
+```yaml
+# my-overlay/kustomization.yaml
+resources:
+  - <path-to-repo>/deploy/kustomize/overlays/production
+patches:
+  - target:
+      kind: NetworkPolicy
+      name: tsmetrics-network-policy
+    patch: |-
+      - op: replace
+        path: /spec/ingress/0/from
+        value:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: observability
+```
+
+Add further `namespaceSelector` entries to the list to allow more
+namespaces. A Prometheus with `hostNetwork: true` or outside the cluster is
+not matched by any `namespaceSelector`; allow its address with an `ipBlock`
+entry instead.
+
 **Kustomize Structure:**
 
 - `deploy/kustomize/base/` - Base resources
