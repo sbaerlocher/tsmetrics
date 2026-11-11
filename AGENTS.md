@@ -196,7 +196,9 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 
 - `CLIENT_METRICS_TIMEOUT` — Timeout for client metrics (default: 10s)
 - `MAX_CONCURRENT_SCRAPES` — Parallel scrapes (default: 10)
-- `TEST_DEVICES` — Comma-separated device filter for development
+- `TARGET_DEVICES` — Comma-separated device names/IDs/hosts (exact, case-insensitive). With API
+  credentials: filter on discovered devices (empty = all devices). Without API credentials: static
+  device list (empty = no devices). `TEST_DEVICES` is still read as a deprecated fallback.
 
 ### Build Metadata
 
@@ -219,14 +221,12 @@ dde project:exec sh -c "go mod tidy && go mod download"
 
 **Standalone Mode (API-only, no tsnet):**
 
-Configure `.env` with mock values:
+Configure `.env` with mock values. Leave `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_TOKEN` and
+`TAILNET_NAME` empty — otherwise tsmetrics uses the API instead of the static device list:
 
 ```env
 PORT=9100
-OAUTH_CLIENT_ID=mock_client_id
-OAUTH_CLIENT_SECRET=mock_client_secret
-TAILNET_NAME=mock_tailnet
-TEST_DEVICES=gateway-1,gateway-2
+TARGET_DEVICES=gateway-1,gateway-2
 USE_TSNET=false
 ```
 
@@ -467,7 +467,7 @@ An agent implementation is successful when it can:
 Without real Tailscale credentials, the implementation should:
 
 - Successfully build and start HTTP server
-- Handle TEST_DEVICES environment variable for mock data
+- Handle TARGET_DEVICES environment variable for mock data
 - Export well-formed Prometheus metrics
 - Pass all unit tests
 - Demonstrate proper error handling
