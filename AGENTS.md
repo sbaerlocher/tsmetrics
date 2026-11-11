@@ -198,7 +198,8 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 - `MAX_CONCURRENT_SCRAPES` — Parallel scrapes (default: 10)
 - `TARGET_DEVICES` — Comma-separated device names/IDs/hosts (exact, case-insensitive). With API
   credentials: filter on discovered devices (empty = all devices). Without API credentials: static
-  device list (empty = no devices). `TEST_DEVICES` is still read as a deprecated fallback.
+  device list (empty = no devices). `TEST_DEVICES` is still read as a deprecated discovery fallback;
+  the health check setup (`initializeHealthChecker`) only looks at `TARGET_DEVICES`.
 
 ### Build Metadata
 
@@ -219,10 +220,10 @@ dde project:exec sh -c "go mod tidy && go mod download"
 
 ### 2. Development Runtime Checks
 
-**Standalone Mode (API-only, no tsnet):**
+**Standalone Mode (static mock devices, no API, no tsnet):**
 
-Configure `.env` with mock values. Leave `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_TOKEN` and
-`TAILNET_NAME` empty — otherwise tsmetrics uses the API instead of the static device list:
+Configure `.env` with mock values. Leave `TAILNET_NAME` empty — with it set, tsmetrics uses the API
+instead of the static device list (and without API credentials it fails validation):
 
 ```env
 PORT=9100

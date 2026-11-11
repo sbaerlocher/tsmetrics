@@ -252,9 +252,15 @@ RATE_LIMIT_BURST=20
 TARGET_DEVICES=gateway-1,gateway-2,server-3
 ```
 
+`.env.example` sets `TARGET_DEVICES` to placeholder hostnames. Replace or clear it: with API
+credentials, names that match no device leave tsmetrics with zero devices and no error.
+
 ### Environment Variables Reference
 
 #### Required Variables
+
+Required for API discovery only. Mock mode with a static `TARGET_DEVICES` list needs none of them
+(see [Testing with Mock Devices](#testing-with-mock-devices)).
 
 | Variable              | Description                           | Example            |
 | --------------------- | ------------------------------------- | ------------------ |
@@ -274,6 +280,7 @@ TARGET_DEVICES=gateway-1,gateway-2,server-3
 | `TSNET_STATE_SECRET`   | -                      | Kubernetes Secret for tsnet state (`kube:` store), overrides dir      |
 | `TSNET_TAGS`           | -                      | Comma-separated device tags                                           |
 | `TS_AUTHKEY`           | -                      | Auth key for automatic registration                                   |
+| `TARGET_DEVICES`       | -                      | Device names/IDs/hosts; API filter, or static list without API        |
 | `SCRAPE_TAG`           | `exporter`             | Only scrape devices carrying this tag                                 |
 | `LOG_LEVEL`            | `info`                 | Logging level                                                         |
 | `LOG_FORMAT`           | `text`                 | Log format (`text` or `json`)                                         |
@@ -1012,8 +1019,9 @@ For development without real Tailscale credentials, set `TARGET_DEVICES` in `.en
 TARGET_DEVICES=gateway-1,gateway-2,server-3
 ```
 
-Leave `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_TOKEN` and `TAILNET_NAME` empty and set
-`USE_TSNET=false` — `.env.example` fills them with placeholders and `true`, respectively.
+Leave `TAILNET_NAME` empty (without it tsmetrics builds no API client and uses the static list) and
+set `USE_TSNET=false`. Both `.env.example` and the interactive `dde project:up` hook write a
+`TAILNET_NAME` and `USE_TSNET=true`, so adjust `.env` afterwards.
 
 Then `just dev` starts with mock targets — no OAuth or tsnet required.
 
@@ -1351,7 +1359,8 @@ curl http://localhost:9100/debug
 # Only monitor specific devices (exact name, ID or host; case-insensitive, no wildcards)
 export TARGET_DEVICES="gateway-1,router-1"
 
-# Only scrape client metrics from devices carrying this tag (default: exporter)
+# Only scrape client metrics from devices carrying this tag (default: exporter).
+# Applies to API discovery; static TARGET_DEVICES entries (no API) always carry "exporter".
 export SCRAPE_TAG="production"
 ```
 
