@@ -91,6 +91,11 @@ var (
 		},
 	)
 
+	// The tailscale_device_* vectors below are set from device.Device fields.
+	// Any field that feeds a label value, or decides whether a series is set,
+	// must also feed deviceLabelFingerprint (collector.go). Otherwise a change
+	// of that field leaves the old series behind.
+
 	// DeviceCount tracks the total number of devices discovered.
 	DeviceCount = promauto.NewGauge(
 		prometheus.GaugeOpts{
@@ -340,16 +345,30 @@ func CleanupDeviceMetrics(deviceID, deviceName string) {
 	ScrapeErrors.DeletePartialMatch(prometheus.Labels{labelTarget: deviceName})
 	DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	RetryAttempts.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	InboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	OutboundBytes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	InboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	OutboundPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	InboundDroppedPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	OutboundDroppedPackets.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	HealthMessages.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	AdvertisedRoutes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
-	ApprovedRoutes.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	cleanupClientDeviceMetrics(deviceID)
+	cleanupAPIDeviceMetrics(deviceID)
+}
 
+// clientDeviceVecs lists the vectors scraped from a device's client metrics
+// endpoint.
+func clientDeviceVecs() []*prometheus.GaugeVec {
+	return []*prometheus.GaugeVec{
+		InboundBytes, OutboundBytes, InboundPackets, OutboundPackets,
+		InboundDroppedPackets, OutboundDroppedPackets, HealthMessages,
+		AdvertisedRoutes, ApprovedRoutes,
+	}
+}
+
+// cleanupClientDeviceMetrics removes the series scraped from the device's
+// client metrics endpoint.
+func cleanupClientDeviceMetrics(deviceID string) {
+	for _, vec := range clientDeviceVecs() {
+		vec.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
+	}
+}
+
+// cleanupAPIDeviceMetrics removes the series derived from the Tailscale API.
+func cleanupAPIDeviceMetrics(deviceID string) {
 	DeviceInfo.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	DeviceOnline.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	DeviceAuthorized.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
