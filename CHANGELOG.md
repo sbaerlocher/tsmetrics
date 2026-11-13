@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `tsmetrics_memory_usage_bytes` and `tsmetrics_goroutines_total`. Nothing ever
+  set them, so every scrape reported `0`. Use the Go collector's
+  `go_memstats_heap_alloc_bytes` and `go_goroutines` instead.
+
 ### Fixed
 
 - Metrics for devices removed from discovery, including client metrics,
@@ -40,12 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deprecated `TEST_DEVICES`, explain that mock mode needs empty API
   credentials, and no longer describe wildcard matching, `DEVICE_TAGS` or
   `EXCLUDE_DEVICES`, which tsmetrics never supported.
-
-### Removed
-
-- `tsmetrics_memory_usage_bytes` and `tsmetrics_goroutines_total`. Nothing ever
-  set them, so every scrape reported `0`. Use the Go collector's
-  `go_memstats_heap_alloc_bytes` and `go_goroutines` instead.
 
 ## [1.3.3] - 2026-11-06
 
