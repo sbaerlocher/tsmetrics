@@ -286,10 +286,10 @@ func seedDeviceSeries(t *testing.T, deviceID, deviceName string) {
 	t.Helper()
 	InboundBytes.WithLabelValues(deviceID, deviceName, "direct").Set(1)
 	DeviceErrors.WithLabelValues(deviceID, deviceName, "timeout", "true").Inc()
-	ScrapeErrors.WithLabelValues(deviceName, "client_fetch_failed").Inc()
+	ScrapeErrors.WithLabelValues(deviceName, errorTypeClientFetchFailed).Inc()
 	t.Cleanup(func() {
 		CleanupDeviceMetrics(deviceID)
-		ScrapeErrors.DeleteLabelValues(deviceName, "client_fetch_failed")
+		deleteDeviceScrapeErrors(deviceName, nil)
 	})
 }
 
@@ -422,7 +422,7 @@ func testDevice(t *testing.T, id, name string) device.Device {
 	}
 	t.Cleanup(func() {
 		CleanupDeviceMetrics(id)
-		ScrapeErrors.DeleteLabelValues(name, "client_fetch_failed")
+		deleteDeviceScrapeErrors(name, nil)
 	})
 	return device.Device{ID: deviceID, Name: deviceName}
 }
@@ -597,7 +597,7 @@ func TestDeviceLabelFingerprintIgnoresOrderAndValues(t *testing.T) {
 }
 
 func TestDeleteDeviceScrapeErrors(t *testing.T) {
-	const fetchFailed = "client_fetch_failed"
+	const fetchFailed = errorTypeClientFetchFailed
 	scrapeErr := func(target, errorType string) map[string]string {
 		return map[string]string{labelTarget: target, labelErrorType: errorType}
 	}
@@ -647,9 +647,13 @@ func TestDeleteDeviceScrapeErrors(t *testing.T) {
 	t.Run("empty name", func(t *testing.T) {
 		tracker := NewDeviceMetricsTracker()
 		tracker.knownDevices["sde-x"] = ""
+		seed(t, "", fetchFailed)
 		tracker.CleanupRemovedDevices(map[string]string{})
 		if _, ok := tracker.knownDevices["sde-x"]; ok {
 			t.Error("sde-x still tracked")
+		}
+		if hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("", fetchFailed)) {
+			t.Error("scrape error series with empty target still present")
 		}
 	})
 

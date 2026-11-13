@@ -18,6 +18,10 @@ const (
 	labelTarget     = "target"
 )
 
+// errorTypeClientFetchFailed is the error_type of a device's own scrape error
+// series (target=<device name>), written by the scraper and deleted on cleanup.
+const errorTypeClientFetchFailed = "client_fetch_failed"
+
 var (
 	// ScrapeDuration tracks the time spent scraping metrics from targets.
 	ScrapeDuration = promauto.NewHistogramVec(
@@ -346,16 +350,13 @@ func CleanupDeviceMetrics(deviceID string) {
 // carries the same name. The collector's own series (fetch_failed,
 // client_scrape_failed) share the label but are never touched.
 func deleteDeviceScrapeErrors(name string, seen map[string]string) {
-	if name == "" {
-		return
-	}
 	// ponytail: linear scan per removed device, build a name set if tailnets grow large.
 	for _, seenName := range seen {
 		if seenName == name {
 			return
 		}
 	}
-	ScrapeErrors.DeleteLabelValues(name, "client_fetch_failed")
+	ScrapeErrors.DeleteLabelValues(name, errorTypeClientFetchFailed)
 }
 
 // clientDeviceVecs lists the vectors scraped from a device's client metrics
