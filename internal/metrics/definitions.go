@@ -41,36 +41,12 @@ var (
 		[]string{labelTarget, labelErrorType},
 	)
 
-	// APICallDuration tracks the duration of API calls by endpoint and status.
-	APICallDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "tsmetrics_api_call_duration_seconds",
-			Help:    "API call duration",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"endpoint", "status"},
-	)
-
 	DeviceErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "tsmetrics_device_errors_total",
 			Help: "Device errors by type and device",
 		},
 		[]string{labelDeviceID, labelDeviceName, labelErrorType, "retryable"},
-	)
-
-	MemoryUsage = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "tsmetrics_memory_usage_bytes",
-			Help: "Current memory usage in bytes",
-		},
-	)
-
-	GoroutineCount = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "tsmetrics_goroutines_total",
-			Help: "Number of active goroutines",
-		},
 	)
 
 	LastScrapeTime = promauto.NewGauge(
