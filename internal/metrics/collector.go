@@ -86,15 +86,17 @@ func deviceLabelFingerprint(d device.Device) string {
 }
 
 // dropRenamedDeviceSeries removes the client and error series that still carry
-// a renamed device's previous name. Call it after the client scrape has written
-// the new-name series.
-func dropRenamedDeviceSeries(renamed map[string]string) {
+// a renamed device's previous name. seen maps the devices of this cycle (device
+// ID to device name). Call it after the client scrape has written the new-name
+// series.
+func dropRenamedDeviceSeries(renamed, seen map[string]string) {
 	for id, oldName := range renamed {
 		old := prometheus.Labels{labelDeviceID: id, labelDeviceName: oldName}
 		for _, vec := range clientDeviceVecs() {
 			vec.DeletePartialMatch(old)
 		}
 		DeviceErrors.DeletePartialMatch(old)
+		deleteDeviceScrapeErrors(oldName, seen)
 	}
 }
 
@@ -251,7 +253,7 @@ func (c *Collector) UpdateMetrics(ctx context.Context, target string) error {
 
 	// Only now, with the new-name client series written, drop the old-name
 	// ones, so a concurrent /metrics scrape never sees the device without any.
-	dropRenamedDeviceSeries(renamed)
+	dropRenamedDeviceSeries(renamed, seen)
 
 	c.tracker.CleanupRemovedDevices(seen)
 	LastScrapeTime.Set(float64(time.Now().Unix()))

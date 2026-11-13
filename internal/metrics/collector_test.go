@@ -286,8 +286,11 @@ func seedDeviceSeries(t *testing.T, deviceID, deviceName string) {
 	t.Helper()
 	InboundBytes.WithLabelValues(deviceID, deviceName, "direct").Set(1)
 	DeviceErrors.WithLabelValues(deviceID, deviceName, "timeout", "true").Inc()
-	ScrapeErrors.WithLabelValues(deviceName, "client_fetch_failed").Inc()
-	t.Cleanup(func() { CleanupDeviceMetrics(deviceID, deviceName) })
+	ScrapeErrors.WithLabelValues(deviceName, errorTypeClientFetchFailed).Inc()
+	t.Cleanup(func() {
+		CleanupDeviceMetrics(deviceID)
+		deleteDeviceScrapeErrors(deviceName, nil)
+	})
 }
 
 // deviceSeries returns the metric families that still hold a series for the device,
@@ -418,7 +421,8 @@ func testDevice(t *testing.T, id, name string) device.Device {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		CleanupDeviceMetrics(id, name)
+		CleanupDeviceMetrics(id)
+		deleteDeviceScrapeErrors(name, nil)
 	})
 	return device.Device{ID: deviceID, Name: deviceName}
 }
@@ -522,7 +526,7 @@ func TestUpdateAPIMetricsRename(t *testing.T) {
 		t.Error("old-name client series dropped before the client scrape wrote new ones")
 	}
 	InboundBytes.WithLabelValues(renameID, renameNew, "direct").Set(2)
-	dropRenamedDeviceSeries(renamed)
+	dropRenamedDeviceSeries(renamed, map[string]string{renameID: renameNew})
 
 	old := map[string]string{labelDeviceID: renameID, labelDeviceName: renameOld}
 	for _, metric := range []string{"tailscale_device_info", "tailscaled_inbound_bytes_total", "tsmetrics_device_errors_total"} {
@@ -590,4 +594,85 @@ func TestDeviceLabelFingerprintIgnoresOrderAndValues(t *testing.T) {
 	if deviceLabelFingerprint(a) == deviceLabelFingerprint(c) {
 		t.Error("fingerprint unchanged for version change")
 	}
+}
+
+func TestDeleteDeviceScrapeErrors(t *testing.T) {
+	const fetchFailed = errorTypeClientFetchFailed
+	scrapeErr := func(target, errorType string) map[string]string {
+		return map[string]string{labelTarget: target, labelErrorType: errorType}
+	}
+	seed := func(t *testing.T, target, errorType string) {
+		t.Helper()
+		ScrapeErrors.WithLabelValues(target, errorType).Inc()
+		t.Cleanup(func() { ScrapeErrors.DeleteLabelValues(target, errorType) })
+	}
+
+	t.Run("removed", func(t *testing.T) {
+		tracker := NewDeviceMetricsTracker()
+		tracker.knownDevices["sde-a"] = "sde-name-a"
+		seed(t, "sde-name-a", fetchFailed)
+		tracker.CleanupRemovedDevices(map[string]string{})
+		if hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("sde-name-a", fetchFailed)) {
+			t.Error("scrape error series of removed device still present")
+		}
+	})
+
+	t.Run("reused name", func(t *testing.T) {
+		tracker := NewDeviceMetricsTracker()
+		tracker.knownDevices["sde-old"] = "sde-dup"
+		seed(t, "sde-dup", fetchFailed)
+		tracker.CleanupRemovedDevices(map[string]string{"sde-new": "sde-dup"})
+		if !hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("sde-dup", fetchFailed)) {
+			t.Error("scrape error series deleted although a new device carries the name")
+		}
+	})
+
+	t.Run("aggregate untouched", func(t *testing.T) {
+		tracker := NewDeviceMetricsTracker()
+		tracker.knownDevices["sde-t"] = "tailscale"
+		seed(t, "tailscale", fetchFailed)
+		seed(t, "tailscale", "fetch_failed")
+		seed(t, "tailscale", "client_scrape_failed")
+		tracker.CleanupRemovedDevices(map[string]string{})
+		if hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("tailscale", fetchFailed)) {
+			t.Error("client_fetch_failed series of removed device still present")
+		}
+		for _, errorType := range []string{"fetch_failed", "client_scrape_failed"} {
+			if !hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("tailscale", errorType)) {
+				t.Errorf("collector series %s deleted with the device", errorType)
+			}
+		}
+	})
+
+	t.Run("empty name", func(t *testing.T) {
+		tracker := NewDeviceMetricsTracker()
+		tracker.knownDevices["sde-x"] = ""
+		seed(t, "", fetchFailed)
+		tracker.CleanupRemovedDevices(map[string]string{})
+		if _, ok := tracker.knownDevices["sde-x"]; ok {
+			t.Error("sde-x still tracked")
+		}
+		if hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("", fetchFailed)) {
+			t.Error("scrape error series with empty target still present")
+		}
+	})
+
+	t.Run("renamed", func(t *testing.T) {
+		seed(t, "sde-old-name", fetchFailed)
+		dropRenamedDeviceSeries(map[string]string{"sde-r": "sde-old-name"}, map[string]string{"sde-r": "sde-new-name"})
+		if hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("sde-old-name", fetchFailed)) {
+			t.Error("scrape error series under old name still present after rename")
+		}
+	})
+
+	t.Run("rename onto taken name", func(t *testing.T) {
+		seed(t, "sde-taken", fetchFailed)
+		dropRenamedDeviceSeries(
+			map[string]string{"sde-r2": "sde-taken"},
+			map[string]string{"sde-r2": "sde-other", "sde-z": "sde-taken"},
+		)
+		if !hasSeries(t, "tsmetrics_scrape_errors_total", scrapeErr("sde-taken", fetchFailed)) {
+			t.Error("scrape error series deleted although another device carries the name")
+		}
+	})
 }

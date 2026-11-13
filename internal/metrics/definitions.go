@@ -18,6 +18,10 @@ const (
 	labelTarget     = "target"
 )
 
+// errorTypeClientFetchFailed is the error_type of a device's own scrape error
+// series (target=<device name>), written by the scraper and deleted on cleanup.
+const errorTypeClientFetchFailed = "client_fetch_failed"
+
 var (
 	// ScrapeDuration tracks the time spent scraping metrics from targets.
 	ScrapeDuration = promauto.NewHistogramVec(
@@ -331,13 +335,28 @@ func GetOnlineDevicesCount() int {
 	return int(m.Gauge.GetValue())
 }
 
-// CleanupDeviceMetrics removes all metrics associated with a specific device.
-// Client scrape errors are labeled by device name through "target".
-func CleanupDeviceMetrics(deviceID, deviceName string) {
-	ScrapeErrors.DeletePartialMatch(prometheus.Labels{labelTarget: deviceName})
+// CleanupDeviceMetrics removes all metrics associated with a specific device ID.
+// The device's client scrape error series is labeled by name, not ID; remove it
+// with deleteDeviceScrapeErrors.
+func CleanupDeviceMetrics(deviceID string) {
 	DeviceErrors.DeletePartialMatch(prometheus.Labels{labelDeviceID: deviceID})
 	cleanupClientDeviceMetrics(deviceID)
 	cleanupAPIDeviceMetrics(deviceID)
+}
+
+// deleteDeviceScrapeErrors removes the client_fetch_failed scrape error series
+// of a device that is gone or renamed. The series is labeled target=<device name>,
+// so it is kept when a device seen in this cycle (device ID to device name)
+// carries the same name. The collector's own series (fetch_failed,
+// client_scrape_failed) share the label but are never touched.
+func deleteDeviceScrapeErrors(name string, seen map[string]string) {
+	// ponytail: linear scan per removed device, build a name set if tailnets grow large.
+	for _, seenName := range seen {
+		if seenName == name {
+			return
+		}
+	}
+	ScrapeErrors.DeleteLabelValues(name, errorTypeClientFetchFailed)
 }
 
 // clientDeviceVecs lists the vectors scraped from a device's client metrics

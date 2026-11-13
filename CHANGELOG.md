@@ -11,8 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Metrics for devices removed from discovery, including client metrics,
   `tsmetrics_device_errors_total` and the device's
-  `tsmetrics_scrape_errors_total` series, are now deleted in the same cleanup
-  pass.
+  `tsmetrics_scrape_errors_total{error_type="client_fetch_failed"}` series, are
+  now deleted in the same cleanup pass.
+- Removing or renaming a device now deletes only its own
+  `tsmetrics_scrape_errors_total{error_type="client_fetch_failed"}` series.
+  Before, a device named like the collector target (`tailscale`) also took the
+  `fetch_failed` and `client_scrape_failed` series with it, and a renamed device
+  kept the series under its old name. The series stays when another device
+  carries the same name.
 - A failed Tailscale API discovery no longer counts as "no devices", so it keeps
   the last cycle's device series instead of deleting them all.
 - The Helm ServiceMonitor now sends `METRICS_TOKEN` as a Bearer token when

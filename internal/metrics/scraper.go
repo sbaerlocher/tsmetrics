@@ -182,7 +182,7 @@ func ScrapeClientMetrics(ctx context.Context, devices []device.Device, cfg confi
 				} else {
 					slog.Error("scrapeClient error", "device", dev.Name.String(), "error", err)
 				}
-				ScrapeErrors.WithLabelValues(dev.Name.String(), "client_fetch_failed").Inc()
+				ScrapeErrors.WithLabelValues(dev.Name.String(), errorTypeClientFetchFailed).Inc()
 			}
 		}(d)
 	}
