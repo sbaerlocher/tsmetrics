@@ -26,7 +26,8 @@ func (d *DeviceMetricsTracker) CleanupRemovedDevices(seenDevices map[string]stri
 	for deviceID, deviceName := range d.knownDevices {
 		if _, exists := seenDevices[deviceID]; !exists {
 			slog.Info("device no longer discovered, cleaning up metrics", "device_id", deviceID)
-			CleanupDeviceMetrics(deviceID, deviceName)
+			CleanupDeviceMetrics(deviceID)
+			deleteDeviceScrapeErrors(deviceName, seenDevices)
 			delete(d.knownDevices, deviceID)
 		}
 	}
