@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -227,7 +229,7 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 
 	t.Run("setup load workers", func(t *testing.T) {
 		var wg sync.WaitGroup
-		stopChan := make(chan struct{})
+		var operations atomic.Int64
 
 		for i := 0; i < 5; i++ {
 			wg.Add(1)
@@ -237,12 +239,18 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 				worker := server.NewGracefulWorker(
 					fmt.Sprintf("load-worker-%d", workerID),
 					func(ctx context.Context) error {
+						ticker := time.NewTicker(50 * time.Millisecond)
+						defer ticker.Stop()
+
 						for {
 							select {
 							case <-ctx.Done():
 								return ctx.Err()
-							case <-stopChan:
-								return nil
+							case <-ticker.C:
+								if _, err := suite.deviceCache.GetDevices(false); err != nil {
+									return err
+								}
+								operations.Add(1)
 							}
 						}
 					},
@@ -253,9 +261,11 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 			}(i)
 		}
 
+		wg.Wait()
 		time.Sleep(500 * time.Millisecond)
-
-		close(stopChan)
+		if operations.Load() == 0 {
+			t.Fatal("Workers performed no cache operations before shutdown")
+		}
 
 		shutdownStart := time.Now()
 		suite.shutdownMgr.Shutdown()
@@ -265,7 +275,6 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 			t.Errorf("Graceful shutdown took too long: %v", shutdownDuration)
 		}
 
-		wg.Wait()
 	})
 }
 
@@ -470,6 +479,30 @@ func TestPerformanceUnderLoad(t *testing.T) {
 		if duration > 15*time.Second {
 			t.Errorf("Parallel strategy with 100 devices took too long: %v", duration)
 		}
+	})
+
+	t.Run("memory usage stability", func(t *testing.T) {
+		var initial, current runtime.MemStats
+		runtime.ReadMemStats(&initial)
+
+		for i := 0; i < 100; i++ {
+			if _, err := suite.deviceCache.GetDevices(false); err != nil {
+				t.Fatalf("Cache operation %d failed: %v", i, err)
+			}
+
+			if i%10 == 0 {
+				runtime.ReadMemStats(&current)
+				growth := float64(int64(current.Alloc)-int64(initial.Alloc)) / float64(initial.Alloc)
+				if growth > 2.0 {
+					t.Errorf("Memory usage grew by %.2f%% after %d operations", growth*100, i)
+				}
+			}
+		}
+
+		runtime.ReadMemStats(&current)
+		growth := float64(int64(current.Alloc)-int64(initial.Alloc)) / float64(initial.Alloc)
+		t.Logf("Memory usage after cache operations: initial=%d final=%d growth=%.2f%%",
+			initial.Alloc, current.Alloc, growth*100)
 	})
 }
 
