@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -25,7 +24,6 @@ type TestSuite struct {
 	collector   *metrics.Collector
 	deviceCache *cache.DeviceCache
 	strategyMgr *metrics.StrategyManager
-	perfMonitor *metrics.PerformanceMonitor
 	shutdownMgr *server.ShutdownManager
 }
 
@@ -78,7 +76,6 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		t.Fatalf("Failed to set active strategy: %v", err)
 	}
 
-	perfMonitor := metrics.NewPerformanceMonitor(100 * time.Millisecond)
 	shutdownMgr := server.NewShutdownManager(30 * time.Second)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +93,6 @@ func setupTestSuite(t *testing.T) *TestSuite {
 
 	t.Cleanup(func() {
 		httpServer.Close()
-		perfMonitor.Stop()
 		shutdownMgr.Shutdown()
 	})
 
@@ -106,7 +102,6 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		collector:   collector,
 		deviceCache: deviceCache,
 		strategyMgr: strategyMgr,
-		perfMonitor: perfMonitor,
 		shutdownMgr: shutdownMgr,
 	}
 }
@@ -165,26 +160,6 @@ func TestFullWorkflow_DeviceDiscoveryToCacheToMetrics(t *testing.T) {
 		err = strategy.Execute(ctx, devices)
 		if err != nil {
 			t.Errorf("Strategy execution failed: %v", err)
-		}
-	})
-
-	t.Run("performance monitoring", func(t *testing.T) {
-		suite.perfMonitor.Start()
-		defer suite.perfMonitor.Stop()
-
-		time.Sleep(200 * time.Millisecond)
-
-		stats := suite.perfMonitor.GetCurrentStats()
-		if stats.Goroutines <= 0 {
-			t.Error("Expected positive goroutine count")
-		}
-
-		if stats.MemoryAllocated == 0 {
-			t.Error("Expected non-zero memory allocation")
-		}
-
-		if !suite.perfMonitor.IsHealthy() {
-			t.Error("Performance monitor should be healthy")
 		}
 	})
 }
@@ -262,17 +237,12 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 				worker := server.NewGracefulWorker(
 					fmt.Sprintf("load-worker-%d", workerID),
 					func(ctx context.Context) error {
-						ticker := time.NewTicker(50 * time.Millisecond)
-						defer ticker.Stop()
-
 						for {
 							select {
 							case <-ctx.Done():
 								return ctx.Err()
 							case <-stopChan:
 								return nil
-							case <-ticker.C:
-								suite.perfMonitor.RecordScrapeOperation()
 							}
 						}
 					},
@@ -500,38 +470,6 @@ func TestPerformanceUnderLoad(t *testing.T) {
 		if duration > 15*time.Second {
 			t.Errorf("Parallel strategy with 100 devices took too long: %v", duration)
 		}
-	})
-
-	t.Run("memory usage stability", func(t *testing.T) {
-		suite.perfMonitor.Start()
-		defer suite.perfMonitor.Stop()
-
-		initialStats := suite.perfMonitor.GetCurrentStats()
-		initialMemory := initialStats.MemoryAllocated
-
-		for i := 0; i < 100; i++ {
-			_, err := suite.deviceCache.GetDevices(false)
-			if err != nil {
-				t.Fatalf("Cache operation %d failed: %v", i, err)
-			}
-
-			if i%10 == 0 {
-				currentStats := suite.perfMonitor.GetCurrentStats()
-				memoryGrowth := float64(currentStats.MemoryAllocated-initialMemory) / float64(initialMemory)
-
-				if memoryGrowth > 2.0 {
-					t.Errorf("Memory usage grew by %.2f%% after %d operations", memoryGrowth*100, i)
-				}
-			}
-		}
-
-		finalStats := suite.perfMonitor.GetCurrentStats()
-		memoryGrowth := float64(finalStats.MemoryAllocated-initialMemory) / float64(initialMemory)
-
-		slog.Info("Memory usage after load test",
-			"initial_memory", initialMemory,
-			"final_memory", finalStats.MemoryAllocated,
-			"growth_percent", memoryGrowth*100)
 	})
 }
 

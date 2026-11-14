@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/cache"
-	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 	"github.com/sbaerlocher/tsmetrics/internal/types"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
@@ -243,110 +242,6 @@ func TestLoad_CacheOperationsUnderStress(t *testing.T) {
 	}
 
 	if operations < 100 {
-		t.Errorf("Not enough operations completed: %d", operations)
-	}
-}
-
-func TestLoad_PerformanceMonitorUnderStress(t *testing.T) {
-	config := LoadTestConfig{
-		ConcurrentWorkers: 15,
-		TestDuration:      10 * time.Second,
-		MaxMemoryMB:       150,
-	}
-
-	monitor := metrics.NewPerformanceMonitor(1 * time.Second)
-	monitor.Start()
-	defer monitor.Stop()
-
-	var operations int64
-	var errors int64
-
-	ctx, cancel := context.WithTimeout(context.Background(), config.TestDuration)
-	defer cancel()
-
-	var wg sync.WaitGroup
-
-	// Simulate high-frequency scraping operations
-	for i := 0; i < config.ConcurrentWorkers; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					// Simulate a scraping operation
-					time.Sleep(time.Duration(workerID%10+1) * time.Millisecond)
-
-					// Record operation in performance monitor
-					monitor.RecordScrapeOperation()
-
-					// Check if monitor is still healthy
-					if !monitor.IsHealthy() {
-						atomic.AddInt64(&errors, 1)
-					}
-
-					atomic.AddInt64(&operations, 1)
-					time.Sleep(50 * time.Millisecond)
-				}
-			}
-		}(i)
-	}
-
-	// Monitor health status continuously
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				stats := monitor.GetCurrentStats()
-				status := monitor.GetHealthStatus()
-
-				t.Logf("Performance Stats - Goroutines: %d, Memory: %.1f MB, Healthy: %v",
-					stats.Goroutines,
-					float64(stats.MemoryAllocated)/1024/1024,
-					status["healthy"])
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	// Final assessment
-	finalStats := monitor.GetCurrentStats()
-	finalHealth := monitor.GetHealthStatus()
-
-	t.Logf("Performance Monitor Load Test Results:")
-	t.Logf("  Total Operations: %d", operations)
-	t.Logf("  Errors: %d", errors)
-	t.Logf("  Final Goroutines: %d", finalStats.Goroutines)
-	t.Logf("  Final Memory: %.1f MB", float64(finalStats.MemoryAllocated)/1024/1024)
-	t.Logf("  Final Health: %v", finalHealth["healthy"])
-	t.Logf("  Scraping Throughput: %.2f ops/sec", finalStats.ScrapingThroughput)
-
-	// Assertions
-	if errors > operations/10 {
-		t.Errorf("Too many health check failures: %d/%d", errors, operations)
-	}
-
-	if finalStats.Goroutines > 1000 {
-		t.Errorf("Too many goroutines: %d", finalStats.Goroutines)
-	}
-
-	memoryMB := float64(finalStats.MemoryAllocated) / 1024 / 1024
-	if memoryMB > float64(config.MaxMemoryMB) {
-		t.Errorf("Memory usage too high: %.1f MB", memoryMB)
-	}
-
-	if operations < 50 {
 		t.Errorf("Not enough operations completed: %d", operations)
 	}
 }

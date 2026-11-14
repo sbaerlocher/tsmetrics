@@ -11,7 +11,6 @@ import (
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/cache"
-	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
@@ -236,30 +235,6 @@ func TestCacheHealthChecker(t *testing.T) {
 	err = nilChecker.CheckHealth(context.Background())
 	if err == nil {
 		t.Error("Expected error with nil cache")
-	}
-}
-
-func TestPerformanceHealthChecker(t *testing.T) {
-	monitor := metrics.NewPerformanceMonitor(5 * time.Second)
-	monitor.Start()
-	defer monitor.Stop()
-
-	checker := NewPerformanceHealthChecker(monitor)
-
-	if checker.ComponentName() != "performance_monitor" {
-		t.Errorf("Expected component name 'performance_monitor', got %s", checker.ComponentName())
-	}
-
-	err := checker.CheckHealth(context.Background())
-	if err != nil {
-		t.Errorf("Performance health check failed: %v", err)
-	}
-
-	// Test with nil monitor
-	nilChecker := NewPerformanceHealthChecker(nil)
-	err = nilChecker.CheckHealth(context.Background())
-	if err == nil {
-		t.Error("Expected error with nil monitor")
 	}
 }
 

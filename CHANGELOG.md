@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `tsmetrics_performance_*` metrics. The performance monitor was never started
+  in production, so its registered gauges reported `0`. Use the Go collector's
+  `go_goroutines` and `go_memstats_*` metrics instead.
 - `tsmetrics_memory_usage_bytes` and `tsmetrics_goroutines_total`. Nothing ever
   set them, so every scrape reported `0`. Use the Go collector's
   `go_memstats_heap_alloc_bytes` and `go_goroutines` instead.
