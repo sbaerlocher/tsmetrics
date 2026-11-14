@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,6 +23,11 @@ func TestDeadRuntimeMetricsNotExported(t *testing.T) {
 	for _, dead := range []string{"tsmetrics_memory_usage_bytes", "tsmetrics_goroutines_total"} {
 		if names[dead] {
 			t.Errorf("%s is still exported", dead)
+		}
+	}
+	for name := range names {
+		if strings.HasPrefix(name, "tsmetrics_performance_") {
+			t.Errorf("%s is still exported", name)
 		}
 	}
 	for _, want := range []string{"go_goroutines", "go_memstats_heap_alloc_bytes"} {

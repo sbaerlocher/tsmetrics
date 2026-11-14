@@ -12,7 +12,6 @@ import (
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
 	"github.com/sbaerlocher/tsmetrics/internal/cache"
-	"github.com/sbaerlocher/tsmetrics/internal/metrics"
 )
 
 // Status represents the health status of a component.
@@ -253,36 +252,6 @@ func (cc *CacheHealthChecker) CheckHealth(ctx context.Context) error {
 	// Additional checks could be added here for specific conditions
 	if stats.DeviceCount < 0 {
 		return fmt.Errorf("cache in invalid state")
-	}
-
-	return nil
-}
-
-// Performance Monitor Health Checker
-// PerformanceHealthChecker checks the health of the performance monitor.
-type PerformanceHealthChecker struct {
-	monitor *metrics.PerformanceMonitor
-}
-
-// NewPerformanceHealthChecker creates a new performance health checker.
-func NewPerformanceHealthChecker(monitor *metrics.PerformanceMonitor) *PerformanceHealthChecker {
-	return &PerformanceHealthChecker{monitor: monitor}
-}
-
-func (pc *PerformanceHealthChecker) ComponentName() string {
-	return "performance_monitor"
-}
-
-func (pc *PerformanceHealthChecker) CheckHealth(ctx context.Context) error {
-	if pc.monitor == nil {
-		return fmt.Errorf("performance monitor not initialized")
-	}
-
-	if !pc.monitor.IsHealthy() {
-		status := pc.monitor.GetHealthStatus()
-		if healthy, ok := status["healthy"].(bool); ok && !healthy {
-			return fmt.Errorf("performance monitor unhealthy")
-		}
 	}
 
 	return nil

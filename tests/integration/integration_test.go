@@ -3,11 +3,12 @@ package integration
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ type TestSuite struct {
 	collector   *metrics.Collector
 	deviceCache *cache.DeviceCache
 	strategyMgr *metrics.StrategyManager
-	perfMonitor *metrics.PerformanceMonitor
 	shutdownMgr *server.ShutdownManager
 }
 
@@ -78,7 +78,6 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		t.Fatalf("Failed to set active strategy: %v", err)
 	}
 
-	perfMonitor := metrics.NewPerformanceMonitor(100 * time.Millisecond)
 	shutdownMgr := server.NewShutdownManager(30 * time.Second)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +95,6 @@ func setupTestSuite(t *testing.T) *TestSuite {
 
 	t.Cleanup(func() {
 		httpServer.Close()
-		perfMonitor.Stop()
 		shutdownMgr.Shutdown()
 	})
 
@@ -106,7 +104,6 @@ func setupTestSuite(t *testing.T) *TestSuite {
 		collector:   collector,
 		deviceCache: deviceCache,
 		strategyMgr: strategyMgr,
-		perfMonitor: perfMonitor,
 		shutdownMgr: shutdownMgr,
 	}
 }
@@ -165,26 +162,6 @@ func TestFullWorkflow_DeviceDiscoveryToCacheToMetrics(t *testing.T) {
 		err = strategy.Execute(ctx, devices)
 		if err != nil {
 			t.Errorf("Strategy execution failed: %v", err)
-		}
-	})
-
-	t.Run("performance monitoring", func(t *testing.T) {
-		suite.perfMonitor.Start()
-		defer suite.perfMonitor.Stop()
-
-		time.Sleep(200 * time.Millisecond)
-
-		stats := suite.perfMonitor.GetCurrentStats()
-		if stats.Goroutines <= 0 {
-			t.Error("Expected positive goroutine count")
-		}
-
-		if stats.MemoryAllocated == 0 {
-			t.Error("Expected non-zero memory allocation")
-		}
-
-		if !suite.perfMonitor.IsHealthy() {
-			t.Error("Performance monitor should be healthy")
 		}
 	})
 }
@@ -252,7 +229,7 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 
 	t.Run("setup load workers", func(t *testing.T) {
 		var wg sync.WaitGroup
-		stopChan := make(chan struct{})
+		var operations atomic.Int64
 
 		for i := 0; i < 5; i++ {
 			wg.Add(1)
@@ -269,10 +246,11 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 							select {
 							case <-ctx.Done():
 								return ctx.Err()
-							case <-stopChan:
-								return nil
 							case <-ticker.C:
-								suite.perfMonitor.RecordScrapeOperation()
+								if _, err := suite.deviceCache.GetDevices(false); err != nil {
+									return err
+								}
+								operations.Add(1)
 							}
 						}
 					},
@@ -283,9 +261,11 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 			}(i)
 		}
 
+		wg.Wait()
 		time.Sleep(500 * time.Millisecond)
-
-		close(stopChan)
+		if operations.Load() == 0 {
+			t.Fatal("Workers performed no cache operations before shutdown")
+		}
 
 		shutdownStart := time.Now()
 		suite.shutdownMgr.Shutdown()
@@ -295,7 +275,6 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 			t.Errorf("Graceful shutdown took too long: %v", shutdownDuration)
 		}
 
-		wg.Wait()
 	})
 }
 
@@ -503,35 +482,27 @@ func TestPerformanceUnderLoad(t *testing.T) {
 	})
 
 	t.Run("memory usage stability", func(t *testing.T) {
-		suite.perfMonitor.Start()
-		defer suite.perfMonitor.Stop()
-
-		initialStats := suite.perfMonitor.GetCurrentStats()
-		initialMemory := initialStats.MemoryAllocated
+		var initial, current runtime.MemStats
+		runtime.ReadMemStats(&initial)
 
 		for i := 0; i < 100; i++ {
-			_, err := suite.deviceCache.GetDevices(false)
-			if err != nil {
+			if _, err := suite.deviceCache.GetDevices(false); err != nil {
 				t.Fatalf("Cache operation %d failed: %v", i, err)
 			}
 
 			if i%10 == 0 {
-				currentStats := suite.perfMonitor.GetCurrentStats()
-				memoryGrowth := float64(currentStats.MemoryAllocated-initialMemory) / float64(initialMemory)
-
-				if memoryGrowth > 2.0 {
-					t.Errorf("Memory usage grew by %.2f%% after %d operations", memoryGrowth*100, i)
+				runtime.ReadMemStats(&current)
+				growth := float64(int64(current.Alloc)-int64(initial.Alloc)) / float64(initial.Alloc)
+				if growth > 2.0 {
+					t.Errorf("Memory usage grew by %.2f%% after %d operations", growth*100, i)
 				}
 			}
 		}
 
-		finalStats := suite.perfMonitor.GetCurrentStats()
-		memoryGrowth := float64(finalStats.MemoryAllocated-initialMemory) / float64(initialMemory)
-
-		slog.Info("Memory usage after load test",
-			"initial_memory", initialMemory,
-			"final_memory", finalStats.MemoryAllocated,
-			"growth_percent", memoryGrowth*100)
+		runtime.ReadMemStats(&current)
+		growth := float64(int64(current.Alloc)-int64(initial.Alloc)) / float64(initial.Alloc)
+		t.Logf("Memory usage after cache operations: initial=%d final=%d growth=%.2f%%",
+			initial.Alloc, current.Alloc, growth*100)
 	})
 }
 
