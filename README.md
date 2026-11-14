@@ -247,8 +247,8 @@ RATE_LIMIT_BURST=20
 #### Development/Testing
 
 ```bash
-# Without API credentials: static mock device list.
-# With API credentials: filter on the devices the API returns.
+# Without TAILNET_NAME: static mock device list.
+# With TAILNET_NAME set: filter on the devices the API returns.
 TARGET_DEVICES=gateway-1,gateway-2,server-3
 ```
 

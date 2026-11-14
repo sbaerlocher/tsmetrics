@@ -196,10 +196,10 @@ use `git add -f cmd/tsmetrics/main.go` for already-tracked files.
 
 - `CLIENT_METRICS_TIMEOUT` — Timeout for client metrics (default: 10s)
 - `MAX_CONCURRENT_SCRAPES` — Parallel scrapes (default: 10)
-- `TARGET_DEVICES` — Comma-separated device names/IDs/hosts (exact, case-insensitive). With API
-  credentials: filter on discovered devices (empty = all devices). Without API credentials: static
-  device list (empty = no devices). `TEST_DEVICES` is still read as a deprecated discovery fallback;
-  the health check setup (`initializeHealthChecker`) only looks at `TARGET_DEVICES`.
+- `TARGET_DEVICES` — Comma-separated device names/IDs/hosts (exact, case-insensitive). With
+  `TAILNET_NAME` set: filter on discovered devices (empty = all devices). Without `TAILNET_NAME`:
+  static device list (empty = no devices). `TEST_DEVICES` is still read as a deprecated discovery
+  fallback; the health check setup (`initializeHealthChecker`) only looks at `TARGET_DEVICES`.
 
 ### Build Metadata
 
