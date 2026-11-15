@@ -199,6 +199,12 @@ func TestFullWorkflow_GracefulShutdownUnderLoad(t *testing.T) {
 							case <-ctx.Done():
 								return ctx.Err()
 							case <-ticker.C:
+								if err := scrape(ctx, suite.server.URL+"/metrics"); err != nil {
+									if ctx.Err() != nil {
+										return ctx.Err()
+									}
+									return err
+								}
 								operations.Add(1)
 							}
 						}
@@ -318,6 +324,23 @@ func TestPerformanceUnderLoad(t *testing.T) {
 			t.Errorf("Parallel strategy with 100 devices took too long: %v", duration)
 		}
 	})
+}
+
+// scrape fetches url and fails unless the server answers 200.
+func scrape(ctx context.Context, url string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("scrape %s: status %d", url, resp.StatusCode)
+	}
+	return nil
 }
 
 func init() {

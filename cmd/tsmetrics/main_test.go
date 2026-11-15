@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"strings"
@@ -8,8 +8,8 @@ import (
 )
 
 // TestCacheMetricsNotExported guards against re-adding device cache metrics
-// that the exporter never fed: importing the server package used to register
-// them, so /metrics reported constant zeros.
+// that the exporter never fed. The main package links the binary's full import
+// graph, so every collector registered at import time shows up here.
 func TestCacheMetricsNotExported(t *testing.T) {
 	families, err := prometheus.DefaultGatherer.Gather()
 	if err != nil {
