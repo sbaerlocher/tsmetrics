@@ -104,7 +104,6 @@ tailscaled_approved_routes{device_id, device_name}
 # Exporter Health
 tsmetrics_scrape_duration_seconds{target}
 tsmetrics_scrape_errors_total{target, error_type}
-tsmetrics_api_requests_total{endpoint}
 ```
 
 ## Build & Development
