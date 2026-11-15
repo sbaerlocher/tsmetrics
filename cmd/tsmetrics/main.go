@@ -134,7 +134,7 @@ func main() {
 		fmt.Printf("  LOG_LEVEL             Log level: debug, info, warn, error (default: info)\n")
 		fmt.Printf("  LOG_FORMAT            Log format: text, json (default: text)\n")
 		fmt.Printf("  USE_TSNET             Use tsnet for networking (default: false)\n")
-		fmt.Printf("  TSNET_HOSTNAME        Hostname for tsnet (default: tsmetrics)\n")
+		fmt.Printf("  TSNET_HOSTNAME        Hostname for tsnet (required when USE_TSNET=true)\n")
 		fmt.Printf("  TSNET_TAGS            Comma-separated list of tags for this tsnet instance\n")
 		fmt.Printf("  SCRAPE_TAG            Tag filter for devices to scrape (default: exporter)\n")
 		fmt.Printf("\nFor more information, visit: https://github.com/sbaerlocher/tsmetrics\n")
