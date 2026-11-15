@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
-	"github.com/sbaerlocher/tsmetrics/internal/cache"
 )
 
 // Status represents the health status of a component.
@@ -220,38 +219,6 @@ func (ac *APIHealthChecker) CheckHealth(ctx context.Context) error {
 	_, err := ac.client.TestConnectivity(ctx)
 	if err != nil {
 		return fmt.Errorf("API connectivity check failed: %w", err)
-	}
-
-	return nil
-}
-
-// Cache Health Checker
-// CacheHealthChecker checks the health of the device cache.
-type CacheHealthChecker struct {
-	cache *cache.DeviceCache
-}
-
-// NewCacheHealthChecker creates a new cache health checker.
-func NewCacheHealthChecker(cache *cache.DeviceCache) *CacheHealthChecker {
-	return &CacheHealthChecker{cache: cache}
-}
-
-func (cc *CacheHealthChecker) ComponentName() string {
-	return "device_cache"
-}
-
-func (cc *CacheHealthChecker) CheckHealth(ctx context.Context) error {
-	if cc.cache == nil {
-		return fmt.Errorf("cache not initialized")
-	}
-
-	// Check cache stats to verify it's functioning
-	stats := cc.cache.GetCacheStats()
-
-	// Cache is considered healthy if we can retrieve stats
-	// Additional checks could be added here for specific conditions
-	if stats.DeviceCount < 0 {
-		return fmt.Errorf("cache in invalid state")
 	}
 
 	return nil

@@ -38,11 +38,5 @@ pre-commit:
 
 pre-push:
   commands:
-    # Unit + integration + structure suites. The 45 s tests/load stress
-    # sweep is intentionally excluded from local pushes — it gates merges
-    # in CI but is too slow to run on every push.
     test:
-      run: >
-        go test
-        ./internal/... ./pkg/... ./cmd/...
-        ./tests/integration/... ./tests/structure/...
+      run: go test ./...

@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/sbaerlocher/tsmetrics/internal/api"
-	"github.com/sbaerlocher/tsmetrics/internal/cache"
-	"github.com/sbaerlocher/tsmetrics/pkg/device"
 )
 
 const (
@@ -211,30 +209,6 @@ func TestAPIHealthChecker(t *testing.T) {
 	err = nilChecker.CheckHealth(context.Background())
 	if err == nil {
 		t.Error("Expected error with nil client")
-	}
-}
-
-func TestCacheHealthChecker(t *testing.T) {
-	cache := cache.NewDeviceCache(5*time.Minute, 10*time.Minute, func() ([]device.Device, error) {
-		return []device.Device{}, nil
-	})
-
-	checker := NewCacheHealthChecker(cache)
-
-	if checker.ComponentName() != "device_cache" {
-		t.Errorf("Expected component name 'device_cache', got %s", checker.ComponentName())
-	}
-
-	err := checker.CheckHealth(context.Background())
-	if err != nil {
-		t.Errorf("Cache health check failed: %v", err)
-	}
-
-	// Test with nil cache
-	nilChecker := NewCacheHealthChecker(nil)
-	err = nilChecker.CheckHealth(context.Background())
-	if err == nil {
-		t.Error("Expected error with nil cache")
 	}
 }
 

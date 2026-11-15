@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tsmetrics_memory_usage_bytes` and `tsmetrics_goroutines_total`. Nothing ever
   set them, so every scrape reported `0`. Use the Go collector's
   `go_memstats_heap_alloc_bytes` and `go_goroutines` instead.
+- `tsmetrics_cache_hit_ratio`, `tsmetrics_cache_size_devices`,
+  `tsmetrics_api_calls_saved_total` and
+  `tsmetrics_cache_operation_duration_seconds`, together with the unused device
+  cache behind them. The exporter never built a cache, so the gauges reported
+  `0` and the counter and histogram never moved. The "Cache Efficiency" and
+  "API Optimization" panels are gone from the bundled Grafana dashboard.
 
 ### Fixed
 
