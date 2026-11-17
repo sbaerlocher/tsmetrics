@@ -537,9 +537,10 @@ resources:
     cpu: 1000m
     memory: 1Gi
 
-persistence:
-  enabled: true
-  size: 2Gi
+storage:
+  type: pvc
+  pvc:
+    size: 2Gi
 
 # External secrets integration
 externalSecret:
@@ -687,7 +688,7 @@ entry instead.
 | ---------------- | ------------ | -------------- | ------------- | -------------- |
 | ServiceMonitor   | Optional     | ❌             | ❌            | ✅             |
 | External Secrets | ✅           | ✅             | ✅            | ✅             |
-| HPA              | Optional     | ❌             | ❌            | ✅             |
+| HPA              | ❌           | ❌             | ❌            | ✅             |
 | Persistence      | Optional     | ❌             | ❌            | ✅             |
 | Resource Limits  | Configurable | Basic          | Reduced       | Production     |
 
