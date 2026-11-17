@@ -32,6 +32,9 @@ spec:
         # kics-scan ignore-line: Missing AppArmor Profile - AppArmor not universally available
         # checkov:skip=CKV_K8S_35:Secrets as env vars acceptable for this use case
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "tsmetrics.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
@@ -42,11 +45,14 @@ spec:
       {{- else }}
       automountServiceAccountToken: false
       {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 65534
-        runAsGroup: 65534
-        fsGroup: 65534
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if .Values.security.useInitContainer }}
       initContainers:
         - name: init-permissions
@@ -83,19 +89,11 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 65534
-            runAsGroup: 65534
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-              add: []
-            seccompProfile:
-              type: RuntimeDefault
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.config.port }}
@@ -196,37 +194,22 @@ spec:
             - name: tsnet-state
               mountPath: {{ .Values.tailscale.tsnet.stateDir }}
           {{- end }}
+          {{- with .Values.livenessProbe }}
           livenessProbe:
-            httpGet:
-              path: /livez
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
           startupProbe:
-            httpGet:
-              path: /startupz
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 30
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
           resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: tmp
           emptyDir:

@@ -6,10 +6,11 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/sbaerlocher/tsmetrics
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
+# e.g. [{name: my-registry-secret}]
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
@@ -82,35 +83,39 @@ externalSecret:
   enabled: false
   # Name of existing secret (default: tsmetrics-secrets)
   secretName: "tsmetrics-secrets"
-  # Keys for the secret
-  keys:
-    oauthClientId: "OAUTH_CLIENT_ID"
-    oauthClientSecret: "OAUTH_CLIENT_SECRET"
-    tailnetName: "TAILNET_NAME"
-    authKey: "TS_AUTHKEY" # optional
-    metricsToken: "METRICS_TOKEN" # optional
+  # The secret is loaded via envFrom, so its keys must be named after the
+  # environment variables: OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, TAILNET_NAME,
+  # TS_AUTHKEY (optional), METRICS_TOKEN (optional).
 
 # Pod configuration
 podAnnotations: {}
-podSecurityContext: {}
-  # fsGroup: 2000
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
 
-# Resource limits
-resources: {}
-  # limits:
-  #   cpu: 500m
-  #   memory: 512Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add: []
+  seccompProfile:
+    type: RuntimeDefault
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
 
 # Storage configuration for tsnet state
 # Available storage types:
@@ -168,10 +173,10 @@ security:
   # Alternative: Set securityContext allowPrivilegeEscalation for init
   initContainerPrivileged: false
 
-# Liveness and readiness probes
+# Liveness, readiness and startup probes
 livenessProbe:
   httpGet:
-    path: /health
+    path: /livez
     port: http
   initialDelaySeconds: 30
   periodSeconds: 30
@@ -180,12 +185,21 @@ livenessProbe:
 
 readinessProbe:
   httpGet:
-    path: /health
+    path: /readyz
     port: http
   initialDelaySeconds: 5
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /startupz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
 
 # Node selection
 nodeSelector: {}
@@ -193,14 +207,6 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
-
-# Horizontal Pod Autoscaler
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
 
 # Network Policy Configuration
 networkPolicy:
