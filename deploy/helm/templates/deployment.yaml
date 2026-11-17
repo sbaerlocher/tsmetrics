@@ -32,7 +32,7 @@ spec:
         # kics-scan ignore-line: Missing AppArmor Profile - AppArmor not universally available
         # checkov:skip=CKV_K8S_35:Secrets as env vars acceptable for this use case
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- with .Values.podAnnotations }}
+        {{- with omit .Values.podAnnotations "checksum/config" }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
@@ -54,6 +54,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if .Values.security.useInitContainer }}
+      {{- $sc := .Values.securityContext | default dict }}
+      {{- $psc := .Values.podSecurityContext | default dict }}
+      {{- $uid := $sc.runAsUser | default $psc.runAsUser | default 65534 }}
+      {{- $gid := $sc.runAsGroup | default $psc.runAsGroup | default 65534 }}
       initContainers:
         - name: init-permissions
           image: busybox:1.36
@@ -65,7 +69,7 @@ spec:
               mkdir -p {{ .Values.tailscale.tsnet.stateDir }}
               # If running as non-root, this will fail gracefully
               if [ "$(id -u)" = "0" ]; then
-                chown 65534:65534 {{ .Values.tailscale.tsnet.stateDir }} || true
+                chown {{ $uid }}:{{ $gid }} {{ .Values.tailscale.tsnet.stateDir }} || true
                 chmod 755 {{ .Values.tailscale.tsnet.stateDir }} || true
               fi
           securityContext:
@@ -73,8 +77,8 @@ spec:
             {{- if .Values.security.initContainerPrivileged }}
             runAsUser: 0
             {{- else }}
-            runAsUser: 65534
-            runAsGroup: 65534
+            runAsUser: {{ $uid }}
+            runAsGroup: {{ $gid }}
             {{- end }}
             allowPrivilegeEscalation: {{ .Values.security.initContainerPrivileged }}
             readOnlyRootFilesystem: true

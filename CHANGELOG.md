@@ -61,6 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deprecated `TEST_DEVICES`, explain that mock mode needs an empty
   `TAILNET_NAME`, and no longer describe wildcard matching, `DEVICE_TAGS`
   or `EXCLUDE_DEVICES`, which tsmetrics never supported.
+- The Helm chart now applies `resources`, `livenessProbe`, `readinessProbe`,
+  `startupProbe`, `securityContext`, `podSecurityContext`, `imagePullSecrets`,
+  `podAnnotations` and `image.pullPolicy`. Before, the Deployment hardcoded or
+  ignored them, so overrides had no effect. The new defaults match the values
+  the template used before. If your values file is a copy of the old chart
+  defaults, remove the `livenessProbe`/`readinessProbe` blocks on `/health`
+  (it fails while the Tailscale API is unreachable, so the pod would restart
+  in a loop) and `image.pullPolicy: IfNotPresent`, or update them, because
+  they now take effect. The unused `autoscaling` and `externalSecret.keys`
+  values are removed, and the README example uses `storage` instead of the
+  non-existent `persistence` key.
 
 ## [1.3.3] - 2026-11-06
 

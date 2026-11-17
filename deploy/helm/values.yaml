@@ -174,6 +174,9 @@ security:
   initContainerPrivileged: false
 
 # Liveness, readiness and startup probes
+# Helm deep-merges overrides into these defaults. To switch a probe to another
+# handler (exec, tcpSocket, grpc), also set `httpGet: null`, otherwise the
+# probe ends up with two handlers and the API server rejects the Deployment.
 livenessProbe:
   httpGet:
     path: /livez
