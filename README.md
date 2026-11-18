@@ -295,7 +295,8 @@ Required for API discovery only. Mock mode with a static `TARGET_DEVICES` list n
 
 ```prometheus
 tailscale_device_count
-tailscale_device_info{device_id, device_name, online, os, version}
+tailscale_device_info{device_id, device_name, os, version}
+tailscale_device_online{device_id, device_name}
 tailscale_device_authorized{device_id, device_name}
 tailscale_device_last_seen_timestamp{device_id, device_name}
 tailscale_device_user{device_id, device_name, user_email}
@@ -431,7 +432,7 @@ sum(tailscale_device_count)
 **Online vs Offline Devices:**
 
 ```promql
-sum by (online) (tailscale_device_info)
+count_values("online", tailscale_device_online)
 ```
 
 **Network Traffic by Device:**
@@ -472,7 +473,7 @@ groups:
   - name: tailscale
     rules:
       - alert: TailscaleDeviceOffline
-        expr: tailscale_device_info{online="false"} == 1
+        expr: tailscale_device_online == 0
         for: 5m
         labels:
           severity: warning
@@ -1402,7 +1403,7 @@ scrape_configs:
           "queryType": "",
           "refId": "A",
           "model": {
-            "expr": "tailscale_device_info{online=\"false\"} == 1",
+            "expr": "tailscale_device_online == 0",
             "interval": "",
             "legendFormat": "",
             "refId": "A"
