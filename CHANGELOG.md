@@ -72,6 +72,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   they now take effect. The unused `autoscaling` and `externalSecret.keys`
   values are removed, and the README example uses `storage` instead of the
   non-existent `persistence` key.
+- The Kustomize production and development overlays no longer override the
+  liveness and readiness probes. Their patches pointed both probes at port
+  `8080`, while the container listens on `9100`, so the probes failed and the
+  pod never became ready. The overlays now inherit the base probes on the
+  named `http` port.
 
 ## [1.3.3] - 2026-11-06
 
