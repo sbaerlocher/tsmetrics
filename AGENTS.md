@@ -78,7 +78,8 @@ Tailscale Prometheus Exporter that combines API metadata with live device metric
 ```
 # Device Management (from Tailscale API)
 tailscale_device_count
-tailscale_device_info{device_id, device_name, online, os, version}
+tailscale_device_info{device_id, device_name, os, version}
+tailscale_device_online{device_id, device_name}
 tailscale_device_authorized{device_id, device_name}
 tailscale_device_last_seen_timestamp{device_id, device_name}
 tailscale_device_user{device_id, device_name, user_email}
@@ -260,8 +261,10 @@ State persists in the `tsnet_state` named volume. Start with `just dev`, then:
 ```go
 // HTTP endpoints
 func TestHealthEndpoint(t *testing.T) {
-    // Verify /health returns 200 when API accessible
-    // Verify /health returns 500 when API unreachable
+    // Verify /health returns 200 with api_status "healthy" when API accessible
+    // Verify /health returns 200 with api_status "degraded" when API unreachable
+    // /readyz and /healthz return 503 only when a registered health component
+    // fails; no API component is registered, so an API outage does not fail them
 }
 
 func TestMetricsEndpoint(t *testing.T) {

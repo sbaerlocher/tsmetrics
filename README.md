@@ -295,7 +295,8 @@ Required for API discovery only. Mock mode with a static `TARGET_DEVICES` list n
 
 ```prometheus
 tailscale_device_count
-tailscale_device_info{device_id, device_name, online, os, version}
+tailscale_device_info{device_id, device_name, os, version}
+tailscale_device_online{device_id, device_name}
 tailscale_device_authorized{device_id, device_name}
 tailscale_device_last_seen_timestamp{device_id, device_name}
 tailscale_device_user{device_id, device_name, user_email}
