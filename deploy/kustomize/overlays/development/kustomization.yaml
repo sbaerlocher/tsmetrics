@@ -19,8 +19,8 @@ replicas:
   - name: tsmetrics
     count: 1
 
-# Override namespace for development
-namespace: default
+# Own namespace for development, so the Role's unscoped secrets/create stays isolated
+namespace: tsmetrics-dev
 
 labels:
   - pairs:

@@ -14,7 +14,6 @@ metadata:
 spec:
   template:
     spec:
-      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534

@@ -359,7 +359,7 @@ helm install tsmetrics deploy/helm \
   --set tailscale.tailnetName=your-tailnet
 
 # Kustomize — the base expects the Secret tsmetrics-secrets in the namespace
-# (production: tsmetrics, development: default); the pod starts once it exists
+# (production: tsmetrics, development: tsmetrics-dev); the pod starts once it exists
 kubectl apply -k deploy/kustomize/overlays/production
 kubectl -n tsmetrics create secret generic tsmetrics-secrets \
   --from-literal=OAUTH_CLIENT_ID=your-client-id \
