@@ -266,6 +266,13 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 5252
+    # Kubernetes API server for the tsnet `kube:` state store. NetworkPolicy
+    # sees the endpoint port after Service translation: 443 on many managed
+    # clusters (covered above), 6443 on kubeadm, k3s and others.
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 6443
     # DNS resolution (UDP primary, TCP fallback for large responses).
     - to: []
       ports:

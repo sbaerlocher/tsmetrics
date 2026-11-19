@@ -77,6 +77,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `8080`, while the container listens on `9100`, so the probes failed and the
   pod never became ready. The overlays now inherit the base probes on the
   named `http` port.
+- The Kustomize development overlay no longer disables the service account
+  token. With `TSNET_STATE_SECRET` inherited from the base, the `kube:` state
+  store could not authenticate, and the pod crash-looped after the retry
+  budget ran out.
+- The NetworkPolicy in the Kustomize base and the Helm chart default now allows
+  egress to TCP `6443`. On clusters whose API server listens there (kubeadm,
+  k3s), the `kube:` state store timed out under an enforcing CNI.
+- The Kustomize development overlay deploys into its own namespace
+  `tsmetrics-dev` instead of `default`, so the Role's unscoped Secret `create`
+  stays out of a shared namespace. Create `tsmetrics-secrets` in
+  `tsmetrics-dev` and remove the old resources from `default`.
 
 ## [1.3.3] - 2026-11-06
 

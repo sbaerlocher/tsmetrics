@@ -598,7 +598,7 @@ kubectl create secret generic tsmetrics-secrets -n tsmetrics \
   --from-literal=TAILNET_NAME=your-company
 ```
 
-For the development overlay, use `-n default` instead of `-n tsmetrics`.
+For the development overlay, use `-n tsmetrics-dev` instead of `-n tsmetrics`.
 
 **Protecting `/metrics` with `METRICS_TOKEN`:**
 
