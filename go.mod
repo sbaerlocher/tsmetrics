@@ -8,7 +8,7 @@ require (
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/time v0.16.0
 	gvisor.dev/gvisor v0.0.0-20261117040555-0303b2605d5e
-	tailscale.com v1.106.0
+	tailscale.com v1.106.1
 )
 
 require (
